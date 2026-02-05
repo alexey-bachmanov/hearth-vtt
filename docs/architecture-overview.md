@@ -92,24 +92,30 @@ The same Game Server implementation must run:
 
 ## Identity and permissions
 
-> **Terminology Note:** A **Seat** is a persistent slot in a campaign linked to one person; a **Session** is an ephemeral server run (startup to shutdown). See [shared-types.md](shared-types.md) for full definitions.
+> **Terminology Note:** A **Seat** is a persistent identity within a campaign. An **AuthSession** is an authenticated client connection (cookie-based). See [shared-types.md](shared-types.md) for full definitions.
 
 ### Roles
 
-- **Server Admin**: server-level management (updates, backups, campaign import/export, seat management).
-- **Campaign GM**: in-game authority (scenes, fog, actors, compendiums).
-- **Player**: controls assigned actor(s), uses allowed actions.
-- (Optional) **Spectator/Assistant GM**: constrained views/permissions.
-- In practice, server admin and campaign gm will often be the same person, but it's important to separate those roles.
+- **Server Admin**: Campaign-level access management (seat creation, invite management, import/export, permissions). Every campaign has an immutable admin seat created automatically. Admin uses a separate management UI.
+- **Campaign GM**: In-game authority (scenes, fog, actors, encounters). Manages gameplay, not access.
+- **Player**: Controls assigned actor(s), uses allowed actions.
+- **Spectator**: View-only access (optional; implementation TBD).
 
-### Self-host baseline auth: invite-link bootstrap
+**Important distinction**: Admin manages **who can join** (seats, invites, sessions). GM manages **what happens in-game** (scenes, encounters, fog). These roles are separate but may be held by the same person in self-hosted scenarios.
 
-- GM/Admin creates “seats” in a campaign.
-- Server generates **opaque invite secrets**.
-- A link is **claimed** into a revocable session (short-lived access + refresh cookie).
-- GM can revoke/rotate invites and revoke active sessions.
+### Authentication and Join Flow
 
-Platform identity (OAuth/passkey/email) may exist later for hosted convenience, but **server membership remains authoritative** for joining/permissions.
+- Admin creates **Seats** and generates **Invites** (capability tokens with PIN protection)
+- Players receive invite link: `GET /join/<inviteToken>`
+- Claim requires PIN entry (one-time use, mitigates link leakage)
+- Successful claim creates AuthSession with cookie-based refresh token
+- Client redirects to `/play` (clean, bookmarkable URL)
+- WebSocket connections authenticate via cookies (no tokens in URLs)
+- Sessions can be revoked by admin or user logout
+
+Platform identity (OAuth/passkey/email) may exist later for hosted convenience, but **seat membership remains authoritative** for joining/permissions.
+
+See [auth-join-flow.md](components/auth-join-flow.md) and [ADR 005](decisions/005-networking-management.md) for complete authentication specification.
 
 ---
 

@@ -433,7 +433,78 @@ export class Storage {
   async listActiveSessions(campaignId: string): Promise<Session[]> {
     return this.backend.listActiveSessions(campaignId);
   }
-}
+
+  // Seat operations
+  async createSeat(data: CreateSeatData): Promise<Seat> {
+    return this.backend.createSeat(data);
+  }
+
+  async getSeat(seatId: string): Promise<Seat | null> {
+    return this.backend.getSeat(seatId);
+  }
+
+  async updateSeat(seatId: string, data: Partial<Seat>): Promise<void> {
+    return this.backend.updateSeat(seatId, data);
+  }
+
+  async deleteSeat(seatId: string): Promise<void> {
+    // Backend must enforce: cannot delete admin seat
+    return this.backend.deleteSeat(seatId);
+  }
+
+  async listSeats(campaignId: string): Promise<Seat[]> {
+    return this.backend.listSeats(campaignId);
+  }
+
+  // Invite operations (admin-only)
+  async createInvite(data: CreateInviteData): Promise<Invite> {
+    return this.backend.createInvite(data);
+  }
+
+  async getInvite(inviteToken: string): Promise<Invite | null> {
+    return this.backend.getInvite(inviteToken);
+  }
+
+  async revokeInvite(inviteId: string): Promise<void> {
+    return this.backend.revokeInvite(inviteId);
+  }
+
+  async listInvites(campaignId: string): Promise<Invite[]> {
+    return this.backend.listInvites(campaignId);
+  }
+
+  async markInviteClaimed(
+    inviteId: string,
+    claimedBySessionId: string,
+    claimedByIp?: string
+  ): Promise<void> {
+    return this.backend.markInviteClaimed(inviteId, claimedBySessionId, claimedByIp);
+  }
+
+  // AuthSession operations
+  async createAuthSession(data: CreateAuthSessionData): Promise<AuthSession> {
+    return this.backend.createAuthSession(data);
+  }
+
+  async getAuthSession(sessionId: string): Promise<AuthSession | null> {
+    return this.backend.getAuthSession(sessionId);
+  }
+
+  async getAuthSessionByRefreshToken(refreshTokenHash: string): Promise<AuthSession | null> {
+    return this.backend.getAuthSessionByRefreshToken(refreshTokenHash);
+  }
+
+  async updateAuthSession(sessionId: string, data: Partial<AuthSession>): Promise<void> {
+    return this.backend.updateAuthSession(sessionId, data);
+  }
+
+  async revokeAuthSession(sessionId: string): Promise<void> {
+    return this.backend.revokeAuthSession(sessionId);
+  }
+
+  async listAuthSessionsForSeat(seatId: string): Promise<AuthSession[]> {
+    return this.backend.listAuthSessionsForSeat(seatId);
+  }
 
 /**
  * Internal interface for database-specific implementations.
@@ -484,6 +555,32 @@ interface StorageBackend {
   getSession(sessionId: string): Promise<Session | null>;
   revokeSession(sessionId: string): Promise<void>;
   listActiveSessions(campaignId: string): Promise<Session[]>;
+
+  // Seat operations
+  createSeat(data: CreateSeatData): Promise<Seat>;
+  getSeat(seatId: string): Promise<Seat | null>;
+  updateSeat(seatId: string, data: Partial<Seat>): Promise<void>;
+  deleteSeat(seatId: string): Promise<void>;
+  listSeats(campaignId: string): Promise<Seat[]>;
+
+  // Invite operations
+  createInvite(data: CreateInviteData): Promise<Invite>;
+  getInvite(inviteToken: string): Promise<Invite | null>;
+  revokeInvite(inviteId: string): Promise<void>;
+  listInvites(campaignId: string): Promise<Invite[]>;
+  markInviteClaimed(
+    inviteId: string,
+    claimedBySessionId: string,
+    claimedByIp?: string
+  ): Promise<void>;
+
+  // AuthSession operations
+  createAuthSession(data: CreateAuthSessionData): Promise<AuthSession>;
+  getAuthSession(sessionId: string): Promise<AuthSession | null>;
+  getAuthSessionByRefreshToken(refreshTokenHash: string): Promise<AuthSession | null>;
+  updateAuthSession(sessionId: string, data: Partial<AuthSession>): Promise<void>;
+  revokeAuthSession(sessionId: string): Promise<void>;
+  listAuthSessionsForSeat(seatId: string): Promise<AuthSession[]>;
 }
 
 /**
@@ -541,6 +638,30 @@ interface CreateCampaignData {
   rulesetId: string;
   settings?: Record<string, unknown>;
 }
+
+/**
+ * Campaign creation automatically creates an immutable "admin" seat.
+ *
+ * Implementation Note:
+ * When createCampaign() is called, the Storage backend must:
+ * 1. Create the Campaign record
+ * 2. Create an "admin" Seat with:
+ *    - id: generated UUID
+ *    - campaignId: the new campaign's ID
+ *    - name: "Admin"
+ *    - role: "admin"
+ *    - isImmutable: true (cannot be deleted)
+ * 3. Return the Campaign record
+ *
+ * The admin seat is the only seat that can:
+ * - Create and revoke invites
+ * - Manage other seats (create, update roles, delete)
+ * - Import/export campaign data
+ * - Manage rulesets and tomes
+ *
+ * Admin seat holders use a separate admin UI, not the play UI.
+ * See auth-join-flow.md for complete authentication specification.
+ */
 
 /**
  * Generic entity stored as JSON with metadata for indexing.
@@ -607,6 +728,85 @@ interface Session {
 interface CreateSessionData {
   campaignId: string;
   seatId: string;
+  expiresIn: number; // seconds
+}
+
+/**
+ * Seat: Persistent identity within a campaign.
+ * Seats survive server restarts and outlive AuthSessions.
+ */
+interface Seat {
+  id: string;
+  campaignId: string;
+  name: string;
+  role: 'admin' | 'gm' | 'player' | 'spectator';
+  isImmutable: boolean; // true for admin seat (cannot be deleted)
+  createdAt: Date;
+  updatedAt: Date;
+}
+
+interface CreateSeatData {
+  campaignId: string;
+  name: string;
+  role: 'gm' | 'player' | 'spectator'; // admin seats are only created via createCampaign
+}
+
+/**
+ * Invite: Capability token for claiming a seat.
+ * Managed by admin seat holders.
+ */
+interface Invite {
+  id: string;
+  inviteToken: string; // long, unguessable (>= 128 bits entropy)
+  campaignId: string;
+  seatId?: string; // existing seat, or null if creating new seat on claim
+  seatTemplate?: CreateSeatData; // used if seatId is null
+  rolesGranted: Array<'gm' | 'player' | 'spectator'>;
+  pinHash: string; // argon2/bcrypt hash
+  expiresAt: Date;
+  maxClaims: number; // typically 1
+  claimedAt?: Date;
+  claimedBySessionId?: string;
+  claimedByIp?: string;
+  revokedAt?: Date;
+  createdByAdminSeatId: string;
+  createdAt: Date;
+}
+
+interface CreateInviteData {
+  campaignId: string;
+  seatId?: string;
+  seatTemplate?: CreateSeatData;
+  rolesGranted: Array<'gm' | 'player' | 'spectator'>;
+  pin: string; // plain text; will be hashed server-side
+  expiresIn: number; // seconds (e.g., 7 days = 604800)
+  maxClaims?: number; // default 1
+  createdByAdminSeatId: string;
+}
+
+/**
+ * AuthSession: Cookie-based authentication session.
+ * Distinct from legacy "Session" concept (server run lifecycle).
+ */
+interface AuthSession {
+  id: string;
+  seatId: string;
+  campaignId: string;
+  refreshTokenHash: string; // hash of refresh token
+  deviceName?: string;
+  userAgent?: string;
+  createdAt: Date;
+  lastUsedAt: Date;
+  expiresAt: Date;
+  revokedAt?: Date;
+}
+
+interface CreateAuthSessionData {
+  seatId: string;
+  campaignId: string;
+  refreshToken: string; // plain text; will be hashed server-side
+  deviceName?: string;
+  userAgent?: string;
   expiresIn: number; // seconds
 }
 
@@ -1018,6 +1218,12 @@ See [ruleset-engine.md](ruleset-engine.md) for complete GameEngine specification
 - **Event sequencing**: Event `sequenceNumber` should be monotonically increasing per campaign
 - **ID generation**: Use UUIDs for all IDs; implementation may use a separate `IdGenerator` utility
 - **Timestamps**: Store as ISO 8601 strings or Unix timestamps; convert to Date objects in queries
+- **Admin seat creation**: When `createCampaign()` is called, automatically create an immutable admin seat
+- **Invite tokens**: Must be >= 128 bits entropy; store only hash of PIN
+- **Refresh tokens**: Store only hash (argon2/bcrypt); rotate on each refresh
+- **Rate limiting**: Implement rate limiting for invite PIN attempts (per invite, per IP)
+
+See [auth-join-flow.md](auth-join-flow.md) and [ADR 005](../decisions/005-networking-management.md) for authentication architecture details.
 
 ### Usage Example
 

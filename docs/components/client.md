@@ -34,6 +34,51 @@ This document defines the **Web Client** architecture, UI layout, component hier
 
 ---
 
+## Authentication and Join Flow
+
+HearthVTT uses a **capability-based join link** system with **cookie-based sessions** for authentication.
+
+### User Journey
+
+1. **Join Link**: User receives a link from admin: `GET /join/<inviteToken>`
+2. **Claim Page**: Client renders claim UI, prompts for PIN
+3. **Claim Request**: `POST /api/auth/claim-invite` with invite token + PIN
+4. **Session Creation**: Server validates, sets HttpOnly cookies (refresh token), returns session data
+5. **Redirect to Play**: Client redirects to `/play` (clean URL, no secrets)
+6. **Authenticated State**: All API calls and WebSocket connections use cookie session
+
+### Client Responsibilities
+
+- **Join/Claim UI**: Render invite claim page with PIN input
+- **Cookie Management**: Browser handles cookies automatically (HttpOnly, Secure, SameSite=Lax)
+- **Clean URLs**: Never bookmark join links; `/play` is the stable, bookmarkable URL
+- **Session Refresh**: Call `POST /api/auth/refresh` to rotate refresh token and get new access token
+- **Logout**: Call `POST /api/auth/logout` to revoke session
+- **Admin UI**: Separate interface for admin seat holders (campaign management, invite creation, seat management)
+- **Not Logged In**: If `/play` accessed without valid session, show "Not logged in" with instructions
+
+### Admin UI vs Play UI
+
+The client must support **two distinct interfaces**:
+
+- **Play UI** (default): Main game interface with map, chat, character sheets, etc.
+  - Used by GM, player, and spectator seats
+  - Accessed via `/play` after authentication
+
+- **Admin UI**: Campaign management interface
+  - Used only by admin seat holders
+  - No map/gameplay layer; focuses on:
+    - Campaign import/export
+    - Ruleset and Tome management
+    - Seat creation and permission management
+    - Invite creation and revocation
+    - Session audit and active connection management
+  - Route: `/admin` (or similar; not yet finalized)
+
+See [auth-join-flow.md](auth-join-flow.md) and [ADR 005](../decisions/005-networking-management.md) for complete specification.
+
+---
+
 ## UI Layout
 
 The client UI is divided into distinct zones. All coordinates assume a standard landscape desktop viewport.
@@ -416,11 +461,26 @@ UI components dispatch actions via the API layer. Actions are sent to the server
 
 ### WebSocket Connection
 
-The client establishes a secure WebSocket connection using **WSS** protocol:
+The client establishes a secure WebSocket connection using **WSS** protocol with **cookie-based authentication**:
 
 - **Production/Internet:** Always use `wss://` with valid TLS certificates
 - **Local development:** May use `ws://localhost:3000` for convenience
-- The client should automatically select the appropriate protocol based on the server URL (use WSS for all non-localhost connections)
+- **Authentication:** Session cookies (refresh token) are automatically sent during WebSocket upgrade
+- **No tokens in URLs**: Auth tokens are never passed as query parameters
+
+Connection flow:
+
+1. Client connects to `wss://<origin>/ws`
+2. Browser sends session cookies with upgrade request
+3. Server validates session during upgrade handshake
+4. Server sends `{ type: "welcome", seatId, campaignId }` on success
+5. Server closes connection (4401 app code) if not authenticated
+
+Reconnection:
+
+- Use exponential backoff on disconnect
+- Send `{ type: "resume", lastEventSeq }` on reconnect
+- Server replies with event backlog or snapshot + deltas
 
 ### Example Action Dispatch
 

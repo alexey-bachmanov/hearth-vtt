@@ -129,6 +129,129 @@ interface Snapshot {
 | Tome content        | Loaded from `.tome` files at session start      |
 | Ruleset definitions | Loaded from `.ruleset` file at session start    |
 | EventRecord         | Stored separately, linked by Snapshot ID        |
+| Seats               | Stored separately; persistent across sessions   |
+| Invites             | Stored separately; admin-managed                |
+| AuthSessions        | Stored separately; ephemeral auth state         |
+
+---
+
+## Authentication and Access Control Data
+
+The following data structures support authentication, authorization, and campaign access management. These are stored in the database but are **not** included in Snapshots or campaign exports.
+
+### Seat
+
+Persistent identity within a campaign. Seats survive server restarts and outlive AuthSessions.
+
+```ts
+interface Seat {
+  id: SeatId;
+  campaignId: CampaignId;
+  name: string; // Display name (e.g., "Alice", "Bob")
+  role: 'admin' | 'gm' | 'player' | 'spectator';
+  isImmutable: boolean; // true for admin seat (cannot be deleted)
+  createdAt: Date;
+  updatedAt: Date;
+}
+```
+
+**Admin Seat:**
+
+- Every campaign has exactly one admin seat, created automatically on campaign creation
+- Admin seats have `isImmutable: true` and cannot be deleted
+- Admin seat holders use a separate admin UI for campaign management
+- Admin role is distinct from GM role (admin manages access; GM manages gameplay)
+
+**Storage:**
+
+- Stored in `seats` table with index on `campaignId`
+- Loaded into CampaignState on GameEngine initialization
+- Referenced by AuthSessions, Invites, and Actors (via `ownerSeatId`)
+
+### Invite
+
+Capability token for claiming a seat. Managed by admin seat holders.
+
+```ts
+interface Invite {
+  id: string;
+  inviteToken: string; // long, unguessable (>= 128 bits entropy)
+  campaignId: CampaignId;
+  seatId?: SeatId; // existing seat, or null if creating new seat on claim
+  seatTemplate?: {
+    name: string;
+    role: 'gm' | 'player' | 'spectator';
+  };
+  rolesGranted: Array<'gm' | 'player' | 'spectator'>;
+  pinHash: string; // argon2/bcrypt hash
+  expiresAt: Date;
+  maxClaims: number; // typically 1
+  claimedAt?: Date;
+  claimedBySessionId?: string;
+  claimedByIp?: string;
+  revokedAt?: Date;
+  createdByAdminSeatId: SeatId;
+  createdAt: Date;
+}
+```
+
+**Lifecycle:**
+
+- Created by admin via `POST /api/campaigns/<id>/invites`
+- Claimed via `POST /api/auth/claim-invite` (one-time PIN required)
+- Revoked immediately after successful claim (or manually by admin)
+- Expired invites are cleaned up periodically
+
+**Security:**
+
+- Invite tokens must have >= 128 bits entropy
+- PIN stored as hash only (argon2id preferred, bcrypt acceptable)
+- Rate limiting on PIN attempts (per invite + per IP)
+- Short-lived by default (7 days expiry)
+
+**Storage:**
+
+- Stored in `invites` table with index on `inviteToken`, `campaignId`
+- Never included in campaign exports or snapshots
+
+### AuthSession
+
+Cookie-based authentication session.
+
+```ts
+interface AuthSession {
+  id: string;
+  seatId: SeatId;
+  campaignId: CampaignId;
+  refreshTokenHash: string; // hash of refresh token
+  deviceName?: string; // e.g., "Alice's Laptop"
+  userAgent?: string;
+  createdAt: Date;
+  lastUsedAt: Date;
+  expiresAt: Date;
+  revokedAt?: Date;
+}
+```
+
+**Lifecycle:**
+
+- Created on successful invite claim
+- Refresh token rotated on each `/api/auth/refresh` call
+- Revoked on logout or by admin
+- Expired sessions cleaned up periodically
+
+**Cookie-based auth:**
+
+- Refresh token stored as `HttpOnly; Secure; SameSite=Lax` cookie
+- Access tokens short-lived (e.g., 15 minutes)
+- WebSocket connections authenticated via cookies during upgrade
+
+**Storage:**
+
+- Stored in `auth_sessions` table with index on `seatId`, `refreshTokenHash`
+- Cleaned up on server shutdown or after long inactivity
+
+See [auth-join-flow.md](auth-join-flow.md) and [ADR 005](../decisions/005-networking-management.md) for complete authentication specification.
 
 ---
 

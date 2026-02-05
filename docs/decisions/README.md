@@ -68,6 +68,16 @@ Example:
 
 ---
 
+## Current ADRs
+
+- [001: WebGL Rendering](001-webgl-rendering.md) — **Accepted**
+- [002: SQLite Storage](002-sqlite-storage.md) — **Accepted**
+- [003: Fastify Framework](003-fastify-framework.md) — **Accepted**
+- [004: GameEngine Class Architecture](004-gameengine-class-architecture.md) — **Accepted**
+- [005: Networking Management (Join Links + Cookie Sessions)](005-networking-management.md) — **Accepted**
+
+---
+
 ## ADR template (recommended)
 
 ```md

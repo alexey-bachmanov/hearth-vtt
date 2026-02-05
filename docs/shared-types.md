@@ -10,11 +10,44 @@ The following terms have precise meanings throughout HearthVTT documentation. Us
 
 ### Seat
 
-An entity linked to one person in a campaign. One or more Actors can be owned by a given Seat. Seats with GM permissions have access to all Actors (player characters, NPCs, monsters, etc.). Seats are persistent across Sessions.
+A persistent identity within a campaign representing a participant. Each Seat has:
 
-### Session
+- **Ownership**: One or more Actors owned by the Seat
+- **Permissions**: Role-based access (admin, gm, player, spectator)
+- **Persistence**: Survives server restarts and auth sessions
 
-A given run of the server—from startup and load of CampaignState until save and shutdown. Sessions are ephemeral; Seats persist.
+**Admin Seat**: Every campaign has an immutable "admin" seat created automatically on campaign creation. The admin seat:
+
+- Cannot be deleted
+- Has full campaign management permissions (create invites, manage seats, import/export, etc.)
+- Uses a separate admin UI (not the play UI)
+- Is distinct from GM role (admin manages access; GM manages gameplay)
+
+**Other Seats**: Created via admin invite workflow or initial campaign setup.
+
+### AuthSession
+
+An authenticated client connection to the server. Distinct from the legacy "Session" concept (server run lifecycle). Key properties:
+
+- **Refresh token**: Long-lived secret stored as HttpOnly cookie
+- **Access token**: Short-lived proof for API calls and WS auth
+- **Seat binding**: Each AuthSession is bound to exactly one Seat
+- **Device tracking**: Optional metadata (deviceName, userAgent) for admin audit
+- **Revocation**: Can be revoked by admin or via logout
+
+See [auth-join-flow.md](components/auth-join-flow.md) for complete authentication specification.
+
+### Invite
+
+A capability token used to claim access to a campaign. Key properties:
+
+- **Capability-based**: Long, unguessable token (`>= 128 bits entropy`)
+- **One-time use**: Typically revoked immediately on successful claim
+- **PIN-protected**: Requires PIN entry to mitigate link leakage
+- **Short-lived**: Default expiry of 7 days
+- **Seat binding**: Maps to a specific Seat or seat creation template
+
+Invites are created and managed by admin seat holders. See [auth-join-flow.md](components/auth-join-flow.md) and [ADR 005](decisions/005-networking-management.md) for details.
 
 ### CampaignState
 

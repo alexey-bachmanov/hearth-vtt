@@ -25,21 +25,41 @@ All messages are JSON-encoded. Binary protocols (e.g., MessagePack) may be consi
 
 ## Connection Lifecycle
 
-### 1. Connect
+### 1. Connect and Authenticate
 
-Client opens secure WebSocket (WSS) to `/ws/session/{sessionId}`.
+Client opens secure WebSocket (WSS) to `/ws`:
 
 ```
-wss://server.example.com/ws/session/{sessionId}
+wss://server.example.com/ws
 ```
 
-For local development, the connection may use `ws://localhost:3000/ws/session/{sessionId}`, but production deployments **must** use WSS with valid TLS certificates.
+For local development, the connection may use `ws://localhost:3000/ws`, but production deployments **must** use WSS with valid TLS certificates.
 
-Authentication token is sent as a query parameter or initial message (implementation TBD).
+**Authentication**: Session cookies (refresh token) are automatically sent by the browser during WebSocket upgrade. The server:
 
-### 2. Initial Sync
+1. Reads cookies from the upgrade request headers
+2. Validates the session (checks refresh token hash against stored AuthSessions)
+3. Maps the session to `{campaignId, seatId, roles}`
+4. If valid, completes the upgrade and sends `welcome` message
+5. If invalid, closes the connection with app-level close code (e.g., 4401)
 
-Server sends `sync.initial` immediately after connection:
+**Important**: Auth tokens are **never** sent as query parameters or in the WebSocket URL. This prevents token leakage in logs, bookmarks, and browser history.
+
+### 2. Welcome and Initial Sync
+
+Server sends `welcome` immediately after successful authentication:
+
+```json
+{
+  "type": "welcome",
+  "protocolVersion": "1.0",
+  "serverVersion": "0.1.0",
+  "seatId": "seat-abc123",
+  "campaignId": "campaign-xyz789"
+}
+```
+
+Then server sends `sync.initial` with full state:
 
 ```json
 {
@@ -65,9 +85,19 @@ Server sends `sync.initial` immediately after connection:
 
 After initial sync, server sends incremental updates. Client sends actions and inputs.
 
-### 4. Disconnect
+### 4. Reconnect
 
-On disconnect, server cleans up any pending workflows/prompts for that seat. Client should attempt reconnection with exponential backoff.
+On disconnect, client should attempt reconnection with exponential backoff. On reconnect:
+
+- Client sends `{ type: "resume", lastEventSeq }` after receiving `welcome`
+- Server replies with event backlog since `lastEventSeq` or full `sync.initial` if too stale
+- Server re-sends any outstanding prompts for that seat
+
+### 5. Disconnect
+
+On disconnect, server cleans up any pending workflows/prompts for that seat.
+
+See [auth-join-flow.md](../components/auth-join-flow.md) for complete authentication specification.
 
 ---
 
@@ -75,22 +105,24 @@ On disconnect, server cleans up any pending workflows/prompts for that seat. Cli
 
 ### Server → Client
 
-| Type                     | Description                                       |
-| ------------------------ | ------------------------------------------------- |
-| `sync.initial`           | Full state on connect                             |
-| `sync.delta`             | JSON Patch to CampaignState                       |
-| `event.new`              | New GameEvent to display in chat                  |
-| `prompt.create`          | New Prompt for this seat                          |
-| `prompt.cancel`          | Prompt cancelled (timeout, superseded)            |
-| `workflow.update`        | WorkflowState changed                             |
-| `token.move.preview`     | Another seat is dragging a token (ghost position) |
-| `token.move.preview.end` | Token drag ended (clear ghost)                    |
-| `error`                  | Error message (validation failure, etc.)          |
+| Type                     | Description                                             |
+| ------------------------ | ------------------------------------------------------- |
+| `welcome`                | Sent after successful auth; includes seat/campaign info |
+| `sync.initial`           | Full state on connect                                   |
+| `sync.delta`             | JSON Patch to CampaignState                             |
+| `event.new`              | New GameEvent to display in chat                        |
+| `prompt.create`          | New Prompt for this seat                                |
+| `prompt.cancel`          | Prompt cancelled (timeout, superseded)                  |
+| `workflow.update`        | WorkflowState changed                                   |
+| `token.move.preview`     | Another seat is dragging a token (ghost position)       |
+| `token.move.preview.end` | Token drag ended (clear ghost)                          |
+| `error`                  | Error message (validation failure, etc.)                |
 
 ### Client → Server
 
 | Type                 | Description                             |
 | -------------------- | --------------------------------------- |
+| `resume`             | Request reconnect with event backlog    |
 | `action`             | Dispatch an Action for resolution       |
 | `workflow.input`     | Respond to a Prompt within a workflow   |
 | `token.move.preview` | Live token drag position (throttled)    |
@@ -100,6 +132,27 @@ On disconnect, server cleans up any pending workflows/prompts for that seat. Cli
 ---
 
 ## Message Schemas
+
+### `welcome`
+
+```ts
+interface WelcomeMessage {
+  type: 'welcome';
+  protocolVersion: string; // e.g., "1.0"
+  serverVersion: string; // e.g., "0.1.0"
+  seatId: string;
+  campaignId: string;
+}
+```
+
+### `resume`
+
+```ts
+interface ResumeMessage {
+  type: 'resume';
+  lastEventSeq: number; // Last event sequence number client received
+}
+```
 
 ### `sync.initial`
 
