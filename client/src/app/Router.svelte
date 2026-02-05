@@ -14,6 +14,7 @@
 
 import { onMount } from 'svelte';
 import { parseRoute, type Route } from './routes';
+import PlayLayout from '../ui/layout/PlayLayout.svelte';
 
 // Import placeholder components (will be created in Phase 2+)
 // For now, we'll render simple placeholders inline
@@ -44,11 +45,7 @@ onMount(() => {
     <p>This will be replaced with JoinPage component in Phase 4.</p>
   </div>
 {:else if currentRoute.type === 'play'}
-  <div class="route-placeholder">
-    <h1>Play Layout</h1>
-    <p>Main game interface will be rendered here.</p>
-    <p>This will be replaced with PlayLayout component in Phase 2.</p>
-  </div>
+  <PlayLayout />
 {:else if currentRoute.type === 'admin'}
   <div class="route-placeholder">
     <h1>Admin Layout</h1>
