@@ -13,12 +13,13 @@
     "lint": "eslint src --ext .ts"
   },
   "dependencies": {
-    "@fastify/cors": "^9.0.1",
-    "@fastify/static": "^7.0.1",
-    "@fastify/websocket": "^10.0.1",
+    "@fastify/cookie": "^11.0.2",
+    "@fastify/cors": "^10.0.1",
+    "@fastify/static": "^8.0.2",
+    "@fastify/websocket": "^11.0.1",
     "better-sqlite3": "^11.3.0",
     "dotenv": "^16.3.1",
-    "fastify": "^4.25.2"
+    "fastify": "^5.2.0"
   },
   "devDependencies": {
     "@types/better-sqlite3": "^7.6.8",

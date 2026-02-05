@@ -2,10 +2,18 @@ import Fastify, { FastifyInstance, FastifyServerOptions } from 'fastify';
 import fastifyStatic from '@fastify/static';
 import fastifyWebsocket from '@fastify/websocket';
 import fastifyCors from '@fastify/cors';
+import fastifyCookie from '@fastify/cookie';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import { existsSync } from 'fs';
 import type { Storage } from './storage/storage.js';
+import { healthRoutes } from './routes/health.js';
+import { campaignRoutes } from './routes/campaigns.js';
+import { authRoutes } from './routes/auth.js';
+import { seatRoutes } from './routes/seats.js';
+import { inviteRoutes } from './routes/invites.js';
+import { sessionRoutes } from './routes/sessions.js';
+import { wsRoutes } from './routes/ws.js';
 
 // Handle both ESM (development) and CJS (bundled) environments
 const currentDir =
@@ -71,90 +79,55 @@ export async function buildServer(
   // Register CORS support
   await server.register(fastifyCors, {
     origin: true, // Allow all origins in development
+    credentials: true, // Allow cookies
   });
+
+  // Register cookie support for auth
+  await server.register(fastifyCookie);
 
   // Register WebSocket support
   await server.register(fastifyWebsocket);
 
-  // Health check endpoint
-  server.get('/healthz', async () => {
-    return { status: 'ok', timestamp: Date.now() };
-  });
-
-  // Campaign API endpoints
-  server.get('/api/campaigns', async () => {
-    const campaigns = await options.storage.listCampaigns();
-    return { campaigns };
-  });
-
-  server.get<{ Params: { id: string } }>('/api/campaigns/:id', async (request, reply) => {
-    const campaign = await options.storage.getCampaign(request.params.id);
-    if (!campaign) {
-      reply.code(404);
-      return { error: 'Campaign not found' };
-    }
-    return { campaign };
-  });
-
-  server.post<{ Body: { name: string } }>('/api/campaigns', async (request, reply) => {
-    const { name } = request.body;
-    if (!name || typeof name !== 'string' || name.trim().length === 0) {
-      reply.code(400);
-      return { error: 'Campaign name is required' };
-    }
-    const campaign = await options.storage.createCampaign(name.trim());
-    reply.code(201);
-    return { campaign };
-  });
-
-  server.delete<{ Params: { id: string } }>('/api/campaigns/:id', async (request, reply) => {
-    const campaign = await options.storage.getCampaign(request.params.id);
-    if (!campaign) {
-      reply.code(404);
-      return { error: 'Campaign not found' };
-    }
-    await options.storage.deleteCampaign(request.params.id);
-    reply.code(204);
-    return;
-  });
-
-  // WebSocket endpoint for realtime communication
-  server.get('/ws', { websocket: true }, (socket, req) => {
-    server.log.info('WebSocket client connected');
-
-    // Send welcome message
-    socket.send(
-      JSON.stringify({ type: 'welcome', payload: { version: '0.1.0' } }),
-    );
-
-    socket.on('message', (message) => {
-      try {
-        const data = JSON.parse(message.toString());
-
-        // Handle ping/pong
-        if (data.type === 'ping') {
-          socket.send(
-            JSON.stringify({
-              type: 'pong',
-              payload: { timestamp: Date.now() },
-            }),
-          );
-        }
-      } catch (err) {
-        server.log.warn('Invalid WebSocket message received');
-      }
-    });
-
-    socket.on('close', () => {
-      server.log.info('WebSocket client disconnected');
-    });
-  });
+  // Register route modules
+  await healthRoutes(server);
+  await campaignRoutes(server, { storage: options.storage });
+  await authRoutes(server);
+  await seatRoutes(server);
+  await inviteRoutes(server);
+  await sessionRoutes(server);
+  await wsRoutes(server);
 
   // Serve static files from client/dist
   const clientDistPath = findClientDist();
   await server.register(fastifyStatic, {
     root: clientDistPath,
     prefix: '/',
+  });
+
+  // SPA fallback: serve index.html for any non-API, non-ws routes
+  // This must be registered AFTER static files
+  server.setNotFoundHandler(async (request, reply) => {
+    const { url } = request;
+
+    // Don't handle API routes, WebSocket, or health checks
+    if (
+      url.startsWith('/api/') ||
+      url.startsWith('/ws') ||
+      url === '/healthz' ||
+      url === '/health'
+    ) {
+      reply.code(404);
+      return {
+        error: {
+          code: 'NOT_FOUND',
+          message: 'Route not found',
+        },
+      };
+    }
+
+    // Serve index.html for client-side routing
+    reply.type('text/html');
+    return reply.sendFile('index.html');
   });
 
   return server;
