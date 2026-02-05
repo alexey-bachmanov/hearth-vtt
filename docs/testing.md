@@ -43,7 +43,8 @@ This document defines testing guidelines, contracts, and strategies for HearthVT
 ### Server/API
 
 - Use Fastify's `inject()` for HTTP route testing without network.
-- Test WebSocket handshake and message validation.
+- Test WebSocket Secure (WSS) handshake and message validation.
+- Test both secure (WSS) and local development (WS) connection modes.
 - Test authentication/authorization flows once implemented.
 
 ### Client (future)

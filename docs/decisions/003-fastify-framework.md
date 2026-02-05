@@ -10,7 +10,7 @@ The HearthVTT Game Server must:
 
 - serve the client bundle (static assets)
 - expose HTTP endpoints (health, import/export, auth, admin actions)
-- provide WebSocket realtime transport (actions, prompts, state deltas)
+- provide WebSocket Secure (WSS) realtime transport (actions, prompts, state deltas)
 - validate inputs rigorously at the boundary (avoid bad state)
 - remain maintainable as features grow (plugins/modules)
 
@@ -18,7 +18,7 @@ The project prioritizes performance, clean boundaries, and schema-first validati
 
 ## Decision
 
-Use **Fastify** as the Node.js HTTP framework for the Game Server. Implement WebSocket handling in the server with clear separation:
+Use **Fastify** as the Node.js HTTP framework for the Game Server. Implement WebSocket Secure (WSS) handling in the server with clear separation:
 
 - delivery layer: `routes/`, `ws/`
 - application layer: `services/`
@@ -26,6 +26,8 @@ Use **Fastify** as the Node.js HTTP framework for the Game Server. Implement Web
 - persistence: `storage/` via storage interface
 
 Use schema validation at boundaries (requests/messages) to pass trusted, typed data inward.
+
+**Note:** WebSocket connections must use WSS (WebSocket Secure) in production. TLS termination can be handled via reverse proxy (recommended) or native TLS support in Fastify.
 
 ## Alternatives considered
 

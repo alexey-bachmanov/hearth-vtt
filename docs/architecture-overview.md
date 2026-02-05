@@ -46,14 +46,14 @@ The same Game Server implementation must run:
 
 - Serves the web client bundle (static assets)
 - Hosts HTTP API (configuration, login/claim, file import/export)
-- Hosts WebSocket for realtime state sync
+- Hosts WebSocket Secure (WSS) for realtime state sync
 - Validates permissions and resolves actions
 - Loads rulesets + tomes + campaign state
 - Persists campaign state + assets
 
 **Web Client (browser UI)**
 
-- Connects to the server over HTTPS + WebSocket
+- Connects to the server over HTTPS + WebSocket Secure (WSS)
 - Renders map/tokens/fog/lighting in WebGL
 - Renders sheets/chat/journal as DOM UI
 - Dispatches user intents as actions
@@ -213,7 +213,7 @@ The Game Server must provide:
   - health checks
   - campaign/tome import/export
   - seat/invite/session management
-- WebSocket for realtime updates:
+- WebSocket Secure (WSS) for realtime updates:
   - action dispatch
   - state delta broadcast
   - prompt delivery
@@ -227,7 +227,7 @@ See: [`docs/components/server.md`](components/server.md)
 
 ## Repository layout (recommended)
 
-- `server/` — HTTP + WebSocket + persistence + serves client bundle
+- `server/` — HTTP + WebSocket Secure (WSS) + persistence + serves client bundle
 - `client/` — web UI and renderer
 - `packages/` — shared libraries (types, protocol, dice, ruleset DSL runtime)
 - `docs/` — source-of-truth design documents

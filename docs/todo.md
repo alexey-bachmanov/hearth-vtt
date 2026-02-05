@@ -1,12 +1,12 @@
 # Milestone 1 checklist: placeholder server
 
-- [ ] Fastify server starts with env config
-- [ ] Creates `DATA_DIR` and subfolders if missing
+- [x] Fastify server starts with env config
+- [x] Creates `DATA_DIR` and subfolders if missing
 - [ ] Initializes SQLite via storage interface (even if tables are minimal)
 - [ ] `GET /healthz` works
-- [ ] `GET /` serves placeholder page or `client/dist`
-- [ ] WS endpoint `/ws` supports hello/welcome + ping/pong
-- [ ] Dockerfile runs the same server
+- [x] `GET /` serves placeholder page or `client/dist`
+- [ ] WSS endpoint `/ws` supports hello/welcome + ping/pong (ws:// for localhost dev, wss:// for production)
+- [x] Dockerfile runs the same server
 - [ ] README/dev scripts (optional) for local + docker run
 
 ---
@@ -19,7 +19,7 @@
 - [x] ruleset-engine.md — engine contracts, DSL overview, failure handling
 - [x] server.md — storage interface, Prompt/Workflow persistence
 - [x] client.md — UI layout, component hierarchy, renderer API
-- [x] realtime-ws.md — WebSocket protocol specification
+- [x] realtime-ws.md — WebSocket Secure (WSS) protocol specification
 - [x] data-model.md — file formats, storage architecture, entity schemas
 - [x] domain-specific-language.md — DSL grammar, expression language, operations reference
 - [x] testing.md — testing guidelines

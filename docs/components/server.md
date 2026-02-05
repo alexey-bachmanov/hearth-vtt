@@ -10,7 +10,7 @@ The HearthVTT Game Server must:
 
 1. **Serve a web client bundle** (static assets) so client/server versions remain compatible.
 2. Provide **HTTP APIs** for health checks and basic server/campaign management.
-3. Provide a **WebSocket realtime channel** for:
+3. Provide a **WebSocket Secure (WSS) realtime channel** for:
    - action dispatch
    - prompt delivery
    - state delta broadcast
@@ -63,11 +63,16 @@ Configuration must come from environment variables and/or CLI flags (no hard-cod
 - `PUBLIC_BASE_URL` (optional; used to generate invite links)
 - `TRUST_PROXY` (default: false; true when behind reverse proxies)
 - `LOG_LEVEL` (default: info)
+- `TLS_CERT_PATH` (optional; path to TLS certificate file for WSS)
+- `TLS_KEY_PATH` (optional; path to TLS private key file for WSS)
+- `TLS_ENABLED` (default: false; set to true to enable native TLS support)
 
 Notes:
 
 - Default `HOST=127.0.0.1` prevents accidental LAN exposure.
 - Admin UI (future) must be localhost-only by default or guarded by a setup code.
+- For production, TLS should be handled by a reverse proxy (recommended) or enabled natively via TLS\_\* config options.
+- When `TLS_ENABLED=true`, WebSocket connections will use WSS protocol; HTTP will use HTTPS.
 
 ---
 
@@ -85,7 +90,7 @@ Within `server/` (suggested):
 - `server/src/app.ts` — Fastify app setup
 - `server/src/index.ts` — process entry point (env/flags, start server)
 - `server/src/routes/` — HTTP routes
-- `server/src/ws/` — WebSocket handler(s)
+- `server/src/ws/` — WebSocket Secure (WSS) handler(s)
 - `server/src/storage/` — Storage interface + SQLite implementation
 - `server/src/config.ts` — config parsing/validation
 - `server/src/logger.ts` — structured logging config
@@ -123,11 +128,29 @@ All endpoints must validate input where applicable (Fastify schemas).
 
 ---
 
-## WebSocket realtime (placeholder milestone)
+## WebSocket Secure realtime (placeholder milestone)
 
 ### Endpoint
 
-- `GET /ws` (upgrade to WebSocket)
+- `wss://server.example.com/ws` (upgrade to secure WebSocket)
+- For local development: `ws://localhost:3000/ws` is acceptable
+- Production deployments **must** use WSS with valid TLS certificates
+
+### TLS Termination Options
+
+**Option 1: Reverse Proxy (Recommended)**
+
+- Use Caddy, nginx, or Traefik to handle TLS termination
+- Proxy forwards plain HTTP/WS to the Node.js server locally
+- Server binds to localhost, proxy handles external traffic
+- Simplest for Docker/cloud deployments
+
+**Option 2: Native TLS**
+
+- Server reads TLS certificates directly via `TLS_CERT_PATH` and `TLS_KEY_PATH`
+- Fastify or underlying framework handles HTTPS/WSS
+- Requires certificate management (renewal, etc.)
+- Useful for standalone deployments without a reverse proxy
 
 ### Minimum behavior
 

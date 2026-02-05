@@ -1,12 +1,18 @@
-# WebSocket Protocol — HearthVTT (`docs/protocols/realtime-ws.md`)
+# WebSocket Secure (WSS) Protocol — HearthVTT (`docs/protocols/realtime-ws.md`)
 
-This document defines the real-time WebSocket protocol for client-server communication.
+This document defines the real-time WebSocket Secure (WSS) protocol for client-server communication.
 
 > **Terminology:** See [shared-types.md](../shared-types.md) for canonical definitions of GameEvent, Action, Prompt, Audience, and other shared types.
 
 ---
 
 ## Overview
+
+The WebSocket connection uses **WSS (WebSocket Secure)** for encrypted, secure communication. While not strictly necessary for local home servers, WSS is required for production deployment to ensure:
+
+- Encrypted communication between client and server
+- Protection against man-in-the-middle attacks
+- Future-proofing for internet-facing deployments
 
 The WebSocket connection provides:
 
@@ -21,12 +27,13 @@ All messages are JSON-encoded. Binary protocols (e.g., MessagePack) may be consi
 
 ### 1. Connect
 
-Client opens WebSocket to `/ws/session/{sessionId}`.
+Client opens secure WebSocket (WSS) to `/ws/session/{sessionId}`.
 
 ```
-GET /ws/session/{sessionId}
-Upgrade: websocket
+wss://server.example.com/ws/session/{sessionId}
 ```
+
+For local development, the connection may use `ws://localhost:3000/ws/session/{sessionId}`, but production deployments **must** use WSS with valid TLS certificates.
 
 Authentication token is sent as a query parameter or initial message (implementation TBD).
 
@@ -317,7 +324,7 @@ Client should reconcile local state (e.g., snap token back).
 
 On reconnect:
 
-1. Client opens new WebSocket
+1. Client opens new WSS connection
 2. Server sends `sync.initial` with current state
 3. Client reconciles — any local changes made during disconnect are lost
 4. Active prompts/workflows are re-sent if still valid
@@ -334,6 +341,40 @@ Each `sync.delta` includes a `version` number. If client receives out-of-order p
 
 ---
 
+## Security Considerations
+
+### TLS/SSL Requirements
+
+**Production deployments must use WSS** with valid TLS certificates:
+
+- **Hosted/Cloud:** Use certificates from Let's Encrypt, AWS Certificate Manager, or similar
+- **Self-hosted (LAN only):** Self-signed certificates acceptable if all clients trust the certificate
+- **Self-hosted (Internet-facing):** Use Let's Encrypt or other trusted CA certificates
+
+### Certificate Considerations for Self-Hosting
+
+Self-hosters have several options:
+
+1. **Let's Encrypt** (recommended): Free, automated, widely trusted
+   - Requires domain name and port 80/443 access for verification
+   - Use certbot or similar ACME client for automatic renewal
+
+2. **Reverse Proxy** (Caddy, nginx, Traefik):
+   - Handle TLS termination at the proxy level
+   - Proxy can communicate with server over plain HTTP/WS locally
+   - Recommended approach for Docker deployments
+
+3. **Self-signed certificates**:
+   - Requires manual trust installation on all client devices
+   - Not recommended for guests/players unfamiliar with certificate management
+   - Browsers will show security warnings
+
+### Development Mode
+
+For local development only, plain `ws://` connections to `localhost` are acceptable. The client should support both protocols, with WSS required when connecting to non-localhost hosts.
+
+---
+
 ## Future Considerations
 
 ### Binary Protocol
@@ -346,6 +387,6 @@ WebSocket per-message deflate may be enabled for large payloads.
 
 ### Multi-Tab Support
 
-If same user opens multiple tabs, each is a separate WebSocket connection. Server should handle gracefully (same seat, multiple connections).
+If same user opens multiple tabs, each is a separate WSS connection. Server should handle gracefully (same seat, multiple connections).
 
 ---

@@ -412,7 +412,17 @@ interface Renderer {
 
 ## Action Dispatch
 
-UI components dispatch actions via the API layer. Actions are sent to the server via WebSocket.
+UI components dispatch actions via the API layer. Actions are sent to the server via WebSocket Secure (WSS).
+
+### WebSocket Connection
+
+The client establishes a secure WebSocket connection using **WSS** protocol:
+
+- **Production/Internet:** Always use `wss://` with valid TLS certificates
+- **Local development:** May use `ws://localhost:3000` for convenience
+- The client should automatically select the appropriate protocol based on the server URL (use WSS for all non-localhost connections)
+
+### Example Action Dispatch
 
 ```ts
 // Example: dispatching a dice roll
@@ -434,7 +444,7 @@ api.dispatch({
 });
 ```
 
-See [realtime-ws.md](../protocols/realtime-ws.md) for the WebSocket protocol specification.
+See [realtime-ws.md](../protocols/realtime-ws.md) for the complete WebSocket Secure protocol specification.
 
 ---
 
@@ -449,7 +459,7 @@ Client state is managed in stores (Svelte stores or similar reactive primitives)
 | `campaignState`   | Current entity state (actors, tokens, scenes)      | Server deltas          |
 | `eventLog`        | Recent GameEvents for chat display                 | Server event broadcast |
 | `uiState`         | Local UI state (open windows, selected tool, etc.) | User interaction       |
-| `connectionState` | WebSocket status, sync state                       | API layer              |
+| `connectionState` | WSS connection status, sync state, protocol info   | API layer              |
 
 ### Sync Flow
 
