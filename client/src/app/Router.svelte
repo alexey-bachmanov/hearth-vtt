@@ -15,9 +15,9 @@
 import { onMount } from 'svelte';
 import { parseRoute, type Route } from './routes';
 import PlayLayout from '../ui/layout/PlayLayout.svelte';
-
-// Import placeholder components (will be created in Phase 2+)
-// For now, we'll render simple placeholders inline
+import AdminLayout from '../ui/layout/AdminLayout.svelte';
+import JoinPage from '../ui/auth/JoinPage.svelte';
+import NotLoggedInPage from '../ui/auth/NotLoggedInPage.svelte';
 
 let currentRoute = $state<Route>(parseRoute(window.location.pathname));
 
@@ -39,50 +39,11 @@ onMount(() => {
 </script>
 
 {#if currentRoute.type === 'join'}
-  <div class="route-placeholder">
-    <h1>Join Page</h1>
-    <p>Invite token: {currentRoute.token}</p>
-    <p>This will be replaced with JoinPage component in Phase 4.</p>
-  </div>
+  <JoinPage token={currentRoute.token} />
 {:else if currentRoute.type === 'play'}
   <PlayLayout />
 {:else if currentRoute.type === 'admin'}
-  <div class="route-placeholder">
-    <h1>Admin Layout</h1>
-    <p>Campaign management interface will be rendered here.</p>
-    <p>This will be replaced with AdminLayout component in Phase 3.</p>
-  </div>
+  <AdminLayout />
 {:else}
-  <div class="route-placeholder">
-    <h1>Not Logged In</h1>
-    <p>You need to be authenticated to access HearthVTT.</p>
-    <p>This will be replaced with NotLoggedInPage component in Phase 4.</p>
-  </div>
+  <NotLoggedInPage />
 {/if}
-
-<style>
-  .route-placeholder {
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    justify-content: center;
-    min-height: 100vh;
-    padding: var(--space-xl);
-    background-color: var(--color-bg-primary);
-    color: var(--color-text-primary);
-    text-align: center;
-  }
-
-  .route-placeholder h1 {
-    font-size: var(--font-size-3xl);
-    font-weight: var(--font-weight-bold);
-    margin-bottom: var(--space-md);
-    color: var(--color-accent-primary);
-  }
-
-  .route-placeholder p {
-    font-size: var(--font-size-lg);
-    margin-bottom: var(--space-sm);
-    color: var(--color-text-secondary);
-  }
-</style>
