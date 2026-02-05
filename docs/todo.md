@@ -1,13 +1,13 @@
 # Milestone 1 checklist: placeholder server
 
-- Fastify server starts with env config
-- Creates `DATA_DIR` and subfolders if missing
-- Initializes SQLite via storage interface (even if tables are minimal)
-- `GET /healthz` works
-- `GET /` serves placeholder page or `client/dist`
-- WS endpoint `/ws` supports hello/welcome + ping/pong
-- Dockerfile runs the same server
-- README/dev scripts (optional) for local + docker run
+- [ ] Fastify server starts with env config
+- [ ] Creates `DATA_DIR` and subfolders if missing
+- [ ] Initializes SQLite via storage interface (even if tables are minimal)
+- [ ] `GET /healthz` works
+- [ ] `GET /` serves placeholder page or `client/dist`
+- [ ] WS endpoint `/ws` supports hello/welcome + ping/pong
+- [ ] Dockerfile runs the same server
+- [ ] README/dev scripts (optional) for local + docker run
 
 ---
 

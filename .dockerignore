@@ -1,0 +1,29 @@
+# Ignore everything by default
+
+-
+
+# Include package files
+
+!package.json
+!package-lock.json
+
+# Include source directories
+
+!client/
+!server/
+
+# Exclude build artifacts and dependencies within included dirs
+
+client/node_modules
+client/dist
+server/node_modules
+server/dist
+
+# Exclude data and IDE files
+
+data/
+.git/
+.github/
+docs/
+_.md
+.env_
