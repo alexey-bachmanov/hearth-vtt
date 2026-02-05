@@ -210,6 +210,7 @@ Portable artifacts:
 
 - **Architecture overview:** [`docs/architecture-overview.md`](../docs/architecture-overview.md)
 - **Shared types & terminology:** [`docs/shared-types.md`](../docs/shared-types.md) — **Read this for canonical type definitions and glossary**
+- **Code style guide:** [`docs/code-style-guide.md`](../docs/code-style-guide.md) — **Follow these patterns for documentation and code organization**
 - **To-do list:** [`docs/todo.md`](../docs/todo.md)
 
 ### Component docs
@@ -244,6 +245,7 @@ Before changing anything non-trivial, the agent must:
 
 - Read `AGENTS.md` (this file)
 - Read [`docs/shared-types.md`](../docs/shared-types.md) for canonical type definitions and terminology
+- Read [`docs/code-style-guide.md`](../docs/code-style-guide.md) for documentation and code organization standards
 - Read the relevant component doc(s) under `docs/components/`
 - If changing protocols, read `docs/protocols/*`
 - If changing architecture decisions, add/update an ADR in `docs/decisions/`

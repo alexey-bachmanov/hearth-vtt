@@ -7,7 +7,6 @@
   "scripts": {
     "dev": "tsx watch src/index.ts",
     "build": "tsc",
-    "build:bundle": "node scripts/bundle.js",
     "start": "node dist/index.js",
     "test": "vitest run",
     "test:watch": "vitest",
