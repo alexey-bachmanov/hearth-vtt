@@ -621,6 +621,393 @@ interface PromptFilters {
 }
 ```
 
+### CampaignManager Class
+
+The CampaignManager is a server-level singleton that manages GameEngine lifecycle. It creates GameEngine instances on first connection to a campaign and destroys them on inactivity or shutdown.
+
+```typescript
+/**
+ * Server-level singleton managing GameEngine instances.
+ * Handles lifecycle (open/close), inactivity timeouts, and graceful shutdown.
+ */
+export class CampaignManager {
+  private engines: Map<string, GameEngine> = new Map();
+  private inactivityTimers: Map<string, NodeJS.Timeout> = new Map();
+
+  constructor(
+    private storage: Storage,
+    private realtimeHub: RealtimeHub,
+    private idGenerator: IdGenerator,
+    private logger: Logger,
+    private config: {
+      inactivityTimeout: number; // ms
+    },
+  ) {}
+
+  /**
+   * Open a campaign and return the GameEngine instance.
+   * If already open, returns the existing instance.
+   * Loads latest snapshot + events to rebuild CampaignState in memory.
+   */
+  async openCampaign(campaignId: string): Promise<GameEngine> {
+    if (this.engines.has(campaignId)) {
+      this.logger.info('Campaign already open', { campaignId });
+      return this.engines.get(campaignId)!;
+    }
+
+    this.logger.info('Opening campaign', { campaignId });
+    const engine = await GameEngine.create(
+      campaignId,
+      this.storage,
+      this.realtimeHub,
+      this.idGenerator,
+      this.logger.child({ campaignId }),
+    );
+
+    this.engines.set(campaignId, engine);
+    this.resetInactivityTimer(campaignId);
+    return engine;
+  }
+
+  /**
+   * Close a campaign and release resources.
+   * Creates final snapshot before closing.
+   */
+  async closeCampaign(campaignId: string): Promise<void> {
+    const engine = this.engines.get(campaignId);
+    if (!engine) return;
+
+    this.logger.info('Closing campaign', { campaignId });
+    this.clearInactivityTimer(campaignId);
+    await engine.close();
+    this.engines.delete(campaignId);
+  }
+
+  /**
+   * Get an open GameEngine instance.
+   * Returns null if campaign is not currently open.
+   */
+  getEngine(campaignId: string): GameEngine | null {
+    return this.engines.get(campaignId) ?? null;
+  }
+
+  /**
+   * Reset inactivity timer for a campaign.
+   * Called when actions are emitted or connections join.
+   */
+  resetInactivityTimer(campaignId: string): void {
+    this.clearInactivityTimer(campaignId);
+    const timer = setTimeout(() => {
+      this.logger.info('Campaign inactive, closing', { campaignId });
+      this.closeCampaign(campaignId);
+    }, this.config.inactivityTimeout);
+    this.inactivityTimers.set(campaignId, timer);
+  }
+
+  private clearInactivityTimer(campaignId: string): void {
+    const timer = this.inactivityTimers.get(campaignId);
+    if (timer) {
+      clearTimeout(timer);
+      this.inactivityTimers.delete(campaignId);
+    }
+  }
+
+  /**
+   * Graceful shutdown: close all open campaigns.
+   */
+  async shutdown(): Promise<void> {
+    this.logger.info('Shutting down CampaignManager');
+    const closePromises = Array.from(this.engines.keys()).map((campaignId) =>
+      this.closeCampaign(campaignId),
+    );
+    await Promise.all(closePromises);
+  }
+}
+```
+
+### GameEngine Class
+
+The GameEngine class is the authoritative game logic orchestration layer. One instance exists per active campaign. It owns CampaignState in memory, processes Actions sequentially, and delegates pure resolution logic to an embedded RulesetRuntime.
+
+```typescript
+/**
+ * GameEngine orchestrates game logic for a single campaign.
+ * Owns CampaignState in memory, processes Actions sequentially,
+ * and delegates resolution to embedded RulesetRuntime.
+ */
+export class GameEngine {
+  private state: CampaignState;
+  private runtime: RulesetRuntime;
+  private actionQueue: AsyncQueue<Action>;
+  private lastSnapshotTime: number;
+  private eventsSinceSnapshot: number = 0;
+
+  private constructor(
+    private campaignId: string,
+    initialState: CampaignState,
+    ruleset: Ruleset,
+    private storage: Storage,
+    private realtimeHub: RealtimeHub,
+    private idGenerator: IdGenerator,
+    private logger: Logger,
+    private config: {
+      snapshotEventThreshold: number; // e.g., 100
+      snapshotTimeThreshold: number; // ms, e.g., 15 min
+      maxRetainedSnapshots: number; // e.g., 3
+    },
+  ) {
+    this.state = initialState;
+    this.runtime = new RulesetRuntime(ruleset);
+    this.actionQueue = new AsyncQueue();
+    this.lastSnapshotTime = Date.now();
+  }
+
+  /**
+   * Static factory: load campaign, rebuild state from snapshot + events.
+   */
+  static async create(
+    campaignId: string,
+    storage: Storage,
+    realtimeHub: RealtimeHub,
+    idGenerator: IdGenerator,
+    logger: Logger,
+  ): Promise<GameEngine> {
+    logger.info('Creating GameEngine', { campaignId });
+
+    // Load campaign metadata
+    const campaign = await storage.getCampaign(campaignId);
+    if (!campaign) {
+      throw new Error(`Campaign not found: ${campaignId}`);
+    }
+
+    // Load ruleset (this would use RulesetLoader in real implementation)
+    const ruleset = await loadRuleset(campaign.rulesetId);
+
+    // Load latest snapshot
+    const snapshot = campaign.currentStateSnapshotId
+      ? await storage.getSnapshot(campaign.currentStateSnapshotId)
+      : null;
+
+    // Replay events since snapshot
+    const events = snapshot
+      ? await storage.getEventsSince(campaignId, snapshot.sequenceNumber)
+      : await storage.listEvents(campaignId);
+
+    // Rebuild state
+    let state: CampaignState = snapshot?.state ?? createInitialState(ruleset);
+    for (const event of events) {
+      state = applyEventToState(state, event);
+    }
+
+    return new GameEngine(
+      campaignId,
+      state,
+      ruleset,
+      storage,
+      realtimeHub,
+      idGenerator,
+      logger,
+      {
+        snapshotEventThreshold: 100,
+        snapshotTimeThreshold: 15 * 60 * 1000, // 15 min
+        maxRetainedSnapshots: 3,
+      },
+    );
+  }
+
+  /**
+   * Handle an Action emitted by a client.
+   * Enqueues the action for sequential processing.
+   */
+  async handleAction(action: Action, context: ActionContext): Promise<void> {
+    this.logger.debug('Action received', { action, context });
+    await this.actionQueue.enqueue(() => this.processAction(action, context));
+  }
+
+  /**
+   * Process a single action (called by queue).
+   * Steps: authorize → resolve → persist → broadcast → snapshot if needed.
+   */
+  private async processAction(
+    action: Action,
+    context: ActionContext,
+  ): Promise<void> {
+    try {
+      // 1. Authorize
+      // (future: check Seat permissions)
+
+      // 2. Resolve via RulesetRuntime
+      const resolution = this.runtime.resolve(action, this.state, {
+        rng: context.rng,
+        clock: context.clock,
+        emitterSeatId: context.emitterSeatId,
+      });
+
+      // 3. Persist events in transaction
+      await this.storage.transaction(async (tx) => {
+        for (const event of resolution.events) {
+          await tx.appendEvent(this.campaignId, event);
+        }
+      });
+
+      // 4. Apply events to in-memory state
+      for (const event of resolution.events) {
+        this.state = applyEventToState(this.state, event);
+        this.eventsSinceSnapshot++;
+      }
+
+      // 5. Broadcast to clients
+      if (resolution.events.length > 0) {
+        await this.realtimeHub.broadcastEvents(
+          this.campaignId,
+          resolution.events,
+          resolution.audience ?? 'all',
+        );
+      }
+
+      if (resolution.patches.length > 0) {
+        await this.realtimeHub.broadcastDeltas(
+          this.campaignId,
+          resolution.patches,
+          resolution.audience ?? 'all',
+        );
+      }
+
+      // 6. Send prompts
+      for (const prompt of resolution.prompts) {
+        await this.storage.upsertPrompt(prompt);
+        await this.realtimeHub.sendPrompts(this.campaignId, [prompt]);
+      }
+
+      // 7. Update workflows
+      for (const workflow of resolution.workflows) {
+        await this.storage.upsertWorkflow(workflow);
+      }
+
+      // 8. Check if snapshot needed
+      await this.checkAndCreateSnapshot();
+
+      this.logger.info('Action processed successfully', {
+        action: action.type,
+        events: resolution.events.length,
+      });
+    } catch (error) {
+      this.logger.error('Action processing failed', { action, error });
+      // TODO: send error to client via RealtimeHub
+    }
+  }
+
+  /**
+   * Handle workflow input from a client (e.g., answering a prompt).
+   */
+  async handleWorkflowInput(
+    workflowId: string,
+    input: WorkflowInput,
+  ): Promise<void> {
+    // Load workflow state, resume execution
+    // (details depend on workflow implementation)
+    this.logger.debug('Workflow input received', { workflowId, input });
+    // TODO: implement workflow continuation
+  }
+
+  /**
+   * Get initial sync data for a newly connected client.
+   * Returns current CampaignState + recent events.
+   */
+  async getInitialSync(): Promise<InitialSyncData> {
+    const recentEvents = await this.storage.listEvents(this.campaignId, {
+      limit: 50,
+    });
+
+    return {
+      state: this.state,
+      recentEvents,
+    };
+  }
+
+  /**
+   * Close the GameEngine and create final snapshot.
+   */
+  async close(): Promise<void> {
+    this.logger.info('Closing GameEngine', { campaignId: this.campaignId });
+    await this.createSnapshot();
+    // Release resources (nothing to do for now)
+  }
+
+  /**
+   * Create snapshot if thresholds met.
+   */
+  private async checkAndCreateSnapshot(): Promise<void> {
+    const timeSinceSnapshot = Date.now() - this.lastSnapshotTime;
+
+    if (
+      this.eventsSinceSnapshot >= this.config.snapshotEventThreshold ||
+      timeSinceSnapshot >= this.config.snapshotTimeThreshold
+    ) {
+      await this.createSnapshot();
+    }
+  }
+
+  /**
+   * Create and persist a snapshot of current state.
+   */
+  private async createSnapshot(): Promise<void> {
+    this.logger.info('Creating snapshot', { campaignId: this.campaignId });
+
+    const snapshot: Snapshot = {
+      id: this.idGenerator.generateId(),
+      campaignId: this.campaignId,
+      sequenceNumber: this.eventsSinceSnapshot, // TODO: get actual sequence from storage
+      state: this.state,
+      createdAt: new Date(),
+    };
+
+    await this.storage.createSnapshot(snapshot);
+    await this.storage.updateCampaign(this.campaignId, {
+      currentStateSnapshotId: snapshot.id,
+    });
+
+    // Delete old snapshots (retain last N)
+    await this.deleteOldSnapshots();
+
+    this.eventsSinceSnapshot = 0;
+    this.lastSnapshotTime = Date.now();
+  }
+
+  private async deleteOldSnapshots(): Promise<void> {
+    const snapshots = await this.storage.listSnapshots(this.campaignId);
+    if (snapshots.length > this.config.maxRetainedSnapshots) {
+      const toDelete = snapshots
+        .sort((a, b) => b.sequenceNumber - a.sequenceNumber)
+        .slice(this.config.maxRetainedSnapshots);
+
+      for (const snap of toDelete) {
+        await this.storage.deleteSnapshot(snap.id);
+      }
+    }
+  }
+}
+
+/**
+ * Context passed when processing an action.
+ */
+interface ActionContext {
+  emitterSeatId: string;
+  rng: RNG;
+  clock: Clock;
+}
+
+/**
+ * Initial sync data sent to newly connected clients.
+ */
+interface InitialSyncData {
+  state: CampaignState;
+  recentEvents: EventRecord[];
+}
+```
+
+See [ruleset-engine.md](ruleset-engine.md) for complete GameEngine specification, including RulesetRuntime, dependency interfaces (RealtimeHub, IdGenerator, Logger), and action resolution pipeline details.
+
 ### Storage Implementation Notes
 
 - **Architecture:** Storage class delegates to internal StorageBackend implementations (SQLiteBackend, PostgresBackend, InMemoryBackend)

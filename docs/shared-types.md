@@ -42,17 +42,19 @@ A document that defines valid entity schemas and valid actions composed of primi
 
 ### GameEngine
 
-Multiple things:
+A concrete class that provides authoritative game logic orchestration. Multiple aspects:
 
-1. A set of primitive operations and methods that a Ruleset composes into valid actions.
-2. The object that accepts emitted Actions, uses the Ruleset and current CampaignState to resolve them into GameEvents (or errors), and appends those to the EventRecord.
-3. Manages the queue of Actions, as one event might trigger multiple others that must be resolved in sequence.
+1. **Lifecycle**: One instance exists per active campaign, created on first connection and destroyed on inactivity/shutdown.
+2. **State Management**: Owns CampaignState in memory (loaded from Snapshot + event replay), keeps it synchronized with Storage via transactional updates.
+3. **Action Processing**: Accepts emitted Actions, processes them sequentially via internal queue, uses embedded RulesetRuntime to resolve them into Resolutions (events/patches/prompts/workflows).
+4. **Side Effects**: Handles all persistence (Storage), broadcasting (RealtimeHub), and ID generation (IdGenerator).
+5. **Pure Core**: Embeds RulesetRuntime (pure resolution logic) as a private member.
 
-The GameEngine ships with the server. It does nothing without a Ruleset.
+GameEngine ships with the server. It does nothing without a Ruleset loaded into its RulesetRuntime.
 
-### Resolver
+### RulesetRuntime
 
-An object in the GameEngine that takes the current CampaignState and an emitted Action, and resolves it into a GameEvent using the Ruleset. **Resolvers are pure**—they produce output without side effects. The GameEngine handles all persistence.
+A pure resolution engine embedded within GameEngine. Takes CampaignState + Action + ResolveContext and produces a Resolution using the loaded Ruleset. **RulesetRuntime has zero side effects**—all persistence, broadcasting, and ID generation is handled by GameEngine. Not accessible outside GameEngine.
 
 ### Tome
 

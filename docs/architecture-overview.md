@@ -10,7 +10,7 @@ HearthVTT is a **homebrew-first**, **system-agnostic**, **self-hostable** virtua
 
 This document is the high-level map of how the major pieces fit together.
 
-> **Terminology:** See [shared-types.md](shared-types.md) for canonical definitions of Seat, Session, CampaignState, Snapshot, GameEvent, EventRecord, Action, Ruleset, GameEngine, Resolver, Tome, and Compendium.
+> **Terminology:** See [shared-types.md](shared-types.md) for canonical definitions of Seat, Session, CampaignState, Snapshot, GameEvent, EventRecord, Action, Ruleset, GameEngine, RulesetRuntime, Tome, and Compendium.
 
 ---
 
@@ -26,7 +26,7 @@ Rulesets define schemas, actions, UI templates, and resolver logic using a const
 
 ### Manual play is ruleset responsibility
 
-The GameEngine does not define built-in actions. All actions (dice rolls, HP adjustments, effect applications) are defined by the loaded Ruleset. Common manual actions should be included in ruleset templates, but deterministic or dice-free games are valid use cases—rulesets are not forced to include dice mechanics.
+GameEngine does not define built-in actions. All actions (dice rolls, HP adjustments, effect applications) are defined by the loaded Ruleset. Common manual actions should be included in ruleset templates, but deterministic or dice-free games are valid use cases—rulesets are not forced to include dice mechanics.
 
 > This is the canonical statement of this principle. Other documents reference this section.
 
@@ -149,9 +149,19 @@ See: [`docs/components/data-model.md`](components/data-model.md), [`docs/compone
 
 ## Realtime engine: actions, resolution, and events
 
+### GameEngine architecture
+
+**GameEngine** is a concrete class responsible for authoritative game logic orchestration. Key characteristics:
+
+- **One instance per active campaign**: CampaignManager creates GameEngine on first connection, destroys on inactivity/shutdown.
+- **State ownership**: Loads CampaignState in memory (from Snapshot + event replay), keeps synchronized with Storage.
+- **Sequential processing**: Internal AsyncQueue ensures actions process one-at-a-time per campaign.
+- **Embedded resolution**: RulesetRuntime (pure resolution engine) is a private member; transforms (Action + State) → Resolution.
+- **Side effect handling**: GameEngine handles all persistence (Storage), broadcasting (RealtimeHub), and ID generation (IdGenerator).
+
 ### Action pipeline
 
-An **Action** represents user intent (roll, attack, cast, move, apply effect). The server resolves actions into:
+An **Action** represents user intent (roll, attack, cast, move, apply effect). GameEngine resolves actions into:
 
 - **Rolls** (deterministic via server-side rolling; clients may request/trigger)
 - **Prompts** (UI requests to specific seats)
@@ -165,7 +175,7 @@ An **Action** represents user intent (roll, attack, cast, move, apply effect). T
 - Deterministic replay of session state
 - Efficient realtime sync (send deltas)
 
-Rulesets govern which actions exist and how they resolve; the engine provides the primitive operations.
+Rulesets govern which actions exist and how they resolve; GameEngine provides the primitive operations and orchestration.
 
 See: [`docs/components/ruleset-engine.md`](components/ruleset-engine.md)
 

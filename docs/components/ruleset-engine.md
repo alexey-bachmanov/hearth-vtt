@@ -45,11 +45,13 @@ Ruleset execution must be:
 
 > **Terminology:** See [shared-types.md](../shared-types.md) for canonical definitions of Seat, Session, CampaignState, Snapshot, GameEvent, EventRecord, Action, Ruleset, GameEngine, Resolver, Tome, and Compendium.
 
-### GameEngine vs Ruleset vs Resolver
+### GameEngine vs RulesetRuntime vs Ruleset
 
-- **GameEngine**: Authoritative orchestration and persistence. It receives Actions, validates them, uses the Resolver to process them, applies results to storage, and broadcasts outcomes. Ships with the server; does nothing without a Ruleset.
-- **Ruleset**: A plugin package that defines schemas, actions, UI templates/bindings, and constrained resolver logic using a DSL. Rulesets are data-driven.
-- **Resolver**: A pure function within the GameEngine that takes CampaignState + Action and produces a GameEvent using the Ruleset. **Resolvers have no side effects**—the GameEngine handles all persistence and broadcasting.
+- **GameEngine**: A concrete class that provides authoritative orchestration and persistence. One instance exists per active campaign. It receives Actions, validates them, uses its embedded RulesetRuntime to resolve them, applies results to storage, and broadcasts outcomes. Ships with the server; does nothing without a Ruleset. GameEngine owns CampaignState in memory and processes actions sequentially via an internal queue.
+
+- **RulesetRuntime**: A pure resolution engine embedded within GameEngine. It takes CampaignState + Action + ResolveContext and produces a Resolution (events/patches/prompts/workflows) using the loaded Ruleset. **RulesetRuntime has zero side effects**—all persistence and broadcasting is handled by GameEngine. Not accessible outside GameEngine.
+
+- **Ruleset**: A plugin package that defines schemas, actions, UI templates/bindings, and constrained resolver logic using a DSL. Rulesets are data-driven and loaded into RulesetRuntime during GameEngine initialization. Each campaign locks to a specific ruleset version at creation.
 
 ### Actions → GameEvents
 
@@ -63,7 +65,13 @@ A **Resolution** is the computed outcome of resolving an Action:
 - `workflow mutations[]`: create/update multi-step workflow state
 - `telemetry`: optional debug fields
 
-The GameEngine takes the Resolution, appends events to the EventRecord, applies patches, and broadcasts to connected clients.
+RulesetRuntime returns the Resolution to GameEngine. GameEngine then:
+
+1. Generates IDs for new entities/events/prompts/workflows (via IdGenerator)
+2. Validates patches against schemas
+3. Applies patches to in-memory CampaignState
+4. Persists events/prompts/workflows via Storage (transactionally)
+5. Broadcasts to connected clients via RealtimeHub
 
 ### Recipes can live in rulesets _and_ tomes
 
@@ -93,35 +101,45 @@ Ruleset execution must be constrained:
    - HTTP/WS message decoded to `ActionEnvelope`
    - basic protocol validation (schema)
 
-2. **Load context**
-   - campaign state view
-   - seat role and ownership
-   - active ruleset runtime + attached tomes
-   - active workflows/prompts (for workflow continuation)
+2. **Enqueue** (sequential processing per campaign)
+   - Action added to GameEngine's internal AsyncQueue
+   - Queue ensures only one action processes at a time per campaign
 
-3. **Authorize**
-   - role-based (gm/player)
-   - ownership-based (player may act only on their actors unless allowed)
-   - action-level and ruleset-level constraints
+3. **Load context**
+   - ReadonlyStateView from GameEngine's in-memory CampaignState
+   - Seat role and ownership from campaign metadata
+   - Active workflows/prompts (for workflow continuation)
 
-4. **Resolve**
-   - The Resolver takes CampaignState + Action and produces a Resolution
-   - **Resolvers are pure** — they have no side effects; all persistence is handled by the GameEngine
-   - Optionally evaluate triggers: `resolveTriggered(event, ctx)` (see Triggers and Failure Handling for recursion limits)
+4. **Authorize**
+   - Role-based (gm/player)
+   - Ownership-based (player may act only on their actors unless allowed)
+   - Action-level and ruleset-level constraints from Ruleset
 
-5. **Apply transactionally**
-   - The GameEngine generates all IDs for new entities, events, prompts, workflows
-   - The GameEngine validates patches against `SchemaRegistry` before applying
-   - Append GameEvents to EventRecord
-   - Apply patches (storage assumes valid data after engine validation)
-   - Upsert workflow state and prompt records
-   - Update indexes / derived caches (optional)
+5. **Resolve**
+   - GameEngine calls RulesetRuntime.resolve(Action, ResolveContext) → Resolution
+   - **RulesetRuntime is pure** — zero side effects; all I/O via context
+   - Optionally evaluate triggers: `resolveTriggered(event, ctx)` (recursion limit: 20 calls)
+   - If error: rollback transaction, return error to client
 
-6. **Broadcast**
-   - deliver prompts to audiences
-   - broadcast events and state deltas to relevant seats
+6. **Apply transactionally** (within Storage.transaction())
+   - GameEngine generates IDs via IdGenerator (events, prompts, workflows, entities)
+   - GameEngine validates patches via RulesetRuntime.validatePatch()
+   - Apply patches to in-memory CampaignState
+   - Persist: Storage.appendEvent(...) for each event
+   - Persist: Storage.upsertPrompt(...) for each prompt
+   - Persist: Storage.upsertWorkflow(...) for each workflow
+   - Increment event counter for snapshot trigger
 
-7. **Return**
+7. **Broadcast** (outside transaction)
+   - RealtimeHub.broadcastEvents(events) — filtered by Audience per seat
+   - RealtimeHub.broadcastDeltas(deltas) — state updates to all seats
+   - RealtimeHub.sendPrompts(prompts) — to specific seats per Prompt.audience
+
+8. **Check snapshot trigger**
+   - If eventCounter % snapshotInterval == 0: create Snapshot
+   - Prune old snapshots (keep last 3)
+
+9. **Return**
    - `EngineResult` containing applied outcomes for caller
 
 ---
@@ -130,13 +148,13 @@ Ruleset execution must be constrained:
 
 All failure modes default to **cancel the current action and log an error**. The engine prioritizes safety and debuggability over partial execution.
 
-| Failure                                       | Behavior                                                      |
-| --------------------------------------------- | ------------------------------------------------------------- |
-| Resolver throws or returns invalid Resolution | Cancel action, log error, return `EngineError` to caller      |
-| Workflow timeout expires with no response     | Cancel workflow, log expiration, notify relevant seats        |
-| Patch fails schema validation mid-Resolution  | Cancel entire action (no partial apply), log validation error |
-| Tome reference points to missing entry        | Cancel action, log missing reference                          |
-| RNG called more times than expected           | Log warning (audit trail may diverge on replay)               |
+| Failure                                             | Behavior                                                                       |
+| --------------------------------------------------- | ------------------------------------------------------------------------------ |
+| RulesetRuntime throws or returns invalid Resolution | Cancel action, rollback transaction, log error, return `EngineError` to caller |
+| Workflow timeout expires with no response           | Cancel workflow, log expiration, notify relevant seats                         |
+| Patch fails schema validation mid-Resolution        | Cancel entire action (no partial apply), log validation error                  |
+| Tome reference points to missing entry              | Cancel action, log missing reference                                           |
+| RNG called more times than expected                 | Log warning (audit trail may diverge on replay)                                |
 
 ### Trigger Recursion
 
@@ -488,28 +506,326 @@ export type Resolution = {
 
 ### Engine Interfaces
 
-#### Engine Construction and Lifecycle
+#### GameEngine Class
+
+GameEngine is a concrete class (not an interface) with one instance per active campaign.
 
 ```ts
-export type GameEngineOptions = {
+export interface GameEngineOptions {
+  campaignId: CampaignId;
   storage: Storage;
   rulesetLoader: RulesetLoader;
-  realtime: RealtimeHub;
-
+  realtimeHub: RealtimeHub;
+  idGenerator: IdGenerator;
   rng: RngProvider;
   clock: Clock;
   logger: Logger;
-};
-
-export interface GameEngine {
-  openCampaign(campaignId: CampaignId): Promise<void>;
-  closeCampaign(campaignId: CampaignId): Promise<void>;
-
-  handleAction(action: ActionEnvelope): Promise<EngineResult>;
-  handleWorkflowInput(input: WorkflowInputEnvelope): Promise<EngineResult>;
-
-  getInitialSync(seatId: SeatId, campaignId: CampaignId): Promise<SyncBundle>;
+  config?: GameEngineConfig;
 }
+
+export interface GameEngineConfig {
+  snapshotEveryNEvents: number; // default: 100
+  snapshotEveryNMinutes: number; // default: 15
+  maxTriggerRecursion: number; // default: 20
+  retainSnapshotCount: number; // default: 3
+}
+
+export class GameEngine {
+  // Private members
+  private readonly campaignId: CampaignId;
+  private readonly storage: Storage;
+  private readonly realtimeHub: RealtimeHub;
+  private readonly idGenerator: IdGenerator;
+  private readonly rng: RngProvider;
+  private readonly clock: Clock;
+  private readonly logger: Logger;
+  private readonly config: GameEngineConfig;
+
+  // Owned components
+  private readonly runtime: RulesetRuntime;
+  private readonly actionQueue: AsyncQueue;
+
+  // In-memory state
+  private state: CampaignState;
+  private eventCounter: number;
+
+  private constructor(/* private - use GameEngine.create() */) {}
+
+  /**
+   * Factory method - loads campaign and initializes engine.
+   *
+   * Process:
+   * 1. Load campaign metadata from Storage
+   * 2. Load Ruleset + Tomes via RulesetLoader
+   * 3. Create RulesetRuntime instance
+   * 4. Load latest Snapshot + replay events
+   * 5. Initialize action queue
+   * 6. Return initialized GameEngine
+   */
+  static async create(options: GameEngineOptions): Promise<GameEngine>;
+
+  /**
+   * Process an action from a client.
+   * Actions are enqueued and processed sequentially.
+   */
+  async handleAction(action: ActionEnvelope): Promise<EngineResult>;
+
+  /**
+   * Process workflow input (target selection, prompt response, etc).
+   * Similar to handleAction but continues existing workflow.
+   */
+  async handleWorkflowInput(
+    input: WorkflowInputEnvelope,
+  ): Promise<EngineResult>;
+
+  /**
+   * Get initial sync bundle for a newly connected client.
+   * Returns current CampaignState + recent events + active prompts.
+   */
+  async getInitialSync(seatId: SeatId): Promise<SyncBundle>;
+
+  /**
+   * Gracefully shutdown - wait for queue to drain, save final snapshot.
+   */
+  async close(): Promise<void>;
+}
+```
+
+#### CampaignManager (Server-Level)
+
+The server maintains one CampaignManager that creates/destroys GameEngine instances:
+
+```ts
+export class CampaignManager {
+  private engines: Map<CampaignId, GameEngine> = new Map();
+
+  /**
+   * Open a campaign - creates GameEngine if not already loaded.
+   */
+  async openCampaign(campaignId: CampaignId): Promise<GameEngine>;
+
+  /**
+   * Close a campaign - gracefully shuts down GameEngine.
+   * Triggered by:
+   * - Explicit admin API call
+   * - Inactivity timeout (no connected clients for N minutes)
+   * - Server shutdown
+   */
+  async closeCampaign(campaignId: CampaignId): Promise<void>;
+
+  /**
+   * Get active GameEngine for a campaign.
+   * Throws if campaign not loaded.
+   */
+  getEngine(campaignId: CampaignId): GameEngine;
+}
+```
+
+#### RulesetRuntime Class
+
+RulesetRuntime is a pure resolution engine embedded within GameEngine.
+
+```ts
+export class RulesetRuntime {
+  private readonly ruleset: Ruleset;
+  private readonly tomeIndex: TomeIndex;
+  private readonly schemaRegistry: SchemaRegistry;
+
+  constructor(ruleset: Ruleset, tomes: Tome[]) {
+    this.ruleset = ruleset;
+    this.tomeIndex = new TomeIndex(tomes);
+    this.schemaRegistry = new SchemaRegistry(ruleset.schemas);
+  }
+
+  /**
+   * Resolve an action into a Resolution.
+   * Pure function - no side effects; all I/O provided via context.
+   *
+   * @returns Resolution on success, ResolverError on failure
+   */
+  resolve(action: Action, context: ResolveContext): Resolution | ResolverError;
+
+  /**
+   * Validate a patch against schemas before application.
+   * Throws ValidationError if invalid.
+   */
+  validatePatch(patch: Patch, entityBefore: unknown): void;
+
+  /**
+   * Look up content from tomes (spells, items, effects, etc).
+   */
+  getEntityRef(ref: EntityRef): unknown | undefined;
+}
+```
+
+#### Dependency Interfaces
+
+GameEngine requires several injected dependencies for side effects and deterministic testing.
+
+##### RealtimeHub
+
+Handles WebSocket broadcasting with audience filtering.
+
+```ts
+/**
+ * RealtimeHub manages WebSocket broadcasting to connected clients.
+ * Implemented by the server's WebSocket manager.
+ */
+export interface RealtimeHub {
+  /**
+   * Broadcast GameEvents to connected clients.
+   * Filters events per-seat based on Audience policy.
+   *
+   * @param campaignId - Campaign to broadcast to
+   * @param events - Events to broadcast (audience filtering applied automatically)
+   */
+  broadcastEvents(campaignId: CampaignId, events: GameEvent[]): void;
+
+  /**
+   * Broadcast state deltas to all seats in a campaign.
+   *
+   * @param campaignId - Campaign to broadcast to
+   * @param deltas - State updates to broadcast
+   */
+  broadcastDeltas(campaignId: CampaignId, deltas: StateDelta[]): void;
+
+  /**
+   * Send prompts to specific seats (based on Prompt.audience).
+   *
+   * @param campaignId - Campaign to send prompts for
+   * @param prompts - Prompts to send (seat filtering applied automatically)
+   */
+  sendPrompts(campaignId: CampaignId, prompts: Prompt[]): void;
+
+  /**
+   * Get list of currently connected seatIds for a campaign.
+   * Used for analytics and campaign auto-unload decisions.
+   */
+  getConnectedSeats(campaignId: CampaignId): SeatId[];
+}
+```
+
+##### IdGenerator
+
+Provides unique identifiers for entities, events, prompts, workflows.
+
+```ts
+/**
+ * IdGenerator provides unique identifiers.
+ * Can be swapped with deterministic implementation for testing.
+ */
+export interface IdGenerator {
+  /**
+   * Generate universally unique identifier (UUID v4 by default).
+   */
+  generateId(): string;
+
+  /**
+   * Convenience methods for typed IDs (same underlying implementation).
+   */
+  generateEventId(): EventId;
+  generatePromptId(): PromptId;
+  generateWorkflowId(): WorkflowId;
+  generateEntityId(): string;
+}
+
+/**
+ * Production implementation using crypto.randomUUID()
+ */
+export class UuidGenerator implements IdGenerator {
+  generateId(): string {
+    return randomUUID();
+  }
+
+  generateEventId(): EventId {
+    return this.generateId();
+  }
+  generatePromptId(): PromptId {
+    return this.generateId();
+  }
+  generateWorkflowId(): WorkflowId {
+    return this.generateId();
+  }
+  generateEntityId(): string {
+    return this.generateId();
+  }
+}
+
+/**
+ * Test implementation with deterministic IDs
+ */
+export class MockIdGenerator implements IdGenerator {
+  private counter = 0;
+  private prefix: string;
+
+  constructor(prefix: string = 'test') {
+    this.prefix = prefix;
+  }
+
+  generateId(): string {
+    return `${this.prefix}-${++this.counter}`;
+  }
+
+  generateEventId(): EventId {
+    return this.generateId();
+  }
+  generatePromptId(): PromptId {
+    return this.generateId();
+  }
+  generateWorkflowId(): WorkflowId {
+    return this.generateId();
+  }
+  generateEntityId(): string {
+    return this.generateId();
+  }
+}
+```
+
+##### Logger
+
+Provides structured logging with context.
+
+```ts
+/**
+ * Logger provides structured logging with context.
+ * Implementation should support JSON output for cloud aggregation.
+ */
+export interface Logger {
+  /**
+   * Log informational message (normal operations).
+   */
+  info(message: string, context?: Record<string, unknown>): void;
+
+  /**
+   * Log warning (unexpected but handled conditions).
+   */
+  warn(message: string, context?: Record<string, unknown>): void;
+
+  /**
+   * Log error (failures, exceptions).
+   */
+  error(
+    message: string,
+    error?: Error,
+    context?: Record<string, unknown>,
+  ): void;
+
+  /**
+   * Log debug information (verbose, disabled in production).
+   */
+  debug(message: string, context?: Record<string, unknown>): void;
+
+  /**
+   * Create child logger with additional context.
+   * All subsequent log calls include the additional context.
+   */
+  child(context: Record<string, unknown>): Logger;
+}
+
+// Example usage:
+// const campaignLogger = logger.child({ campaignId: 'abc-123' });
+// campaignLogger.info('Action processed', { actionType: 'attack', duration: 45 });
+// Output: { level: 'info', message: 'Action processed', campaignId: 'abc-123', actionType: 'attack', duration: 45 }
 ```
 
 #### Engine Results
