@@ -19,7 +19,7 @@ Most state is JSON-like (actors/items/effects/scenes), but correctness requires 
 
 Use **SQLite** as the live runtime database, plus an assets folder on disk. Treat `.campaign` as an **import/export packaging format** (zip under the hood), not the live store.
 
-All database interactions must go through a storage interface to avoid lock-in and allow future Postgres for hosted mode.
+All database interactions must go through a Storage class that encapsulates backend implementation details. This allows swapping databases (SQLite to Postgres) by editing only `Storage.ts`, not all call sites throughout the server code.
 
 ## Alternatives considered
 
@@ -40,4 +40,5 @@ All database interactions must go through a storage interface to avoid lock-in a
 - Self-host is easy: one DB file + folder of assets.
 - Action resolution can be applied transactionally.
 - `.campaign` export/import is implemented as packaging/unpackaging of DB + assets + manifest.
-- Storage interface enables later Postgres support without rewriting core logic.
+- Storage class provides a single facade for database operations; switching backends (SQLite ↔ Postgres) requires editing only `Storage.ts` and backend implementations, not all call sites.
+- Backend implementations (SQLiteBackend, PostgresBackend) satisfy an internal interface not exposed to server code.

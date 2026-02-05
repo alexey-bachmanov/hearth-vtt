@@ -23,7 +23,7 @@ Use **Fastify** as the Node.js HTTP framework for the Game Server. Implement Web
 - delivery layer: `routes/`, `ws/`
 - application layer: `services/`
 - domain layer: `domain/`
-- persistence: `storage/` via storage interface
+- persistence: `storage/` via Storage class facade
 
 Use schema validation at boundaries (requests/messages) to pass trusted, typed data inward.
 

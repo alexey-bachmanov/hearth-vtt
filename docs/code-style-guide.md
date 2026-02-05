@@ -25,7 +25,7 @@ Every class must have a documentation block explaining:
 
 ```typescript
 /**
- * SqliteStorage provides persistent storage for campaigns, entities, and events.
+ * SQLiteBackend provides persistent storage using SQLite.
  *
  * Architecture:
  * - One metadata.db file tracks all campaigns
@@ -34,8 +34,11 @@ Every class must have a documentation block explaining:
  *
  * This separation allows campaigns to be archived/restored independently
  * while maintaining fast access to the campaign list.
+ *
+ * Note: This class implements StorageBackend interface internally.
+ * Server code uses the Storage facade class, not this implementation directly.
  */
-export class SqliteStorage implements Storage {
+export class SQLiteBackend implements StorageBackend {
   private dataDir: string;
   private metadataDb: Database | null = null;
   private campaignDbs: Map<string, Database> = new Map();
@@ -383,10 +386,10 @@ export class CampaignService {
 
 ### Classes and Interfaces
 
-- **PascalCase**: `CampaignService`, `Storage`, `SqliteStorage`
+- **PascalCase**: `CampaignService`, `Storage`, `SQLiteBackend`
 - Use nouns: the class/interface represents a _thing_
-- Interfaces should describe capability: `Storage`, `EventBus`, `Renderer`
-- Implementations can be concrete: `SqliteStorage`, `InMemoryEventBus`, `WebGLRenderer`
+- Facades should be simple: `Storage`, `EventBus`, `Renderer`
+- Backend implementations are concrete: `SQLiteBackend`, `PostgresBackend`, `InMemoryBackend`
 
 ### Functions and Methods
 
@@ -523,9 +526,11 @@ async function getCampaign(id: string): Promise<Campaign> {
 
 ```
 storage/
-  index.ts              # Storage interface definitions
-  sqlite-storage.ts     # SqliteStorage implementation
-  in-memory-storage.ts  # InMemoryStorage (for testing)
+  index.ts              # Storage class and factory
+  backend.ts            # StorageBackend interface (internal)
+  sqlite-backend.ts     # SQLiteBackend implementation
+  postgres-backend.ts   # PostgresBackend implementation
+  in-memory-backend.ts  # InMemoryBackend (for testing)
 
 services/
   campaign-service.ts   # Campaign orchestration
@@ -536,20 +541,41 @@ services/
 ### Index Files as Public API
 
 ```typescript
-// storage/index.ts - Define public interface
-export interface Storage {
-  createCampaign(name: string): Promise<Campaign>;
-  getCampaign(id: string): Promise<Campaign | null>;
+// storage/index.ts - Export Storage class and factory
+export class Storage {
+  private backend: StorageBackend;
+
+  constructor(backend: StorageBackend) {
+    this.backend = backend;
+  }
+
+  async createCampaign(name: string): Promise<Campaign> {
+    return this.backend.createCampaign(name);
+  }
+
+  async getCampaign(id: string): Promise<Campaign | null> {
+    return this.backend.getCampaign(id);
+  }
   // ...
+}
+
+export function createStorage(config: StorageConfig): Storage {
+  // Factory creates appropriate backend
 }
 
 export { Campaign, Entity, Event } from './types';
 
-// Other files shouldn't import implementation details
-// Import from the public interface instead:
+// Server code imports the concrete Storage class:
 import { Storage, Campaign } from './storage';
-// NOT: import { SqliteStorage } from './storage/sqlite-storage';
+import { createStorage } from './storage';
+
+const storage = createStorage({ type: 'sqlite', path: '...' });
 ```
+
+// NOT: import { SQLiteBackend } from './storage/sqlite-backend';
+// Backend implementations are internal to the storage module
+
+````
 
 ---
 
@@ -559,14 +585,14 @@ import { Storage, Campaign } from './storage';
 
 ```typescript
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
-import { SqliteStorage } from './sqlite-storage';
+import { Storage, InMemoryBackend } from './storage';
 
-describe('SqliteStorage', () => {
-  let storage: SqliteStorage;
+describe('Storage', () => {
+  let storage: Storage;
 
   beforeEach(async () => {
-    // Arrange: Set up test dependencies
-    storage = new SqliteStorage({ dataDir: './test-data' });
+    // Arrange: Set up test dependencies with in-memory backend
+    storage = new Storage(new InMemoryBackend());
     await storage.init();
   });
 
@@ -607,7 +633,7 @@ describe('SqliteStorage', () => {
     });
   });
 });
-```
+````
 
 ---
 
@@ -698,8 +724,10 @@ import { randomUUID } from 'crypto';
  *
  * Constraints:
  * - [Any performance or concurrency constraints]
+ *
+ * Note: Implements internal StorageBackend interface, not exposed to server code.
  */
-export class MyStorage implements Storage {
+export class MyBackend implements StorageBackend {
   private dataDir: string;
   private db: Database | null = null;
 

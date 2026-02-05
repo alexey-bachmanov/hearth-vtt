@@ -2,7 +2,7 @@
 
 - [x] Fastify server starts with env config
 - [x] Creates `DATA_DIR` and subfolders if missing
-- [ ] Initializes SQLite via storage interface (even if tables are minimal)
+- [ ] Initializes SQLite via Storage class (even if tables are minimal)
 - [ ] `GET /healthz` works
 - [x] `GET /` serves placeholder page or `client/dist`
 - [ ] WSS endpoint `/ws` supports hello/welcome + ping/pong (ws:// for localhost dev, wss:// for production)
@@ -17,7 +17,7 @@
 
 - [x] shared-types.md — canonical type definitions and terminology glossary
 - [x] ruleset-engine.md — engine contracts, DSL overview, failure handling
-- [x] server.md — storage interface, Prompt/Workflow persistence
+- [x] server.md — Storage class, Prompt/Workflow persistence
 - [x] client.md — UI layout, component hierarchy, renderer API
 - [x] realtime-ws.md — WebSocket Secure (WSS) protocol specification
 - [x] data-model.md — file formats, storage architecture, entity schemas

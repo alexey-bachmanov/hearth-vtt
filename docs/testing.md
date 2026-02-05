@@ -9,7 +9,7 @@ This document defines testing guidelines, contracts, and strategies for HearthVT
 ### Test isolation
 
 - Unit tests should not depend on external services (database, network, filesystem).
-- Use in-memory implementations of storage and other interfaces for unit tests.
+- Use in-memory backend implementations (InMemoryBackend) for Storage in unit tests.
 - Integration tests may use real SQLite (in-memory or temp file).
 
 ### Determinism
@@ -30,7 +30,8 @@ This document defines testing guidelines, contracts, and strategies for HearthVT
 
 ### Storage Layer
 
-- Use in-memory SQLite (`:memory:`) for fast tests.
+- Use in-memory SQLite (`:memory:`) for fast integration tests of SQLiteBackend.
+- Use InMemoryBackend for unit tests that need a Storage instance without database overhead.
 - Test transaction rollback behavior explicitly.
 - Test event sequencing guarantees (monotonic sequence numbers).
 
@@ -60,7 +61,7 @@ This document defines testing guidelines, contracts, and strategies for HearthVT
 Specific testing contracts for components will be added here as they are implemented:
 
 - `MockResolveContext` — Mock implementation of `ResolveContext` for testing resolvers (see [ruleset-engine.md](components/ruleset-engine.md))
-- `MockStorage` — In-memory storage implementation for testing (see [server.md](components/server.md) Storage interface)
+- `InMemoryBackend` — In-memory backend implementation for testing Storage (see [server.md](components/server.md) Storage class). Tests inject via `new Storage(new InMemoryBackend())`
 - `TestRngProvider` — Deterministic RNG with seed control (implements `RngProvider` from [shared-types.md](shared-types.md) stubs)
 - `TestClock` — Controllable clock for time-dependent tests (implements `Clock`)
 

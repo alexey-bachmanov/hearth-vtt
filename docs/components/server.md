@@ -39,7 +39,7 @@ Rationale:
 
 - Fastify gives strong performance, clear plugin structure, and makes schema validation natural.
 - SQLite keeps self-hosting dead-simple (single-file DB, great transactional semantics).
-- Storage interface prevents persistence tech lock-in and supports future Postgres for hosted mode.
+- Storage class encapsulates persistence implementation, allowing future database swaps without rewriting server code.
 
 ---
 
@@ -91,7 +91,7 @@ Within `server/` (suggested):
 - `server/src/index.ts` — process entry point (env/flags, start server)
 - `server/src/routes/` — HTTP routes
 - `server/src/ws/` — WebSocket Secure (WSS) handler(s)
-- `server/src/storage/` — Storage interface + SQLite implementation
+- `server/src/storage/` — Storage class + backend implementations (SQLite, etc.)
 - `server/src/config.ts` — config parsing/validation
 - `server/src/logger.ts` — structured logging config
 - `server/src/static.ts` — static file serving of client bundle
@@ -166,9 +166,16 @@ No auth required in milestone 1; later we require access token on connect.
 
 ---
 
-## Persistence: Storage Interface (locked in)
+## Persistence: Storage Class (locked in)
 
-The server must not directly depend on SQLite details outside the storage implementation layer.
+The server uses a concrete Storage class for all database operations. Database implementation details (SQLite, Postgres, etc.) are encapsulated within the Storage class via an internal backend interface.
+
+### Design Goals
+
+- **Isolation:** Server code references `Storage` class directly, not database-specific implementations
+- **Single point of change:** Switching databases requires editing only `Storage.ts` and backend implementations
+- **Type safety:** Concrete class methods provide better IDE support than generic interfaces
+- **Testability:** Test backends can be injected via constructor
 
 ### Storage responsibilities
 
@@ -179,9 +186,9 @@ The server must not directly depend on SQLite details outside the storage implem
   - event log entries (append-only) for audit/replay potential
   - sessions/invites (later)
 
-### Conceptual interface shape
+### Conceptual API shape
 
-Specific method signatures are defined in the Interface Signatures section below. The storage layer must preserve these concepts:
+Specific method signatures are defined in the Class Signatures section below. The Storage class provides these core operations:
 
 - `init()`
 - `transaction(fn)`
@@ -192,9 +199,9 @@ Specific method signatures are defined in the Interface Signatures section below
 - `appendEvent(campaignId, event)`
 - `listEvents(campaignId, sinceSeq)`
 
-### SQLite storage pattern
+### SQLite backend pattern
 
-Prefer a JSON-friendly schema:
+The default backend is SQLite with a JSON-friendly schema:
 
 - entity JSON stored as text/blob
 - indexed columns for `campaignId`, `entityType`, `updatedAt`, `ownerSeatId` (as needed)
@@ -261,30 +268,43 @@ Auth/session system will evolve, but this baseline prevents accidental exposure.
 
 ---
 
-## Interface Signatures
+## Class Signatures
 
-This section defines the concrete interfaces, classes, and function signatures for the server component. Keep this updated as implementation progresses.
+This section defines the concrete classes and function signatures for the server component. Keep this updated as implementation progresses.
 
-### Storage Interface
+### Storage Class
 
-The storage interface abstracts database operations and must be implementable with SQLite, Postgres, or in-memory stores for testing.
+The Storage class is a concrete facade that server code references directly. It delegates to an internal backend implementation (SQLite, Postgres, or in-memory for testing).
 
 ```typescript
 /**
- * Main storage interface for the Game Server.
+ * Main storage class for the Game Server.
  * Provides transactional access to campaign data, entities, events, and sessions.
+ *
+ * Server code references this class directly. Database implementation is encapsulated
+ * via an internal StorageBackend interface.
  */
-interface Storage {
+export class Storage {
+  private backend: StorageBackend;
+
+  constructor(backend: StorageBackend) {
+    this.backend = backend;
+  }
+
   /**
    * Initialize the storage backend (create tables, run migrations, etc.)
    * Should be idempotent - safe to call multiple times.
    */
-  init(): Promise<void>;
+  async init(): Promise<void> {
+    return this.backend.init();
+  }
 
   /**
    * Close the storage backend and release resources.
    */
-  close(): Promise<void>;
+  async close(): Promise<void> {
+    return this.backend.close();
+  }
 
   /**
    * Execute a function within a transaction.
@@ -294,6 +314,134 @@ interface Storage {
    * @param fn - Function to execute within transaction context
    * @returns The return value of fn
    */
+  async transaction<T>(fn: (tx: StorageTransaction) => Promise<T>): Promise<T> {
+    return this.backend.transaction(fn);
+  }
+
+  // Campaign operations
+  async getCampaign(campaignId: string): Promise<Campaign | null> {
+    return this.backend.getCampaign(campaignId);
+  }
+
+  async createCampaign(data: CreateCampaignData): Promise<Campaign> {
+    return this.backend.createCampaign(data);
+  }
+
+  async updateCampaign(
+    campaignId: string,
+    data: Partial<Campaign>,
+  ): Promise<void> {
+    return this.backend.updateCampaign(campaignId, data);
+  }
+
+  async listCampaigns(): Promise<Campaign[]> {
+    return this.backend.listCampaigns();
+  }
+
+  // Entity operations (actors, items, effects, scenes)
+  async getEntity(entityId: string): Promise<Entity | null> {
+    return this.backend.getEntity(entityId);
+  }
+
+  async putEntity(entity: Entity): Promise<void> {
+    return this.backend.putEntity(entity);
+  }
+
+  async deleteEntity(entityId: string): Promise<void> {
+    return this.backend.deleteEntity(entityId);
+  }
+
+  async listEntities(
+    campaignId: string,
+    filters?: EntityFilters,
+  ): Promise<Entity[]> {
+    return this.backend.listEntities(campaignId, filters);
+  }
+
+  // Event log operations (append-only audit trail)
+  async appendEvent(
+    campaignId: string,
+    event: GameEvent,
+  ): Promise<EventRecord> {
+    return this.backend.appendEvent(campaignId, event);
+  }
+
+  async listEvents(
+    campaignId: string,
+    options?: EventQueryOptions,
+  ): Promise<EventRecord[]> {
+    return this.backend.listEvents(campaignId, options);
+  }
+
+  async getEventsSince(
+    campaignId: string,
+    sequenceNumber: number,
+  ): Promise<EventRecord[]> {
+    return this.backend.getEventsSince(campaignId, sequenceNumber);
+  }
+
+  // Prompt operations (for ruleset engine workflows)
+  async upsertPrompt(prompt: Prompt): Promise<void> {
+    return this.backend.upsertPrompt(prompt);
+  }
+
+  async getPrompt(promptId: string): Promise<Prompt | null> {
+    return this.backend.getPrompt(promptId);
+  }
+
+  async deletePrompt(promptId: string): Promise<void> {
+    return this.backend.deletePrompt(promptId);
+  }
+
+  async listPrompts(
+    campaignId: string,
+    filters?: PromptFilters,
+  ): Promise<Prompt[]> {
+    return this.backend.listPrompts(campaignId, filters);
+  }
+
+  // Workflow operations (for multi-step action resolution)
+  async upsertWorkflow(workflow: WorkflowState): Promise<void> {
+    return this.backend.upsertWorkflow(workflow);
+  }
+
+  async getWorkflow(workflowId: string): Promise<WorkflowState | null> {
+    return this.backend.getWorkflow(workflowId);
+  }
+
+  async deleteWorkflow(workflowId: string): Promise<void> {
+    return this.backend.deleteWorkflow(workflowId);
+  }
+
+  async listWorkflows(campaignId: string): Promise<WorkflowState[]> {
+    return this.backend.listWorkflows(campaignId);
+  }
+
+  // Session and auth operations (future)
+  async createSession(data: CreateSessionData): Promise<Session> {
+    return this.backend.createSession(data);
+  }
+
+  async getSession(sessionId: string): Promise<Session | null> {
+    return this.backend.getSession(sessionId);
+  }
+
+  async revokeSession(sessionId: string): Promise<void> {
+    return this.backend.revokeSession(sessionId);
+  }
+
+  async listActiveSessions(campaignId: string): Promise<Session[]> {
+    return this.backend.listActiveSessions(campaignId);
+  }
+}
+
+/**
+ * Internal interface for database-specific implementations.
+ * Not exported; only used within the storage module.
+ */
+interface StorageBackend {
+  init(): Promise<void>;
+  close(): Promise<void>;
   transaction<T>(fn: (tx: StorageTransaction) => Promise<T>): Promise<T>;
 
   // Campaign operations
@@ -302,13 +450,13 @@ interface Storage {
   updateCampaign(campaignId: string, data: Partial<Campaign>): Promise<void>;
   listCampaigns(): Promise<Campaign[]>;
 
-  // Entity operations (actors, items, effects, scenes)
+  // Entity operations
   getEntity(entityId: string): Promise<Entity | null>;
   putEntity(entity: Entity): Promise<void>;
   deleteEntity(entityId: string): Promise<void>;
   listEntities(campaignId: string, filters?: EntityFilters): Promise<Entity[]>;
 
-  // Event log operations (append-only audit trail)
+  // Event operations
   appendEvent(campaignId: string, event: GameEvent): Promise<EventRecord>;
   listEvents(
     campaignId: string,
@@ -319,23 +467,46 @@ interface Storage {
     sequenceNumber: number,
   ): Promise<EventRecord[]>;
 
-  // Prompt operations (for ruleset engine workflows)
+  // Prompt operations
   upsertPrompt(prompt: Prompt): Promise<void>;
   getPrompt(promptId: string): Promise<Prompt | null>;
   deletePrompt(promptId: string): Promise<void>;
   listPrompts(campaignId: string, filters?: PromptFilters): Promise<Prompt[]>;
 
-  // Workflow operations (for multi-step action resolution)
+  // Workflow operations
   upsertWorkflow(workflow: WorkflowState): Promise<void>;
   getWorkflow(workflowId: string): Promise<WorkflowState | null>;
   deleteWorkflow(workflowId: string): Promise<void>;
   listWorkflows(campaignId: string): Promise<WorkflowState[]>;
 
-  // Session and auth operations (future)
+  // Session operations
   createSession(data: CreateSessionData): Promise<Session>;
   getSession(sessionId: string): Promise<Session | null>;
   revokeSession(sessionId: string): Promise<void>;
   listActiveSessions(campaignId: string): Promise<Session[]>;
+}
+
+/**
+ * Factory function for creating Storage instances.
+ */
+export function createStorage(config: StorageConfig): Storage {
+  let backend: StorageBackend;
+
+  switch (config.type) {
+    case 'sqlite':
+      backend = new SQLiteBackend(config);
+      break;
+    case 'postgres':
+      backend = new PostgresBackend(config);
+      break;
+    case 'memory':
+      backend = new InMemoryBackend();
+      break;
+    default:
+      throw new Error(`Unknown storage type: ${config.type}`);
+  }
+
+  return new Storage(backend);
 }
 
 /**
@@ -452,10 +623,33 @@ interface PromptFilters {
 
 ### Storage Implementation Notes
 
-- **SQLite implementation**: Store entities as JSON TEXT with indexed columns for `id`, `campaignId`, `type`, `ownerSeatId`, `updatedAt`
-- **Transactions**: Use database transactions for `transaction()` method
+- **Architecture:** Storage class delegates to internal StorageBackend implementations (SQLiteBackend, PostgresBackend, InMemoryBackend)
+- **Benefits:** Changing database only requires updating backend implementations and factory, not call sites throughout server code
+- **SQLite backend**: Store entities as JSON TEXT with indexed columns for `id`, `campaignId`, `type`, `ownerSeatId`, `updatedAt`
+- **Postgres backend** (future): Similar JSON approach with JSONB columns for better querying
+- **Transactions**: Backend implementations use database transactions for `transaction()` method
 - **Event sequencing**: Event `sequenceNumber` should be monotonically increasing per campaign
-- **ID generation**: Use UUIDs for all IDs; implementation may use a separate `IdGenerator` interface
+- **ID generation**: Use UUIDs for all IDs; implementation may use a separate `IdGenerator` utility
 - **Timestamps**: Store as ISO 8601 strings or Unix timestamps; convert to Date objects in queries
+
+### Usage Example
+
+```typescript
+// Server initialization
+const storage = createStorage({
+  type: 'sqlite',
+  path: path.join(dataDir, 'db.sqlite'),
+});
+
+await storage.init();
+
+// Usage throughout server code
+const campaign = await storage.getCampaign(campaignId);
+const actors = await storage.listEntities(campaignId, { type: 'actor' });
+await storage.appendEvent(campaignId, gameEvent);
+
+// No need to import SQLiteStorage or know about backend details
+// Switching to Postgres only requires changing createStorage() config
+```
 
 ---

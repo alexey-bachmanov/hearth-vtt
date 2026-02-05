@@ -725,13 +725,23 @@ An item pinning Strength at 21:
 
 ---
 
-## Storage Interface Additions
+## Storage Class
 
-The Storage interface (see [server.md](server.md)) should support:
+The Storage class (see [server.md](server.md)) is a concrete facade that abstracts database operations. Server code references this class directly; switching database implementations (SQLite to Postgres, for example) only requires editing `Storage.ts`, not changing references throughout the codebase.
+
+### Storage Responsibilities
+
+The Storage class internally delegates to a database-specific implementation (SQLiteBackend, PostgresBackend, etc.) via a private interface or strategy pattern. This provides:
+
+- **Single point of change:** Database implementation details isolated to `Storage.ts`
+- **Type safety:** Server code works with concrete methods, not generic interfaces
+- **Testability:** Test implementations can be injected via constructor or factory
+
+### Key Methods
 
 ```ts
-interface Storage {
-  // Existing methods...
+class Storage {
+  // Existing methods (see server.md for full API)...
 
   // Snapshot chain management
   getLatestSnapshot(campaignId: CampaignId): Promise<Snapshot | null>;
@@ -751,5 +761,44 @@ interface Storage {
   ): Promise<void>;
 }
 ```
+
+### Implementation Pattern
+
+```ts
+// Internal interface for database implementations
+interface StorageBackend {
+  init(): Promise<void>;
+  close(): Promise<void>;
+  // ... other low-level operations
+}
+
+// Concrete Storage class used throughout server
+export class Storage {
+  private backend: StorageBackend;
+
+  constructor(backend: StorageBackend) {
+    this.backend = backend;
+  }
+
+  // Public API delegates to backend
+  async getCampaign(campaignId: string): Promise<Campaign | null> {
+    return this.backend.getCampaign(campaignId);
+  }
+
+  // ... rest of API
+}
+
+// Factory function for creating Storage instances
+export function createStorage(config: StorageConfig): Storage {
+  const backend =
+    config.type === 'sqlite'
+      ? new SQLiteBackend(config)
+      : new PostgresBackend(config);
+
+  return new Storage(backend);
+}
+```
+
+This pattern ensures that changing database implementations requires editing only the backend implementations and factory, not the hundreds of places in server code that call `storage.getCampaign()` or similar methods.
 
 ---
