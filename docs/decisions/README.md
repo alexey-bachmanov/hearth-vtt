@@ -75,6 +75,7 @@ Example:
 - [003: Fastify Framework](003-fastify-framework.md) — **Accepted**
 - [004: GameEngine Class Architecture](004-gameengine-class-architecture.md) — **Accepted**
 - [005: Networking Management (Join Links + Cookie Sessions)](005-networking-management.md) — **Accepted**
+- [006: Svelte 5 Upgrade](006-svelte-5-upgrade.md) — **Accepted**
 
 ---
 
