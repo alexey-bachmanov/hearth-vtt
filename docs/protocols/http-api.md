@@ -558,11 +558,59 @@ Common error codes:
 
 ## CSRF Protection
 
-All state-changing endpoints (POST, PATCH, DELETE) require CSRF protection:
+### Admin Endpoints
 
-- **Cookie-based**: Use SameSite=Lax cookies + Origin header validation
-- **Token-based** (optional): CSRF token in request header
+All admin state-changing endpoints (POST, PATCH, DELETE) require:
 
-See [ADR 005](../decisions/005-networking-management.md) and [auth-join-flow.md](../components/auth-join-flow.md) for security considerations.
+1. **Session cookie**: `hearth_admin_session` (HttpOnly, Secure, SameSite=Strict)
+2. **CSRF token**: Sent via `X-CSRF-Token` request header
+
+**CSRF Token Lifecycle**:
+
+- Generated on admin login/setup: 32-byte random hex string
+- Returned in auth response: `{ success: true, csrfToken: '...' }`
+- Stored in `admin_sessions.csrf_token` column (plaintext)
+- Client stores in memory (Svelte reactive store)
+- Validated by `requireCsrfToken()` middleware
+- Mismatch returns HTTP 403 (Forbidden)
+
+**Protected admin endpoints**:
+
+- `/api/admin/logout`
+- `/api/admin/change-password`
+- `/api/campaigns` (POST)
+- `/api/campaigns/:id` (DELETE)
+- `/api/campaigns/:id/import` (POST)
+- `/api/campaigns/:id/seats` (POST)
+- `/api/seats/:id` (PATCH, DELETE)
+- `/api/seats/:id/invites` (POST)
+- `/api/invites/:id` (DELETE)
+
+**Read-only admin endpoints** (session cookie only, no CSRF required):
+
+- `/api/campaigns` (GET)
+- `/api/campaigns/:id` (GET)
+- `/api/campaigns/:id/export` (GET)
+- `/api/campaigns/:id/seats` (GET)
+- `/api/seats/:id/invites` (GET)
+
+### Player/Seat Endpoints
+
+Player authentication uses SameSite=Lax cookies + Origin header validation for CSRF protection (CSRF tokens not yet implemented for seat auth).
+
+### Admin Authentication Endpoints
+
+For complete admin authentication flow documentation, see [auth-join-flow.md](../components/auth-join-flow.md#admin-authentication).
+
+Key endpoints:
+
+- `GET /api/admin/check-setup` - Check if server needs initial setup
+- `POST /api/admin/setup` - Complete initial setup with PIN and password
+- `GET /api/admin/check-auth` - Check if current session is authenticated
+- `POST /api/admin/login` - Login with password
+- `POST /api/admin/logout` - Revoke current session (requires CSRF token)
+- `POST /api/admin/change-password` - Change admin password (requires CSRF token)
+
+See [ADR 007](../decisions/007-server-level-admin.md) for complete admin authentication architecture.
 
 ---

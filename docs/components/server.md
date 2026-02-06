@@ -69,17 +69,24 @@ Configuration must come from environment variables and/or CLI flags (no hard-cod
 - `ADMIN_SETUP_PIN` (optional; override auto-generated setup PIN for cloud deployments)
 - `ADMIN_SETUP_PIN_EXPIRY` (default: 24 hours; how long setup PIN remains valid)
 - `ADMIN_ALLOW_REMOTE` (default: false; if true, allows `/api/admin/*` routes from non-localhost)
+- `COOKIE_SECRET` (optional; secret for signing cookies; auto-generated if not provided)
 
 Notes:
 
 - **Security by default:** `HOST=127.0.0.1` prevents accidental LAN/internet exposure. Self-hosted servers must explicitly set `HOST=0.0.0.0` to allow network access.
 - **Admin route protection:** By default, `/api/admin/*` routes only accept connections from localhost (`127.0.0.1`). This prevents unauthorized admin access even if the server is exposed to a network.
-- **Admin authentication:** Admin UI is protected by setup PIN (first-time) + password authentication (see ADR 007).
+- **Admin authentication:** Admin UI is protected by setup PIN (first-time) + password authentication with multiple security layers:
+  - CSRF token validation on all state-changing operations (POST/PATCH/DELETE)
+  - Rate limiting: 5 attempts/10min for login/setup, 3 attempts/10min for password changes
+  - Session token hashing (SHA-256) before storage
+  - Periodic session cleanup (hourly) to remove expired/revoked sessions
+  - Cookie hardening: `httpOnly`, `secure: true`, `sameSite: 'strict'`
+  - See [ADR 007](../decisions/007-server-level-admin.md) for complete security architecture
 - **Allowing remote admin access:** Set `ADMIN_ALLOW_REMOTE=true` to allow admin routes from non-localhost IPs. **Not recommended** without additional security measures:
   - Use a reverse proxy (Caddy/nginx) with TLS termination
   - Configure HTTP Basic Auth or mutual TLS at the proxy level for additional protection
-  - Use fail2ban or similar to prevent brute-force attacks
   - Consider IP whitelisting at firewall/proxy level
+  - Note: Built-in rate limiting provides baseline brute-force protection
 - **Cloud/production deployments:** Use `ADMIN_SETUP_PIN` to provide admin credentials via secure environment variables (avoids console logging).
 - **Tunneled deployments (ngrok, Cloudflare Tunnel, etc.):** These require `ADMIN_ALLOW_REMOTE=true` since connections appear non-local. **Always use HTTPS** and consider additional auth at the tunnel level.
 - **TLS termination:** Use a reverse proxy (recommended) or enable native TLS via `TLS_*` config options. Reverse proxies like Caddy auto-provision Let's Encrypt certificates.

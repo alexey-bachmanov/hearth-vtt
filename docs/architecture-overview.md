@@ -159,6 +159,26 @@ Platform identity (OAuth/passkey/email) may exist later for hosted convenience, 
 
 See [auth-join-flow.md](components/auth-join-flow.md), [ADR 005](decisions/005-networking-management.md), and [ADR 007](decisions/007-server-level-admin.md) for complete authentication specifications.
 
+### Security Measures
+
+**Admin session security** (implemented 2026-02-06):
+
+- **CSRF protection**: All state-changing admin operations require CSRF token validation via `X-CSRF-Token` header
+- **Rate limiting**: Brute-force protection on authentication endpoints (5 attempts/10min for login/setup, 3/10min for password changes)
+- **Session token hashing**: 256-bit random tokens hashed with SHA-256 before storage (deterministic lookup)
+- **Session cleanup**: Periodic hourly job removes expired/revoked sessions to prevent database accumulation
+- **Cookie hardening**: `httpOnly`, `secure: true`, `sameSite: 'strict'` attributes enforced on admin cookies
+- **Cookie signing**: Cookies signed with secret to prevent tampering (auto-generated or via `COOKIE_SECRET` env var)
+
+**Player session security** (partial implementation):
+
+- PIN-protected invite claims with rate limiting and expiry
+- Cookie-based sessions with HttpOnly, Secure, SameSite=Lax
+- Session revocation by admin or user logout
+- CSRF protection via SameSite cookies + Origin validation (token-based CSRF not yet implemented for player sessions)
+
+See [ADR 007 Security Implementation](decisions/007-server-level-admin.md#security-implementation-2026-02-06) for detailed security architecture.
+
 ---
 
 ## Data model and portable file formats

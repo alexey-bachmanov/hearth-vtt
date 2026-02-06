@@ -200,6 +200,8 @@ Admin has a special system-generated seat in each campaign that bypasses normal 
 
 5. **Migration path needed**: Existing documentation and stub implementations assume per-campaign admin seats. All documentation, Storage signatures, and admin UI components must be updated.
 
+6. **Security maintenance burden**: CSRF protection, rate limiting, and session cleanup require ongoing maintenance and monitoring.
+
 ### Implementation Impact
 
 **Files requiring updates**:
@@ -296,9 +298,151 @@ Currently admin has full access to all server operations. To support role-based 
 
 Deferring until multi-user admin support is needed.
 
+### Sliding Window Session Extension
+
+Current session duration is 30 days (long-lived). Planned enhancement:
+
+- Reduce to 1 hour base duration
+- Add `last_used_at` tracking in `admin_sessions`
+- Extend session by 1 hour on each authenticated request
+- Implement via `updateAdminSession()` in Storage interface
+
+Provides better security (shorter sessions) without UX friction (auto-extends on activity).
+
+---
+
+## Security Implementation (2026-02-06)
+
+### CSRF Protection
+
+**Implemented**: Full CSRF protection for all state-changing admin operations.
+
+**Details**:
+
+- `csrf_token` column added to `admin_sessions` table (TEXT NOT NULL)
+- CSRF token generated on login/setup: 32-byte random hex string
+- Token returned in auth responses: `{ success: true, csrfToken: '...' }`
+- Client stores CSRF token in Svelte reactive store (`client/src/state/admin.svelte.ts`)
+- `adminFetch()` wrapper automatically adds `X-CSRF-Token` header to requests
+- Server middleware validates: `requireCsrfToken(storage)` preHandler
+- Applied to all POST/PATCH/DELETE admin routes
+
+**Files modified**:
+
+- `server/src/storage/sqlite-storage.ts` - Added csrf_token column to admin_sessions table
+- `server/src/routes/admin-auth.ts` - Added generateCsrfToken(), requireCsrfToken() middleware
+- `client/src/state/admin.svelte.ts` - New file: AdminAuthState class with csrfToken management
+- `client/src/ui/admin/AdminSetup.svelte` - Store CSRF token from setup response
+- `client/src/ui/admin/AdminLogin.svelte` - Store CSRF token from login response
+- `client/src/ui/layout/AdminLayout.svelte` - Use adminFetch() for logout
+- `server/src/routes/campaigns.ts` - Applied requireCsrfToken() to mutations
+- `server/src/routes/seats.ts` - Applied requireCsrfToken() to mutations
+- `server/src/routes/invites.ts` - Applied requireCsrfToken() to mutations
+
+### Rate Limiting
+
+**Implemented**: Per-IP rate limiting on admin authentication endpoints to prevent brute-force attacks.
+
+**Details**:
+
+- In-memory Map tracking: `{ key: string, value: { count: number, resetAt: number } }`
+- Key format: `{ip}:{endpoint}` (e.g., `192.168.1.100:/api/admin/login`)
+- Limits per endpoint:
+  - `/api/admin/setup`: 5 attempts / 10 minutes
+  - `/api/admin/login`: 5 attempts / 10 minutes
+  - `/api/admin/change-password`: 3 attempts / 10 minutes
+- Returns HTTP 429 (Too Many Requests) when exceeded
+- Auto-reset after time window
+- Logged to Fastify logger for audit
+
+**Implementation**:
+
+- `checkRateLimit(ip, endpoint, limit, windowMs)` helper function
+- Applied as first preHandler before authentication middleware
+- IP extracted from `request.ip` (respects X-Forwarded-For when behind proxy)
+
+**Files modified**:
+
+- `server/src/routes/admin-auth.ts` - Added rate limiting Map and checkRateLimit() function
+
+### Session Token Hashing
+
+**Implemented**: Session tokens hashed with deterministic SHA-256 before storage.
+
+**Rationale**: Session tokens are already 256-bit cryptographically random values (generated via `crypto.randomBytes(32)`). Unlike passwords (low entropy), session tokens don't benefit from salted hashing. Deterministic SHA-256 allows efficient lookup while preventing token leakage from database dumps.
+
+**Details**:
+
+- Session token generation: `crypto.randomBytes(32).toString('hex')` (64 hex characters)
+- Hashing: `crypto.createHash('sha256').update(token).digest('hex')`
+- Storage: Only hash stored in `admin_sessions.session_token_hash`
+- Lookup: `SELECT * FROM admin_sessions WHERE session_token_hash = ?`
+- No salt needed (tokens already have max entropy)
+
+**Files modified**:
+
+- `server/src/routes/admin-auth.ts` - Changed hashSessionToken() from scrypt+salt to SHA-256
+
+### Session Cleanup
+
+**Implemented**: Periodic cleanup of expired and revoked admin sessions.
+
+**Details**:
+
+- New Storage method: `cleanupExpiredAdminSessions(): Promise<void>`
+- SQLite implementation: `DELETE FROM admin_sessions WHERE expires_at < ? OR revoked_at IS NOT NULL`
+- Periodic job: `setInterval()` runs every hour (3600000ms)
+- Runs in main server process (server/src/index.ts)
+- Error handling with Fastify logger
+
+**Files modified**:
+
+- `server/src/storage/storage.ts` - Added cleanupExpiredAdminSessions() to StorageBackend interface
+- `server/src/storage/sqlite-storage.ts` - Implemented cleanup method
+- `server/src/index.ts` - Added setInterval job after server ready
+
+### Cookie Security Hardening
+
+**Implemented**: Enhanced cookie security attributes and secret management.
+
+**Details**:
+
+- Cookie attributes:
+  - `httpOnly: true` - Prevents XSS attacks (JavaScript cannot access cookie)
+  - `secure: true` - Always require HTTPS (changed from conditional)
+  - `sameSite: 'strict'` - Strongest CSRF protection (changed from 'lax')
+  - `path: '/'` - Available to all admin routes
+- Cookie secret: `COOKIE_SECRET` env var or auto-generated via `crypto.randomBytes(32).toString('hex')`
+- Cookies signed to prevent tampering
+
+**Rationale**: Admin operations require highest security level. `sameSite: 'strict'` prevents all cross-site cookie sending (stronger than 'lax'). `secure: true` enforced always (requires HTTPS setup for production, already required for tunneled deployments).
+
+**Files modified**:
+
+- `server/src/routes/admin-auth.ts` - Updated cookie options in reply.setCookie() calls
+- `server/src/server.ts` - Added cookie plugin with secret configuration
+
+### Setup PIN Lifecycle
+
+**Implemented**: Setup PIN file only deleted after password is successfully set.
+
+**Rationale**: Original implementation deleted PIN file immediately after validation, but setup could still fail (e.g., database error). New implementation only deletes PIN file after successful password storage, ensuring recovery path if setup fails mid-process.
+
+**Details**:
+
+- PIN validation: Check hash, check expiry
+- Database write: Store passwordHash, create AdminSession
+- File deletion: `fs.unlinkSync(setupPinFile)` only after DB commit succeeds
+- Error handling: If any step fails, PIN file remains for retry
+
+**Files modified**:
+
+- `server/src/routes/admin-auth.ts` - Moved PIN file deletion to after password set
+
 ---
 
 ## Decision Log
 
 - **2026-02-05**: ADR created and accepted
+- **2026-02-06**: Security implementation completed (CSRF, rate limiting, session cleanup, cookie hardening)
 - Decision replaces original per-campaign admin seat design documented in data-model.md, server.md, and architecture-overview.md

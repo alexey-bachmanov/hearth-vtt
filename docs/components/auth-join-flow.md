@@ -336,22 +336,36 @@ Server admin authentication is **separate** from seat-based player authenticatio
 **AdminSession properties**:
 
 - Cookie name: `hearth_admin_session` (distinct from player sessions: `hearth_session`)
-- Cookie attributes: `HttpOnly; Secure; SameSite=Lax; Path=/`
-- Expiry: Configurable (default: 7 days)
-- Stored in `admin_sessions` table (separate from `auth_sessions`)
+- Cookie attributes: `HttpOnly; Secure; SameSite=Strict; Path=/`
+- Session duration: 30 days (planned: 1 hour with sliding window extension)
+- Session token: 256-bit cryptographically random value, hashed with SHA-256 (deterministic)
+- CSRF token: 32-byte random value stored plaintext in database, returned on login/setup
+- Stored in `admin_sessions` table with columns:
+  - `session_token_hash` (SHA-256 of session token)
+  - `csrf_token` (plaintext, used for CSRF validation)
+  - `expires_at` (session expiration timestamp)
+  - `revoked_at` (NULL if active, timestamp if revoked)
+  - `created_at`, `last_used_at` (audit trail)
 
 **Admin logout**:
 
-- Client calls `POST /api/admin/logout`
-- Server revokes `AdminSession` (sets `revokedAt`)
+- Client calls `POST /api/admin/logout` with `X-CSRF-Token` header
+- Server validates CSRF token, revokes `AdminSession` (sets `revokedAt`)
 - Clear `hearth_admin_session` cookie
 - Client redirects to `/admin/login`
 
 **Password change**:
 
-- Client calls `POST /api/admin/change-password` with `{ currentPassword, newPassword }`
-- Server validates `currentPassword` against `ServerAdmin.passwordHash`
+- Client calls `POST /api/admin/change-password` with `{ currentPassword, newPassword }` and `X-CSRF-Token` header
+- Server validates CSRF token and `currentPassword` against `ServerAdmin.passwordHash`
 - If valid, update `passwordHash`, revoke all `AdminSession` records (force re-login)
+
+**Session cleanup**:
+
+- Periodic job runs every hour via `setInterval()` in main server process
+- Deletes expired sessions: `DELETE FROM admin_sessions WHERE expires_at < ? OR revoked_at IS NOT NULL`
+- Prevents database accumulation of stale session records
+- No user-visible impact (expired sessions already non-functional)
 
 ### Admin vs Seat Authentication
 
@@ -375,14 +389,44 @@ Server admin authentication is **separate** from seat-based player authenticatio
 - One-time use, 24-hour expiry
 - Logged to console and file for self-hosted convenience
 - For cloud deployments, use `ADMIN_SETUP_PIN` env var to avoid console logging
+- PIN file only deleted **after** password is set (not just on PIN validation)
 - Rate-limit setup attempts (per IP): 5 attempts / 10 minutes
 
 **Password**:
 
-- argon2id or bcrypt hashing
+- scrypt hashing (64-byte derived key with random salt)
 - Minimum length: 12 characters (recommended: 16+)
 - Rate-limit login attempts (per IP): 5 attempts / 10 minutes
+- Rate-limit password changes (per IP): 3 attempts / 10 minutes
 - Failed login attempts logged for audit
+
+**Session tokens**:
+
+- Generated using `crypto.randomBytes(32)` (256 bits entropy)
+- Hashed with SHA-256 (deterministic) before storage
+- No salt needed (session tokens already cryptographically random)
+- Stored hash used for lookup: `SELECT * FROM admin_sessions WHERE session_token_hash = SHA256(cookie_value)`
+
+**CSRF protection**:
+
+- CSRF token generated on login/setup: `crypto.randomBytes(32).toString('hex')`
+- Stored plaintext in `admin_sessions.csrf_token` column
+- Returned to client in login/setup response: `{ success: true, csrfToken: '...' }`
+- Client stores in memory (Svelte $state reactive store)
+- Client includes in all state-changing requests via `X-CSRF-Token` header
+- Server validates: `if (req.headers['x-csrf-token'] !== session.csrfToken) return 403`
+- Applied to all POST/PATCH/DELETE admin endpoints
+
+**Rate limiting**:
+
+- In-memory Map tracking attempts by IP address and endpoint
+- Key format: `{ip}:{endpoint}` (e.g., `192.168.1.100:/api/admin/setup`)
+- Limits per endpoint:
+  - `/api/admin/setup`: 5 attempts / 10 minutes
+  - `/api/admin/login`: 5 attempts / 10 minutes
+  - `/api/admin/change-password`: 3 attempts / 10 minutes
+- Returns `429 Too Many Requests` when limit exceeded
+- Auto-reset after time window expires
 
 **Localhost-only default**:
 
@@ -390,33 +434,100 @@ Server admin authentication is **separate** from seat-based player authenticatio
 - For tunneled deployments, set `HOST=0.0.0.0` + `ADMIN_ALLOW_REMOTE=true` to allow admin UI from internet
 - Recommend HTTPS (via reverse proxy) for any non-localhost admin access
 
-**Session expiry**:
+**Session expiry and cleanup**:
 
-- AdminSessions expire after inactivity (default: 7 days)
-- Expired sessions cleaned up periodically
+- AdminSessions expire after 30 days (planned: 1 hour with sliding window)
+- Periodic cleanup job runs every hour: `storage.cleanupExpiredAdminSessions()`
+- Cleanup deletes: `WHERE expires_at < NOW() OR revoked_at IS NOT NULL`
 - Password change revokes all AdminSessions (force re-login across all devices)
+
+**Cookie security**:
+
+- Cookie secret: `COOKIE_SECRET` env var or auto-generated via `crypto.randomBytes(32)`
+- Cookie attributes enforced:
+  - `httpOnly: true` - No JavaScript access (XSS protection)
+  - `secure: true` - HTTPS only (requires reverse proxy for tunneled deployments)
+  - `sameSite: 'strict'` - Strongest CSRF protection (no cross-site cookies)
+  - `path: '/'` - Available to all admin routes
+- Cookies signed with secret to prevent tampering
 
 ### Admin API Routes
 
-All routes require `hearth_admin_session` cookie (except setup/check routes):
+All routes require `hearth_admin_session` cookie (except setup/check routes).
+
+**State-changing routes** also require `X-CSRF-Token` header matching session's CSRF token.
+
+#### Authentication Routes
 
 - `GET /api/admin/check-setup` → `{ needsSetup: boolean, setupPinExpired: boolean }`
-- `POST /api/admin/setup` → `{ setupPin, newPassword? }` → creates AdminSession
+  - Public, no auth required
+
+- `POST /api/admin/setup` → `{ setupPin, newPassword? }`
+  - Public, validates setup PIN
+  - **Returns**: `{ success: true, csrfToken: string }`
+  - Sets `hearth_admin_session` cookie
+  - Rate limited: 5 attempts / 10 minutes per IP
+
 - `GET /api/admin/check-auth` → `{ authenticated: boolean, needsSetup: boolean }`
-- `POST /api/admin/login` → `{ password }` → creates AdminSession
-- `POST /api/admin/logout` → revokes current AdminSession
-- `POST /api/admin/change-password` → `{ currentPassword, newPassword }` → updates password, revokes all sessions
-- `GET /api/campaigns` → list all campaigns (admin-only)
-- `POST /api/campaigns` → create campaign (admin-only)
-- `DELETE /api/campaigns/:id` → delete campaign (admin-only)
-- `POST /api/campaigns/:id/import` → import campaign (admin-only)
-- `GET /api/campaigns/:id/export` → export campaign (admin-only)
-- `GET /api/campaigns/:id/seats` → list seats for campaign (admin-only)
-- `POST /api/campaigns/:id/seats` → create seat (admin-only)
-- `DELETE /api/seats/:id` → delete seat (admin-only)
-- `GET /api/seats/:id/invites` → list invites for seat (admin-only)
-- `POST /api/seats/:id/invites` → create invite (admin-only)
-- `DELETE /api/invites/:id` → revoke invite (admin-only)
+  - Requires session cookie only
+
+- `POST /api/admin/login` → `{ password }`
+  - Validates password against `ServerAdmin.passwordHash`
+  - **Returns**: `{ success: true, csrfToken: string }`
+  - Sets `hearth_admin_session` cookie
+  - Rate limited: 5 attempts / 10 minutes per IP
+
+- `POST /api/admin/logout`
+  - **Requires**: Session cookie + `X-CSRF-Token` header
+  - Revokes current AdminSession
+  - Clears cookie
+
+- `POST /api/admin/change-password` → `{ currentPassword, newPassword }`
+  - **Requires**: Session cookie + `X-CSRF-Token` header
+  - Updates password, revokes all sessions
+  - Rate limited: 3 attempts / 10 minutes per IP
+
+#### Campaign Management Routes (all require auth + CSRF)
+
+- `GET /api/campaigns` → list all campaigns
+  - Auth only (no CSRF for read-only)
+
+- `POST /api/campaigns` → create campaign
+  - **Requires**: `X-CSRF-Token` header
+
+- `DELETE /api/campaigns/:id` → delete campaign
+  - **Requires**: `X-CSRF-Token` header
+
+- `POST /api/campaigns/:id/import` → import campaign
+  - **Requires**: `X-CSRF-Token` header
+
+- `GET /api/campaigns/:id/export` → export campaign
+  - Auth only (no CSRF for read-only)
+
+#### Seat Management Routes (all require auth + CSRF for mutations)
+
+- `GET /api/campaigns/:id/seats` → list seats
+  - Auth only (no CSRF for read-only)
+
+- `POST /api/campaigns/:id/seats` → create seat
+  - **Requires**: `X-CSRF-Token` header
+
+- `PATCH /api/seats/:id` → update seat
+  - **Requires**: `X-CSRF-Token` header
+
+- `DELETE /api/seats/:id` → delete seat
+  - **Requires**: `X-CSRF-Token` header
+
+#### Invite Management Routes (all require auth + CSRF for mutations)
+
+- `GET /api/seats/:id/invites` → list invites
+  - Auth only (no CSRF for read-only)
+
+- `POST /api/seats/:id/invites` → create invite
+  - **Requires**: `X-CSRF-Token` header
+
+- `DELETE /api/invites/:id` → revoke invite
+  - **Requires**: `X-CSRF-Token` header
 
 See [ADR 007](../decisions/007-server-level-admin.md) for complete admin authentication architecture.
 
