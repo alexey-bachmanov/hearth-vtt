@@ -10,7 +10,7 @@
 
 import type { FastifyInstance } from 'fastify';
 import type { Storage } from '../storage/storage.js';
-import { requireAdminAuth } from './admin-auth.js';
+import { requireAdminAuth, requireCsrfToken } from './admin-auth.js';
 
 export async function campaignRoutes(
   server: FastifyInstance,
@@ -46,11 +46,16 @@ export async function campaignRoutes(
 
   /**
    * POST /api/campaigns - Create a new campaign
-   * Protected: Requires admin authentication
+   * Protected: Requires admin authentication and CSRF token
    */
   server.post<{ Body: { name: string } }>(
     '/api/campaigns',
-    { preHandler: requireAdminAuth(options.storage) },
+    {
+      preHandler: [
+        requireAdminAuth(options.storage),
+        requireCsrfToken(options.storage),
+      ],
+    },
     async (request, reply) => {
       const { name } = request.body;
       if (!name || typeof name !== 'string' || name.trim().length === 0) {
@@ -70,11 +75,16 @@ export async function campaignRoutes(
 
   /**
    * DELETE /api/campaigns/:id - Delete a campaign
-   * Protected: Requires admin authentication
+   * Protected: Requires admin authentication and CSRF token
    */
   server.delete<{ Params: { id: string } }>(
     '/api/campaigns/:id',
-    { preHandler: requireAdminAuth(options.storage) },
+    {
+      preHandler: [
+        requireAdminAuth(options.storage),
+        requireCsrfToken(options.storage),
+      ],
+    },
     async (request, reply) => {
       const campaign = await options.storage.getCampaign(request.params.id);
       if (!campaign) {

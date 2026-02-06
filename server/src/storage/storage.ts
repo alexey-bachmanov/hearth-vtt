@@ -52,6 +52,7 @@ export interface AdminSession {
   id: string;
   adminId: string; // References ServerAdmin.id
   sessionTokenHash: string; // Hashed session token (stored in cookie)
+  csrfToken: string; // CSRF token (plain text, returned to client)
   expiresAt: number; // Unix timestamp
   createdAt: number;
   lastUsedAt: number;
@@ -396,6 +397,7 @@ export class Storage {
   async createAdminSession(data: {
     adminId: string;
     sessionTokenHash: string;
+    csrfToken: string;
     expiresAt: number;
   }): Promise<AdminSession> {
     return this.backend.createAdminSession(data);

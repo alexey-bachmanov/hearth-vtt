@@ -22,13 +22,13 @@
 
 ### CSRF Protection
 
-- [ ] Add `csrf_token` column to admin_sessions table
-- [ ] Generate CSRF token on login/setup (return in response body)
-- [ ] Create `requireCsrfToken` middleware
-- [ ] Apply CSRF middleware to all state-changing admin routes
-- [ ] Create admin state Svelte store for CSRF token
-- [ ] Create `adminFetch()` helper to include CSRF header
-- [ ] Update all admin API calls to use `adminFetch()`
+- [x] Add `csrf_token` column to admin_sessions table
+- [x] Generate CSRF token on login/setup (return in response body)
+- [x] Create `requireCsrfToken` middleware
+- [x] Apply CSRF middleware to all state-changing admin routes
+- [x] Create admin state Svelte store for CSRF token
+- [x] Create `adminFetch()` helper to include CSRF header
+- [x] Update all admin API calls to use `adminFetch()`
 
 ### Rate Limiting
 

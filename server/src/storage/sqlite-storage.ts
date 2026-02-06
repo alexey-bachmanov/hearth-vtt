@@ -87,6 +87,7 @@ export class SqliteStorage implements StorageBackend {
         id TEXT PRIMARY KEY,
         admin_id TEXT NOT NULL,
         session_token_hash TEXT NOT NULL,
+        csrf_token TEXT NOT NULL,
         expires_at INTEGER NOT NULL,
         created_at INTEGER NOT NULL,
         last_used_at INTEGER NOT NULL,
@@ -671,6 +672,7 @@ export class SqliteStorage implements StorageBackend {
   async createAdminSession(data: {
     adminId: string;
     sessionTokenHash: string;
+    csrfToken: string;
     expiresAt: number;
   }): Promise<AdminSession> {
     if (!this.metadataDb) {
@@ -684,6 +686,7 @@ export class SqliteStorage implements StorageBackend {
       id,
       adminId: data.adminId,
       sessionTokenHash: data.sessionTokenHash,
+      csrfToken: data.csrfToken,
       expiresAt: data.expiresAt,
       createdAt: now,
       lastUsedAt: now,
@@ -692,16 +695,17 @@ export class SqliteStorage implements StorageBackend {
 
     const stmt = this.metadataDb.prepare(`
       INSERT INTO admin_sessions (
-        id, admin_id, session_token_hash, expires_at,
+        id, admin_id, session_token_hash, csrf_token, expires_at,
         created_at, last_used_at, revoked_at
       )
-      VALUES (?, ?, ?, ?, ?, ?, ?)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?)
     `);
 
     stmt.run(
       session.id,
       session.adminId,
       session.sessionTokenHash,
+      session.csrfToken,
       session.expiresAt,
       session.createdAt,
       session.lastUsedAt,
@@ -726,6 +730,7 @@ export class SqliteStorage implements StorageBackend {
         id,
         admin_id as adminId,
         session_token_hash as sessionTokenHash,
+        csrf_token as csrfToken,
         expires_at as expiresAt,
         created_at as createdAt,
         last_used_at as lastUsedAt,
@@ -768,6 +773,7 @@ export class SqliteStorage implements StorageBackend {
         id,
         admin_id as adminId,
         session_token_hash as sessionTokenHash,
+        csrf_token as csrfToken,
         expires_at as expiresAt,
         created_at as createdAt,
         last_used_at as lastUsedAt,

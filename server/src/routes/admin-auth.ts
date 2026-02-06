@@ -86,6 +86,15 @@ function generateSessionToken(): string {
 }
 
 /**
+ * Generate a CSRF token.
+ *
+ * @returns 32-byte hex token
+ */
+function generateCsrfToken(): string {
+  return randomBytes(32).toString('hex');
+}
+
+/**
  * Hash a session token for storage.
  * Uses simple SHA-256 since tokens are already random.
  *
@@ -291,11 +300,13 @@ export async function adminAuthRoutes(
       // Create admin session
       const sessionToken = generateSessionToken();
       const sessionTokenHash = hashSessionToken(sessionToken);
+      const csrfToken = generateCsrfToken();
       const expiresAt = Date.now() + SESSION_DURATION_MS;
 
       await storage.createAdminSession({
         adminId: admin.id,
         sessionTokenHash,
+        csrfToken,
         expiresAt,
       });
 
@@ -314,6 +325,7 @@ export async function adminAuthRoutes(
       reply.code(200);
       return {
         success: true,
+        csrfToken,
         expiresAt,
       };
     },
@@ -380,11 +392,13 @@ export async function adminAuthRoutes(
       // Create admin session
       const sessionToken = generateSessionToken();
       const sessionTokenHash = hashSessionToken(sessionToken);
+      const csrfToken = generateCsrfToken();
       const expiresAt = Date.now() + SESSION_DURATION_MS;
 
       await storage.createAdminSession({
         adminId: admin.id,
         sessionTokenHash,
+        csrfToken,
         expiresAt,
       });
 
@@ -400,6 +414,7 @@ export async function adminAuthRoutes(
       reply.code(200);
       return {
         success: true,
+        csrfToken,
         expiresAt,
       };
     },
@@ -409,28 +424,33 @@ export async function adminAuthRoutes(
    * POST /api/admin/logout
    *
    * Logout current admin session and clear cookie.
+   * Protected: Requires CSRF token
    */
-  server.post('/api/admin/logout', async (request, reply) => {
-    const sessionToken = request.cookies[COOKIE_NAME];
+  server.post(
+    '/api/admin/logout',
+    { preHandler: requireCsrfToken(storage) },
+    async (request, reply) => {
+      const sessionToken = request.cookies[COOKIE_NAME];
 
-    if (sessionToken) {
-      // Find and revoke the session
-      const sessionTokenHash = hashSessionToken(sessionToken);
-      const session = await storage.getAdminSession(sessionTokenHash);
+      if (sessionToken) {
+        // Find and revoke the session
+        const sessionTokenHash = hashSessionToken(sessionToken);
+        const session = await storage.getAdminSession(sessionTokenHash);
 
-      if (session) {
-        await storage.revokeAdminSession(session.id);
+        if (session) {
+          await storage.revokeAdminSession(session.id);
+        }
       }
-    }
 
-    // Clear cookie regardless of whether session was found
-    reply.clearCookie(COOKIE_NAME, {
-      path: '/',
-    });
+      // Clear cookie regardless of whether session was found
+      reply.clearCookie(COOKIE_NAME, {
+        path: '/',
+      });
 
-    reply.code(204);
-    return;
-  });
+      reply.code(204);
+      return;
+    },
+  );
 
   /**
    * POST /api/admin/change-password
@@ -606,5 +626,69 @@ export function requireAdminAuth(storage: Storage) {
 
     // Attach admin ID to request for downstream handlers
     (request as any).adminId = session.adminId;
+  };
+}
+
+/**
+ * Middleware to require CSRF token validation.
+ *
+ * Checks for X-CSRF-Token header and validates it against the session.
+ * Must be used after requireAdminAuth middleware.
+ *
+ * Usage:
+ *   server.post('/api/admin/campaigns', {
+ *     preHandler: [requireAdminAuth(storage), requireCsrfToken(storage)]
+ *   }, handler);
+ */
+export function requireCsrfToken(storage: Storage) {
+  return async (request: FastifyRequest, reply: FastifyReply) => {
+    const csrfToken = request.headers['x-csrf-token'];
+
+    if (!csrfToken || typeof csrfToken !== 'string') {
+      reply.code(403);
+      return reply.send({
+        error: {
+          code: 'CSRF_TOKEN_MISSING',
+          message: 'CSRF token is required',
+        },
+      });
+    }
+
+    // Get session from cookie (should exist after requireAdminAuth)
+    const sessionToken = request.cookies[COOKIE_NAME];
+
+    if (!sessionToken) {
+      reply.code(401);
+      return reply.send({
+        error: {
+          code: 'UNAUTHORIZED',
+          message: 'Admin authentication required',
+        },
+      });
+    }
+
+    // Verify CSRF token matches session
+    const sessionTokenHash = hashSessionToken(sessionToken);
+    const session = await storage.getAdminSession(sessionTokenHash);
+
+    if (!session) {
+      reply.code(401);
+      return reply.send({
+        error: {
+          code: 'INVALID_SESSION',
+          message: 'Admin session not found or has been revoked',
+        },
+      });
+    }
+
+    if (session.csrfToken !== csrfToken) {
+      reply.code(403);
+      return reply.send({
+        error: {
+          code: 'CSRF_TOKEN_INVALID',
+          message: 'Invalid CSRF token',
+        },
+      });
+    }
   };
 }

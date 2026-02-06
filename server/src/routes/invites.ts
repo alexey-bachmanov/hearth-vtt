@@ -12,7 +12,7 @@
 
 import type { FastifyInstance } from 'fastify';
 import type { Storage } from '../storage/storage.js';
-import { requireAdminAuth } from './admin-auth.js';
+import { requireAdminAuth, requireCsrfToken } from './admin-auth.js';
 
 // Mock invite data
 const mockInvites = [
@@ -66,7 +66,7 @@ export async function inviteRoutes(
 
   /**
    * POST /api/campaigns/:id/invites - Create a new invite
-   * Protected: Requires admin authentication
+   * Protected: Requires admin authentication and CSRF token
    */
   server.post<{
     Params: { id: string };
@@ -79,7 +79,12 @@ export async function inviteRoutes(
     };
   }>(
     '/api/campaigns/:id/invites',
-    { preHandler: requireAdminAuth(options.storage) },
+    {
+      preHandler: [
+        requireAdminAuth(options.storage),
+        requireCsrfToken(options.storage),
+      ],
+    },
     async (request, reply) => {
       const { seatId, rolesGranted, pin, expiresIn, maxClaims } = request.body;
       const campaignId = request.params.id;
@@ -117,11 +122,16 @@ export async function inviteRoutes(
 
   /**
    * DELETE /api/campaigns/:id/invites/:inviteId - Revoke an invite
-   * Protected: Requires admin authentication
+   * Protected: Requires admin authentication and CSRF token
    */
   server.delete<{ Params: { id: string; inviteId: string } }>(
     '/api/campaigns/:id/invites/:inviteId',
-    { preHandler: requireAdminAuth(options.storage) },
+    {
+      preHandler: [
+        requireAdminAuth(options.storage),
+        requireCsrfToken(options.storage),
+      ],
+    },
     async (request, reply) => {
       const { inviteId } = request.params;
 

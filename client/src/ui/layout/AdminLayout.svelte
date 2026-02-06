@@ -14,6 +14,7 @@
 
 import { onMount } from 'svelte';
 import { navigate } from '../../app/routes';
+import { adminAuth, adminFetch } from '../../state/admin.svelte';
 import AdminTree from '../admin/AdminTree.svelte';
 import ServerSettings from '../admin/ServerSettings.svelte';
 import CampaignDetail from '../admin/CampaignDetail.svelte';
@@ -93,15 +94,15 @@ function handleBackToCampaign(campaignId: string) {
  */
 async function handleLogout() {
   try {
-    await fetch('/api/admin/logout', {
+    await adminFetch('/api/admin/logout', {
       method: 'POST',
-      credentials: 'include',
     });
   } catch (error) {
     // Even if logout fails, redirect to login
     console.error('Logout request failed:', error);
   } finally {
-    // Always redirect to login after logout attempt
+    // Clear CSRF token and redirect to login
+    adminAuth.clearCsrfToken();
     navigate('/admin/login');
   }
 }

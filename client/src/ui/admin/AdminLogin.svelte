@@ -19,6 +19,7 @@
 
 import { onMount } from 'svelte';
 import { navigate } from '../../app/routes';
+import { adminAuth } from '../../state/admin.svelte';
 
 type AuthStatus = 'checking' | 'needs-login' | 'authenticated';
 
@@ -112,7 +113,11 @@ async function handleSubmit() {
       return;
     }
 
-    // Login successful! Redirect to admin
+    // Login successful! Store CSRF token and redirect to admin
+    const data = await response.json();
+    if (data.csrfToken) {
+      adminAuth.setCsrfToken(data.csrfToken);
+    }
     navigate('/admin');
   } catch (error) {
     errorMessage = 'Failed to connect to server. Please ensure the server is running.';

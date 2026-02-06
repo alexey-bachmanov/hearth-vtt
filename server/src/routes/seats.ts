@@ -13,7 +13,7 @@
 
 import type { FastifyInstance } from 'fastify';
 import type { Storage } from '../storage/storage.js';
-import { requireAdminAuth } from './admin-auth.js';
+import { requireAdminAuth, requireCsrfToken } from './admin-auth.js';
 
 // Mock seat data
 const mockSeats = [
@@ -66,11 +66,16 @@ export async function seatRoutes(
 
   /**
    * POST /api/campaigns/:id/seats - Create a new seat
-   * Protected: Requires admin authentication
+   * Protected: Requires admin authentication and CSRF token
    */
   server.post<{ Params: { id: string }; Body: { name: string; role: string } }>(
     '/api/campaigns/:id/seats',
-    { preHandler: requireAdminAuth(options.storage) },
+    {
+      preHandler: [
+        requireAdminAuth(options.storage),
+        requireCsrfToken(options.storage),
+      ],
+    },
     async (request, reply) => {
       const { name, role } = request.body;
       const campaignId = request.params.id;
@@ -103,14 +108,19 @@ export async function seatRoutes(
 
   /**
    * PATCH /api/campaigns/:id/seats/:seatId - Update seat metadata
-   * Protected: Requires admin authentication
+   * Protected: Requires admin authentication and CSRF token
    */
   server.patch<{
     Params: { id: string; seatId: string };
     Body: { name?: string; role?: string };
   }>(
     '/api/campaigns/:id/seats/:seatId',
-    { preHandler: requireAdminAuth(options.storage) },
+    {
+      preHandler: [
+        requireAdminAuth(options.storage),
+        requireCsrfToken(options.storage),
+      ],
+    },
     async (request, reply) => {
       const { name, role } = request.body;
       const { seatId } = request.params;
@@ -143,11 +153,16 @@ export async function seatRoutes(
 
   /**
    * DELETE /api/campaigns/:id/seats/:seatId - Delete a seat
-   * Protected: Requires admin authentication
+   * Protected: Requires admin authentication and CSRF token
    */
   server.delete<{ Params: { id: string; seatId: string } }>(
     '/api/campaigns/:id/seats/:seatId',
-    { preHandler: requireAdminAuth(options.storage) },
+    {
+      preHandler: [
+        requireAdminAuth(options.storage),
+        requireCsrfToken(options.storage),
+      ],
+    },
     async (request, reply) => {
       const { seatId } = request.params;
 
