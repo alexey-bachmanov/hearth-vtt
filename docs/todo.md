@@ -40,11 +40,11 @@
 
 ### Admin UI Routing & Logic
 
-- [ ] Make password mandatory in AdminSetup.svelte
-- [ ] Fix AdminLogin.svelte to use GET /api/admin/check-auth
-- [ ] Store CSRF token from login/setup responses
-- [ ] Add logout button to AdminLayout.svelte
-- [ ] Implement logout flow (POST /api/admin/logout → redirect)
+- [x] Make password mandatory in AdminSetup.svelte
+- [x] Fix AdminLogin.svelte to use GET /api/admin/check-auth
+- [x] Add logout button to AdminLayout.svelte
+- [x] Implement logout flow (POST /api/admin/logout → redirect)
+- [ ] Store CSRF token from login/setup responses (deferred)
 - [ ] Test routing: setup → login → dashboard flows
 - [ ] Verify redirect behavior on session expiration
 

@@ -74,13 +74,18 @@ async function handleSubmit() {
     return;
   }
 
-  // Validate password if provided
-  if (password && password !== confirmPassword) {
+  // Validate password (now mandatory)
+  if (!password || password.trim().length === 0) {
+    errorMessage = 'Password is required';
+    return;
+  }
+
+  if (password !== confirmPassword) {
     errorMessage = 'Passwords do not match';
     return;
   }
 
-  if (password && password.length < 8) {
+  if (password.length < 8) {
     errorMessage = 'Password must be at least 8 characters';
     return;
   }
@@ -96,7 +101,7 @@ async function handleSubmit() {
       credentials: 'include',
       body: JSON.stringify({
         setupPin: pin.trim(),
-        password: password || undefined,
+        newPassword: password,
       }),
     });
 
@@ -165,15 +170,14 @@ onMount(() => {
           />
         </div>
 
-        <!-- Password Input (Optional) -->
+        <!-- Password Input (Required) -->
         <div class="form-section">
-          <h2>Step 2: Set Admin Password (Optional)</h2>
+          <h2>Step 2: Set Admin Password</h2>
           <p class="help-text">
-            Setting a password allows you to log in again later without needing the PIN.
-            If you skip this step, you'll need to use the PIN each time you restart the server.
+            Set a password to secure your admin account. You'll use this to log in after setup.
           </p>
           
-          <label for="password">Password (optional)</label>
+          <label for="password">Password</label>
           <input
             id="password"
             type="password"
@@ -181,18 +185,18 @@ onMount(() => {
             placeholder="At least 8 characters"
             minlength="8"
             disabled={isSubmitting}
+            required
           />
 
-          {#if password}
-            <label for="confirm-password">Confirm Password</label>
-            <input
-              id="confirm-password"
-              type="password"
-              bind:value={confirmPassword}
-              placeholder="Re-enter password"
-              disabled={isSubmitting}
-            />
-          {/if}
+          <label for="confirm-password">Confirm Password</label>
+          <input
+            id="confirm-password"
+            type="password"
+            bind:value={confirmPassword}
+            placeholder="Re-enter password"
+            disabled={isSubmitting}
+            required
+          />
         </div>
 
         <!-- Error Message -->
@@ -220,7 +224,7 @@ onMount(() => {
           <li>The setup PIN is valid for 24 hours</li>
           <li>If the PIN has expired, restart the server to generate a new one</li>
           <li>The PIN file is located in: <code>data/admin-setup-pin.txt</code></li>
-          <li>Setting a password is highly recommended for security</li>
+          <li>Choose a strong password with at least 8 characters</li>
         </ul>
       </div>
     </div>

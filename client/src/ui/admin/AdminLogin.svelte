@@ -33,15 +33,13 @@ let isSubmitting = $state(false);
  */
 async function checkAuthStatus() {
   try {
-    // Try to check setup status - if we can access this, we might be authenticated
-    // Or we could add a dedicated /api/admin/me endpoint
-    const response = await fetch('/api/admin/check-setup', {
-      method: 'POST',
+    const response = await fetch('/api/admin/check-auth', {
+      method: 'GET',
       credentials: 'include',
     });
 
     if (!response.ok) {
-      // Not authenticated, show login form
+      // Network error or server issue
       status = 'needs-login';
       return;
     }
@@ -54,8 +52,13 @@ async function checkAuthStatus() {
       return;
     }
 
-    // Server is set up, but we need to check if we're actually authenticated
-    // For now, assume we need to login
+    if (data.authenticated === true) {
+      // Already authenticated, redirect to admin
+      navigate('/admin');
+      return;
+    }
+
+    // Not authenticated, show login form
     status = 'needs-login';
   } catch (error) {
     // Network error or server down
@@ -91,7 +94,7 @@ async function handleSubmit() {
         password: password,
       }),
     });
-
+    
     if (!response.ok) {
       const data = await response.json();
 

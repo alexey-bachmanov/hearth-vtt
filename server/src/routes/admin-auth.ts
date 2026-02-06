@@ -16,7 +16,7 @@
  */
 
 import type { FastifyInstance, FastifyRequest, FastifyReply } from 'fastify';
-import { randomBytes, scrypt, timingSafeEqual } from 'crypto';
+import { randomBytes, scrypt, timingSafeEqual, createHash } from 'crypto';
 import { promisify } from 'util';
 import type { Storage } from '../storage/storage';
 import { deleteSetupPinFile } from '../auth/setup-pin.js';
@@ -92,10 +92,8 @@ function generateSessionToken(): string {
  * @param token - Session token
  * @returns Hash of token
  */
-async function hashSessionToken(token: string): Promise<string> {
-  const salt = randomBytes(16).toString('hex');
-  const derivedKey = (await scryptAsync(token, salt, 32)) as Buffer;
-  return `${salt}:${derivedKey.toString('hex')}`;
+function hashSessionToken(token: string): string {
+  return createHash('sha256').update(token).digest('hex');
 }
 
 export async function adminAuthRoutes(
@@ -145,9 +143,15 @@ export async function adminAuthRoutes(
    */
   server.get('/api/admin/check-auth', async (request, reply) => {
     // Check if setup is needed
+
     const admin = await storage.getServerAdmin();
 
-    if (!admin) {
+    if (
+      !admin ||
+      (!admin.passwordHash &&
+        admin.setupPinExpiresAt !== null &&
+        admin.setupPinExpiresAt > Date.now())
+    ) {
       reply.code(200);
       return {
         authenticated: false,
@@ -167,7 +171,7 @@ export async function adminAuthRoutes(
     }
 
     // Verify session
-    const sessionTokenHash = await hashSessionToken(sessionToken);
+    const sessionTokenHash = hashSessionToken(sessionToken);
     const session = await storage.getAdminSession(sessionTokenHash);
 
     if (!session) {
@@ -286,7 +290,7 @@ export async function adminAuthRoutes(
 
       // Create admin session
       const sessionToken = generateSessionToken();
-      const sessionTokenHash = await hashSessionToken(sessionToken);
+      const sessionTokenHash = hashSessionToken(sessionToken);
       const expiresAt = Date.now() + SESSION_DURATION_MS;
 
       await storage.createAdminSession({
@@ -318,7 +322,7 @@ export async function adminAuthRoutes(
   /**
    * POST /api/admin/login
    *
-   * Login as admin using password (for returning admins who set a password).
+   * Login as admin using password.
    */
   server.post<{ Body: LoginBody }>(
     '/api/admin/login',
@@ -355,7 +359,7 @@ export async function adminAuthRoutes(
         return {
           error: {
             code: 'PASSWORD_NOT_SET',
-            message: 'Admin password has not been set. Use setup PIN instead.',
+            message: 'Admin password has not been set.',
           },
         };
       }
@@ -375,7 +379,7 @@ export async function adminAuthRoutes(
 
       // Create admin session
       const sessionToken = generateSessionToken();
-      const sessionTokenHash = await hashSessionToken(sessionToken);
+      const sessionTokenHash = hashSessionToken(sessionToken);
       const expiresAt = Date.now() + SESSION_DURATION_MS;
 
       await storage.createAdminSession({
@@ -411,7 +415,7 @@ export async function adminAuthRoutes(
 
     if (sessionToken) {
       // Find and revoke the session
-      const sessionTokenHash = await hashSessionToken(sessionToken);
+      const sessionTokenHash = hashSessionToken(sessionToken);
       const session = await storage.getAdminSession(sessionTokenHash);
 
       if (session) {
@@ -473,7 +477,7 @@ export async function adminAuthRoutes(
         };
       }
 
-      const sessionTokenHash = await hashSessionToken(sessionToken);
+      const sessionTokenHash = hashSessionToken(sessionToken);
       const session = await storage.getAdminSession(sessionTokenHash);
 
       if (!session) {
@@ -576,7 +580,7 @@ export function requireAdminAuth(storage: Storage) {
     }
 
     // Verify session
-    const sessionTokenHash = await hashSessionToken(sessionToken);
+    const sessionTokenHash = hashSessionToken(sessionToken);
     const session = await storage.getAdminSession(sessionTokenHash);
 
     if (!session) {
