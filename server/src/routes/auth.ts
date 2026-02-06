@@ -20,6 +20,22 @@ interface ClaimInviteBody {
 }
 
 export async function authRoutes(server: FastifyInstance) {
+  // SECURITY: These are stub routes with hardcoded credentials.
+  // Only allow in development to prevent accidental production deployment.
+  if (process.env.NODE_ENV === 'production') {
+    server.all('/api/auth/*', async (request, reply) => {
+      reply.code(501);
+      return {
+        error: {
+          code: 'NOT_IMPLEMENTED',
+          message:
+            'Player authentication not yet implemented. Use admin authentication instead.',
+        },
+      };
+    });
+    return;
+  }
+
   /**
    * POST /api/auth/claim-invite - Claim invite and create session
    */

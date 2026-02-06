@@ -22,12 +22,12 @@ As work completes, check off tasks and archive completed projects to keep this d
 
 **Rationale:** Fix active vulnerabilities in production code and add guards to stub endpoints.
 
-- [ ] Gate stub routes with dev-only flag
-  - [ ] Add `NODE_ENV=development` check to top of [auth.ts](../server/src/routes/auth.ts) (return 501 in production)
-  - [ ] Add check to [sessions.ts](../server/src/routes/sessions.ts)
-  - [ ] Add check to stub portions of [seats.ts](../server/src/routes/seats.ts) and [invites.ts](../server/src/routes/invites.ts)
-- [ ] Restrict CORS configuration
-  - [ ] Change `origin: true` in [server.ts](../server/src/server.ts#L83) to function checking same-origin + `PUBLIC_BASE_URL`
+- [x] Gate stub routes with dev-only flag
+  - [x] Add `NODE_ENV=development` check to top of [auth.ts](../server/src/routes/auth.ts) (return 501 in production)
+  - [x] Add check to [sessions.ts](../server/src/routes/sessions.ts)
+  - [x] Add check to stub portions of [seats.ts](../server/src/routes/seats.ts) and [invites.ts](../server/src/routes/invites.ts)
+- [x] Restrict CORS configuration
+  - [x] Change `origin: true` in [server.ts](../server/src/server.ts#L83) to function checking same-origin + `PUBLIC_BASE_URL`
 - [ ] Add password max-length validation (1024 bytes) in [admin-auth.ts](../server/src/routes/admin-auth.ts#L342) to prevent HashDoS
 - [ ] Make admin cookie `secure` conditional on environment
   - [ ] Change `secure: true` to `secure: process.env.NODE_ENV === 'production'` in [admin-auth.ts](../server/src/routes/admin-auth.ts#L375)

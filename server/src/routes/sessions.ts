@@ -32,6 +32,30 @@ const mockSessions = [
 ];
 
 export async function sessionRoutes(server: FastifyInstance) {
+  // SECURITY: These are stub routes with no authentication.
+  // Only allow in development to prevent accidental production deployment.
+  if (process.env.NODE_ENV === 'production') {
+    server.all('/api/campaigns/:id/sessions', async (request, reply) => {
+      reply.code(501);
+      return {
+        error: {
+          code: 'NOT_IMPLEMENTED',
+          message: 'Session management not yet implemented.',
+        },
+      };
+    });
+    server.all('/api/sessions/:sessionId', async (request, reply) => {
+      reply.code(501);
+      return {
+        error: {
+          code: 'NOT_IMPLEMENTED',
+          message: 'Session management not yet implemented.',
+        },
+      };
+    });
+    return;
+  }
+
   /**
    * GET /api/campaigns/:id/sessions - List active sessions for a campaign
    */

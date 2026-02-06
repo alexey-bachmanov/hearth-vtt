@@ -50,6 +50,32 @@ export async function seatRoutes(
   server: FastifyInstance,
   options: { storage: Storage },
 ) {
+  // SECURITY: These routes use mock data instead of real storage.
+  // Only allow in development to prevent accidental production deployment.
+  if (process.env.NODE_ENV === 'production') {
+    server.all('/api/campaigns/:id/seats', async (request, reply) => {
+      reply.code(501);
+      return {
+        error: {
+          code: 'NOT_IMPLEMENTED',
+          message:
+            'Seat management not yet implemented. Storage layer exists but routes use mock data.',
+        },
+      };
+    });
+    server.all('/api/campaigns/:id/seats/:seatId', async (request, reply) => {
+      reply.code(501);
+      return {
+        error: {
+          code: 'NOT_IMPLEMENTED',
+          message:
+            'Seat management not yet implemented. Storage layer exists but routes use mock data.',
+        },
+      };
+    });
+    return;
+  }
+
   /**
    * GET /api/campaigns/:id/seats - List seats for a campaign
    * Protected: Requires admin authentication

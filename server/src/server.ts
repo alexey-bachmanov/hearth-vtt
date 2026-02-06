@@ -79,8 +79,49 @@ export async function buildServer(
   });
 
   // Register CORS support
+  // Security: Restrict to same-origin and PUBLIC_BASE_URL to prevent CSRF
   await server.register(fastifyCors, {
-    origin: true, // Allow all origins in development
+    origin: (origin, callback) => {
+      // Allow requests with no origin (same-origin, Postman, curl, etc.)
+      if (!origin) {
+        callback(null, true);
+        return;
+      }
+
+      // Allow PUBLIC_BASE_URL if configured (for hosted deployments)
+      const publicBaseUrl = process.env.PUBLIC_BASE_URL;
+      if (publicBaseUrl) {
+        try {
+          const allowedOrigin = new URL(publicBaseUrl).origin;
+          if (origin === allowedOrigin) {
+            callback(null, true);
+            return;
+          }
+        } catch (err) {
+          // Invalid PUBLIC_BASE_URL, ignore and continue
+        }
+      }
+
+      // Allow localhost origins in development
+      if (process.env.NODE_ENV !== 'production') {
+        try {
+          const originUrl = new URL(origin);
+          if (
+            originUrl.hostname === 'localhost' ||
+            originUrl.hostname === '127.0.0.1' ||
+            originUrl.hostname === '[::1]'
+          ) {
+            callback(null, true);
+            return;
+          }
+        } catch (err) {
+          // Invalid origin URL, reject below
+        }
+      }
+
+      // Reject all other origins
+      callback(new Error('Not allowed by CORS'), false);
+    },
     credentials: true, // Allow cookies
   });
 
