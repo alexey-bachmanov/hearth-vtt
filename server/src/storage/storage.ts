@@ -193,6 +193,7 @@ export interface StorageBackend {
   getAdminSession(sessionTokenHash: string): Promise<AdminSession | null>;
   revokeAdminSession(sessionId: string): Promise<void>;
   listAdminSessions(): Promise<AdminSession[]>;
+  cleanupExpiredAdminSessions(): Promise<void>;
 
   /**
    * Seat operations (campaign-scoped identities)
@@ -415,6 +416,13 @@ export class Storage {
 
   async listAdminSessions(): Promise<AdminSession[]> {
     return this.backend.listAdminSessions();
+  }
+
+  /**
+   * Clean up expired and revoked admin sessions
+   */
+  async cleanupExpiredAdminSessions(): Promise<void> {
+    return this.backend.cleanupExpiredAdminSessions();
   }
 
   /**

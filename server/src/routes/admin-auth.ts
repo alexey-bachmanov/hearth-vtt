@@ -26,6 +26,12 @@ const scryptAsync = promisify(scrypt);
 const COOKIE_NAME = 'hearth_admin_session';
 const SESSION_DURATION_MS = 30 * 24 * 60 * 60 * 1000; // 30 days
 
+/**
+ * Rate limit tracking.
+ * Maps "ip:endpoint" to { count, resetAt }
+ */
+const rateLimitMap = new Map<string, { count: number; resetAt: number }>();
+
 interface CheckSetupResponse {
   needsSetup: boolean;
   setupPinExpired: boolean;
@@ -103,6 +109,45 @@ function generateCsrfToken(): string {
  */
 function hashSessionToken(token: string): string {
   return createHash('sha256').update(token).digest('hex');
+}
+
+/**
+ * Check if a request exceeds rate limit.
+ *
+ * @param ip - Client IP address
+ * @param endpoint - Endpoint identifier
+ * @param maxAttempts - Maximum attempts allowed in window
+ * @param windowMs - Time window in milliseconds
+ * @returns True if request is allowed, false if rate limit exceeded
+ *
+ * Side effects:
+ * - Updates rateLimitMap with attempt count and reset time
+ * - Automatically resets counter when window expires
+ */
+function checkRateLimit(
+  ip: string,
+  endpoint: string,
+  maxAttempts: number,
+  windowMs: number,
+): boolean {
+  const key = `${ip}:${endpoint}`;
+  const now = Date.now();
+  const record = rateLimitMap.get(key);
+
+  // No record or window expired - reset counter
+  if (!record || record.resetAt < now) {
+    rateLimitMap.set(key, { count: 1, resetAt: now + windowMs });
+    return true;
+  }
+
+  // Rate limit exceeded
+  if (record.count >= maxAttempts) {
+    return false;
+  }
+
+  // Increment counter
+  record.count++;
+  return true;
 }
 
 export async function adminAuthRoutes(
@@ -213,10 +258,24 @@ export async function adminAuthRoutes(
    *
    * Complete initial admin setup using the setup PIN.
    * Optionally sets a permanent password.
+   *
+   * Rate limit: 5 attempts per 10 minutes per IP
    */
   server.post<{ Body: SetupBody }>(
     '/api/admin/setup',
     async (request, reply) => {
+      // Rate limiting: 5 attempts per 10 minutes
+      const clientIp = request.ip;
+      if (!checkRateLimit(clientIp, 'setup', 5, 10 * 60 * 1000)) {
+        reply.code(429);
+        return {
+          error: {
+            code: 'RATE_LIMIT_EXCEEDED',
+            message: 'Too many setup attempts. Please try again later.',
+          },
+        };
+      }
+
       const { setupPin, newPassword } = request.body;
 
       // Validate request body
@@ -313,14 +372,16 @@ export async function adminAuthRoutes(
       // Set session cookie
       reply.setCookie(COOKIE_NAME, sessionToken, {
         httpOnly: true,
-        secure: process.env.NODE_ENV === 'production',
-        sameSite: 'lax',
+        secure: true, // Always require HTTPS for admin cookies
+        sameSite: 'strict', // Strict CSRF protection for admin
         path: '/',
         maxAge: SESSION_DURATION_MS / 1000, // maxAge is in seconds
       });
 
-      // Delete the setup PIN file since setup is now complete
-      await deleteSetupPinFile(options.dataDir);
+      // Delete the setup PIN file only after password is set
+      if (newPassword) {
+        await deleteSetupPinFile(options.dataDir);
+      }
 
       reply.code(200);
       return {
@@ -335,10 +396,24 @@ export async function adminAuthRoutes(
    * POST /api/admin/login
    *
    * Login as admin using password.
+   *
+   * Rate limit: 5 attempts per 10 minutes per IP
    */
   server.post<{ Body: LoginBody }>(
     '/api/admin/login',
     async (request, reply) => {
+      // Rate limiting: 5 attempts per 10 minutes
+      const clientIp = request.ip;
+      if (!checkRateLimit(clientIp, 'login', 5, 10 * 60 * 1000)) {
+        reply.code(429);
+        return {
+          error: {
+            code: 'RATE_LIMIT_EXCEEDED',
+            message: 'Too many login attempts. Please try again later.',
+          },
+        };
+      }
+
       const { password } = request.body;
 
       // Validate request body
@@ -405,8 +480,8 @@ export async function adminAuthRoutes(
       // Set session cookie
       reply.setCookie(COOKIE_NAME, sessionToken, {
         httpOnly: true,
-        secure: process.env.NODE_ENV === 'production',
-        sameSite: 'lax',
+        secure: true, // Always require HTTPS for admin cookies
+        sameSite: 'strict', // Strict CSRF protection for admin
         path: '/',
         maxAge: SESSION_DURATION_MS / 1000,
       });
@@ -457,10 +532,25 @@ export async function adminAuthRoutes(
    *
    * Change admin password (requires current password or valid setup PIN).
    * Requires authentication.
+   *
+   * Rate limit: 3 attempts per 10 minutes per IP
    */
   server.post<{ Body: ChangePasswordBody }>(
     '/api/admin/change-password',
     async (request, reply) => {
+      // Rate limiting: 3 attempts per 10 minutes
+      const clientIp = request.ip;
+      if (!checkRateLimit(clientIp, 'change-password', 3, 10 * 60 * 1000)) {
+        reply.code(429);
+        return {
+          error: {
+            code: 'RATE_LIMIT_EXCEEDED',
+            message:
+              'Too many password change attempts. Please try again later.',
+          },
+        };
+      }
+
       const { currentPassword, newPassword } = request.body;
 
       // Validate request body

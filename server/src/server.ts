@@ -3,6 +3,7 @@ import fastifyStatic from '@fastify/static';
 import fastifyWebsocket from '@fastify/websocket';
 import fastifyCors from '@fastify/cors';
 import fastifyCookie from '@fastify/cookie';
+import { randomBytes } from 'crypto';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import { existsSync } from 'fs';
@@ -84,7 +85,9 @@ export async function buildServer(
   });
 
   // Register cookie support for auth
-  await server.register(fastifyCookie);
+  await server.register(fastifyCookie, {
+    secret: process.env.COOKIE_SECRET || randomBytes(32).toString('hex'),
+  });
 
   // Register WebSocket support
   await server.register(fastifyWebsocket);

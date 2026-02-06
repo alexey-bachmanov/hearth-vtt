@@ -17,8 +17,8 @@
 - [ ] Implement sliding window session extension (extend on activity)
 - [ ] Update `requireAdminAuth` middleware to extend sessions
 - [ ] Add `updateAdminSession()` method to Storage
-- [ ] Always set `secure: true` on admin cookies (even in dev)
-- [ ] Change admin cookie `sameSite` from 'lax' to 'strict'
+- [x] Always set `secure: true` on admin cookies (even in dev)
+- [x] Change admin cookie `sameSite` from 'lax' to 'strict'
 
 ### CSRF Protection
 
@@ -32,11 +32,11 @@
 
 ### Rate Limiting
 
-- [ ] Create in-memory rate limit tracker (Map)
-- [ ] Add rate limiting to `/api/admin/setup` (5 attempts / 10 min)
-- [ ] Add rate limiting to `/api/admin/login` (5 attempts / 10 min)
-- [ ] Add rate limiting to `/api/admin/change-password` (3 attempts / 10 min)
-- [ ] Return 429 status on rate limit exceeded
+- [x] Create in-memory rate limit tracker (Map)
+- [x] Add rate limiting to `/api/admin/setup` (5 attempts / 10 min)
+- [x] Add rate limiting to `/api/admin/login` (5 attempts / 10 min)
+- [x] Add rate limiting to `/api/admin/change-password` (3 attempts / 10 min)
+- [x] Return 429 status on rate limit exceeded
 
 ### Admin UI Routing & Logic
 
@@ -50,9 +50,9 @@
 
 ### Session Cleanup
 
-- [ ] Add `cleanupExpiredAdminSessions()` to Storage
-- [ ] Add periodic cleanup job to server.ts (every hour)
-- [ ] Update setup PIN cleanup (only delete after password set)
+- [x] Add `cleanupExpiredAdminSessions()` to Storage
+- [x] Add periodic cleanup job to server.ts (every hour)
+- [x] Update setup PIN cleanup (only delete after password set)
 - [ ] Test session expiration and cleanup
 
 ## Stub types to define (see shared-types.md)

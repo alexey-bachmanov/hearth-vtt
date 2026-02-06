@@ -786,6 +786,29 @@ export class SqliteStorage implements StorageBackend {
   }
 
   /**
+   * Clean up expired and revoked admin sessions.
+   *
+   * Deletes sessions that are either:
+   * - Expired (expiresAt < current time)
+   * - Revoked (revokedAt is not null)
+   *
+   * This should be called periodically to prevent database bloat.
+   */
+  async cleanupExpiredAdminSessions(): Promise<void> {
+    if (!this.metadataDb) {
+      throw new Error('Storage not initialized');
+    }
+
+    const now = Date.now();
+    const stmt = this.metadataDb.prepare(`
+      DELETE FROM admin_sessions 
+      WHERE expires_at < ? OR revoked_at IS NOT NULL
+    `);
+
+    stmt.run(now);
+  }
+
+  /**
    * Seat operations
    */
 
