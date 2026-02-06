@@ -8,6 +8,8 @@
  * Routes:
  * - /join/:token → JoinPage
  * - /play → PlayLayout (main game UI)
+ * - /admin/setup → AdminSetup (first-time server admin setup)
+ * - /admin/login → AdminLogin (returning admin password login)
  * - /admin → AdminLayout (campaign management)
  * - fallback → NotLoggedInPage
  */
@@ -16,6 +18,8 @@ import { onMount } from 'svelte';
 import { parseRoute, type Route } from './routes';
 import PlayLayout from '../ui/layout/PlayLayout.svelte';
 import AdminLayout from '../ui/layout/AdminLayout.svelte';
+import AdminSetup from '../ui/admin/AdminSetup.svelte';
+import AdminLogin from '../ui/admin/AdminLogin.svelte';
 import JoinPage from '../ui/auth/JoinPage.svelte';
 import NotLoggedInPage from '../ui/auth/NotLoggedInPage.svelte';
 
@@ -42,6 +46,10 @@ onMount(() => {
   <JoinPage token={currentRoute.token} />
 {:else if currentRoute.type === 'play'}
   <PlayLayout />
+{:else if currentRoute.type === 'admin-setup'}
+  <AdminSetup />
+{:else if currentRoute.type === 'admin-login'}
+  <AdminLogin />
 {:else if currentRoute.type === 'admin'}
   <AdminLayout />
 {:else}

@@ -10,6 +10,7 @@ import type { Storage } from './storage/storage.js';
 import { healthRoutes } from './routes/health.js';
 import { campaignRoutes } from './routes/campaigns.js';
 import { authRoutes } from './routes/auth.js';
+import { adminAuthRoutes, requireAdminAuth } from './routes/admin-auth.js';
 import { seatRoutes } from './routes/seats.js';
 import { inviteRoutes } from './routes/invites.js';
 import { sessionRoutes } from './routes/sessions.js';
@@ -88,12 +89,51 @@ export async function buildServer(
   // Register WebSocket support
   await server.register(fastifyWebsocket);
 
+  // Apply localhost restriction to admin routes by default
+  // Security measure: Admin routes only accessible from localhost unless ADMIN_ALLOW_REMOTE=true
+  server.addHook('preHandler', async (request, reply) => {
+    const allowRemote = process.env.ADMIN_ALLOW_REMOTE === 'true';
+
+    // Only apply restriction to admin routes
+    if (!request.url.startsWith('/api/admin/')) {
+      return;
+    }
+
+    // If remote access is explicitly allowed, skip check
+    if (allowRemote) {
+      return;
+    }
+
+    // Check if request is from localhost
+    const clientIp = request.ip;
+    const isLocalhost =
+      clientIp === '127.0.0.1' ||
+      clientIp === '::1' ||
+      clientIp === '::ffff:127.0.0.1' ||
+      clientIp === 'localhost';
+
+    if (!isLocalhost) {
+      reply.code(403);
+      return reply.send({
+        error: {
+          code: 'REMOTE_ACCESS_DENIED',
+          message:
+            'Admin routes are restricted to localhost. To allow remote access, set ADMIN_ALLOW_REMOTE=true environment variable (not recommended without reverse proxy with TLS).',
+        },
+      });
+    }
+  });
+
   // Register route modules
   await healthRoutes(server);
+  await adminAuthRoutes(server, {
+    storage: options.storage,
+    dataDir: options.dataDir,
+  });
   await campaignRoutes(server, { storage: options.storage });
   await authRoutes(server);
-  await seatRoutes(server);
-  await inviteRoutes(server);
+  await seatRoutes(server, { storage: options.storage });
+  await inviteRoutes(server, { storage: options.storage });
   await sessionRoutes(server);
   await wsRoutes(server);
 

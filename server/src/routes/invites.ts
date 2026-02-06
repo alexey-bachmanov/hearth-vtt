@@ -11,6 +11,8 @@
  */
 
 import type { FastifyInstance } from 'fastify';
+import type { Storage } from '../storage/storage.js';
+import { requireAdminAuth } from './admin-auth.js';
 
 // Mock invite data
 const mockInvites = [
@@ -42,12 +44,17 @@ const mockInvites = [
   },
 ];
 
-export async function inviteRoutes(server: FastifyInstance) {
+export async function inviteRoutes(
+  server: FastifyInstance,
+  options: { storage: Storage },
+) {
   /**
    * GET /api/campaigns/:id/invites - List invites for a campaign
+   * Protected: Requires admin authentication
    */
   server.get<{ Params: { id: string } }>(
     '/api/campaigns/:id/invites',
+    { preHandler: requireAdminAuth(options.storage) },
     async (request) => {
       const campaignId = request.params.id;
       const invites = mockInvites.filter(
@@ -59,6 +66,7 @@ export async function inviteRoutes(server: FastifyInstance) {
 
   /**
    * POST /api/campaigns/:id/invites - Create a new invite
+   * Protected: Requires admin authentication
    */
   server.post<{
     Params: { id: string };
@@ -69,45 +77,51 @@ export async function inviteRoutes(server: FastifyInstance) {
       expiresIn: number;
       maxClaims?: number;
     };
-  }>('/api/campaigns/:id/invites', async (request, reply) => {
-    const { seatId, rolesGranted, pin, expiresIn, maxClaims } = request.body;
-    const campaignId = request.params.id;
+  }>(
+    '/api/campaigns/:id/invites',
+    { preHandler: requireAdminAuth(options.storage) },
+    async (request, reply) => {
+      const { seatId, rolesGranted, pin, expiresIn, maxClaims } = request.body;
+      const campaignId = request.params.id;
 
-    if (!seatId || !rolesGranted || !pin || !expiresIn) {
-      reply.code(400);
-      return {
-        error: {
-          code: 'INVALID_REQUEST',
-          message: 'seatId, rolesGranted, pin, and expiresIn are required',
+      if (!seatId || !rolesGranted || !pin || !expiresIn) {
+        reply.code(400);
+        return {
+          error: {
+            code: 'INVALID_REQUEST',
+            message: 'seatId, rolesGranted, pin, and expiresIn are required',
+          },
+        };
+      }
+
+      // Generate mock invite token
+      const inviteToken =
+        Math.random().toString(36).substring(2, 15) +
+        Math.random().toString(36).substring(2, 15);
+      const inviteUrl = `${request.protocol}://${request.hostname}/join/${inviteToken}`;
+
+      // Create mock invite
+      const newInvite = {
+        invite: {
+          id: 'invite-' + Date.now(),
+          inviteToken,
+          inviteUrl,
+          expiresAt: new Date(Date.now() + expiresIn * 1000).toISOString(),
         },
       };
-    }
 
-    // Generate mock invite token
-    const inviteToken =
-      Math.random().toString(36).substring(2, 15) +
-      Math.random().toString(36).substring(2, 15);
-    const inviteUrl = `${request.protocol}://${request.hostname}/join/${inviteToken}`;
-
-    // Create mock invite
-    const newInvite = {
-      invite: {
-        id: 'invite-' + Date.now(),
-        inviteToken,
-        inviteUrl,
-        expiresAt: new Date(Date.now() + expiresIn * 1000).toISOString(),
-      },
-    };
-
-    reply.code(201);
-    return newInvite;
-  });
+      reply.code(201);
+      return newInvite;
+    },
+  );
 
   /**
    * DELETE /api/campaigns/:id/invites/:inviteId - Revoke an invite
+   * Protected: Requires admin authentication
    */
   server.delete<{ Params: { id: string; inviteId: string } }>(
     '/api/campaigns/:id/invites/:inviteId',
+    { preHandler: requireAdminAuth(options.storage) },
     async (request, reply) => {
       const { inviteId } = request.params;
 

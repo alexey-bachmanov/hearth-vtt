@@ -2,9 +2,10 @@ import 'dotenv/config';
 import { buildServer } from './server.js';
 import { ensureDataDir } from './storage/ensure-dirs.js';
 import { Storage } from './storage/index.js';
+import { ensureServerAdminSetup } from './auth/setup-pin.js';
 
 const PORT = parseInt(process.env.PORT || '3000', 10);
-const HOST = process.env.HOST || '0.0.0.0';
+const HOST = process.env.HOST || '127.0.0.1';
 const DATA_DIR = process.env.DATA_DIR || './data';
 
 async function main() {
@@ -14,6 +15,10 @@ async function main() {
   // Initialize storage
   const storage = new Storage(DATA_DIR);
   await storage.init();
+
+  // Ensure server admin setup is complete
+  // If no admin exists, generates setup PIN and displays instructions
+  await ensureServerAdminSetup(storage, DATA_DIR, HOST, PORT);
 
   // Build and start server
   const server = await buildServer({

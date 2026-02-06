@@ -2,7 +2,17 @@ import Database from 'better-sqlite3';
 import path from 'path';
 import { randomUUID } from 'crypto';
 import { existsSync, unlinkSync } from 'fs';
-import type { StorageBackend, Campaign, Entity, Event } from './storage.js';
+import type {
+  StorageBackend,
+  Campaign,
+  Entity,
+  Event,
+  ServerAdmin,
+  AdminSession,
+  Seat,
+  Invite,
+  AuthSession,
+} from './storage.js';
 
 /**
  * SQLite-based storage implementation using per-campaign databases.
@@ -50,6 +60,7 @@ export class SqliteStorage implements StorageBackend {
     }
 
     this.metadataDb.exec(`
+      -- Campaigns table
       CREATE TABLE IF NOT EXISTS campaigns (
         id TEXT PRIMARY KEY,
         name TEXT NOT NULL,
@@ -59,6 +70,83 @@ export class SqliteStorage implements StorageBackend {
       
       CREATE INDEX IF NOT EXISTS idx_campaigns_created_at ON campaigns(created_at);
       CREATE INDEX IF NOT EXISTS idx_campaigns_name ON campaigns(name);
+
+      -- Server admin table (server-level, not per-campaign)
+      CREATE TABLE IF NOT EXISTS server_admin (
+        id TEXT PRIMARY KEY,
+        username_or_email TEXT NOT NULL,
+        pin_hash TEXT,
+        password_hash TEXT,
+        setup_pin_expires_at INTEGER,
+        created_at INTEGER NOT NULL,
+        updated_at INTEGER NOT NULL
+      );
+
+      -- Admin sessions table (server-level admin authentication)
+      CREATE TABLE IF NOT EXISTS admin_sessions (
+        id TEXT PRIMARY KEY,
+        admin_id TEXT NOT NULL,
+        session_token_hash TEXT NOT NULL,
+        expires_at INTEGER NOT NULL,
+        created_at INTEGER NOT NULL,
+        last_used_at INTEGER NOT NULL,
+        revoked_at INTEGER,
+        FOREIGN KEY (admin_id) REFERENCES server_admin(id)
+      );
+
+      CREATE INDEX IF NOT EXISTS idx_admin_sessions_token ON admin_sessions(session_token_hash);
+      CREATE INDEX IF NOT EXISTS idx_admin_sessions_admin_id ON admin_sessions(admin_id);
+      CREATE INDEX IF NOT EXISTS idx_admin_sessions_expires_at ON admin_sessions(expires_at);
+
+      -- Seats table (campaign-scoped identities)
+      CREATE TABLE IF NOT EXISTS seats (
+        id TEXT PRIMARY KEY,
+        campaign_id TEXT NOT NULL,
+        display_name TEXT NOT NULL,
+        role TEXT NOT NULL CHECK(role IN ('gm', 'player', 'spectator')),
+        is_active INTEGER NOT NULL DEFAULT 1,
+        created_at INTEGER NOT NULL,
+        updated_at INTEGER NOT NULL,
+        FOREIGN KEY (campaign_id) REFERENCES campaigns(id) ON DELETE CASCADE
+      );
+
+      CREATE INDEX IF NOT EXISTS idx_seats_campaign_id ON seats(campaign_id);
+      CREATE INDEX IF NOT EXISTS idx_seats_role ON seats(role);
+
+      -- Invites table (capability tokens for claiming seats)
+      CREATE TABLE IF NOT EXISTS invites (
+        id TEXT PRIMARY KEY,
+        seat_id TEXT NOT NULL,
+        invite_token TEXT NOT NULL UNIQUE,
+        pin_hash TEXT NOT NULL,
+        max_uses INTEGER NOT NULL,
+        uses_remaining INTEGER NOT NULL,
+        expires_at INTEGER NOT NULL,
+        created_at INTEGER NOT NULL,
+        revoked_at INTEGER,
+        FOREIGN KEY (seat_id) REFERENCES seats(id) ON DELETE CASCADE
+      );
+
+      CREATE INDEX IF NOT EXISTS idx_invites_token ON invites(invite_token);
+      CREATE INDEX IF NOT EXISTS idx_invites_seat_id ON invites(seat_id);
+      CREATE INDEX IF NOT EXISTS idx_invites_expires_at ON invites(expires_at);
+
+      -- Auth sessions table (seat-based authentication)
+      CREATE TABLE IF NOT EXISTS auth_sessions (
+        id TEXT PRIMARY KEY,
+        seat_id TEXT NOT NULL,
+        refresh_token_hash TEXT NOT NULL,
+        access_token_hash TEXT NOT NULL,
+        expires_at INTEGER NOT NULL,
+        created_at INTEGER NOT NULL,
+        last_used_at INTEGER NOT NULL,
+        revoked_at INTEGER,
+        FOREIGN KEY (seat_id) REFERENCES seats(id) ON DELETE CASCADE
+      );
+
+      CREATE INDEX IF NOT EXISTS idx_auth_sessions_refresh_token ON auth_sessions(refresh_token_hash);
+      CREATE INDEX IF NOT EXISTS idx_auth_sessions_seat_id ON auth_sessions(seat_id);
+      CREATE INDEX IF NOT EXISTS idx_auth_sessions_expires_at ON auth_sessions(expires_at);
     `);
   }
 
@@ -434,5 +522,728 @@ export class SqliteStorage implements StorageBackend {
 
   async rollbackTransaction(campaignId: string): Promise<void> {
     throw new Error('Transactions not yet implemented');
+  }
+
+  /**
+   * Server admin operations
+   */
+
+  /**
+   * Get the server admin (only one exists per server)
+   */
+  async getServerAdmin(): Promise<ServerAdmin | null> {
+    if (!this.metadataDb) {
+      throw new Error('Storage not initialized');
+    }
+
+    const stmt = this.metadataDb.prepare(`
+      SELECT 
+        id,
+        username_or_email as usernameOrEmail,
+        pin_hash as pinHash,
+        password_hash as passwordHash,
+        setup_pin_expires_at as setupPinExpiresAt,
+        created_at as createdAt,
+        updated_at as updatedAt
+      FROM server_admin
+      LIMIT 1
+    `);
+
+    const row = stmt.get() as ServerAdmin | undefined;
+    return row ?? null;
+  }
+
+  /**
+   * Create the server admin (should only be called once on first server startup)
+   */
+  async createServerAdmin(data: {
+    usernameOrEmail: string;
+    pinHash: string;
+    setupPinExpiresAt: number;
+  }): Promise<ServerAdmin> {
+    if (!this.metadataDb) {
+      throw new Error('Storage not initialized');
+    }
+
+    const id = randomUUID();
+    const now = Date.now();
+
+    const admin: ServerAdmin = {
+      id,
+      usernameOrEmail: data.usernameOrEmail,
+      pinHash: data.pinHash,
+      passwordHash: null,
+      setupPinExpiresAt: data.setupPinExpiresAt,
+      createdAt: now,
+      updatedAt: now,
+    };
+
+    const stmt = this.metadataDb.prepare(`
+      INSERT INTO server_admin (
+        id, username_or_email, pin_hash, password_hash, 
+        setup_pin_expires_at, created_at, updated_at
+      )
+      VALUES (?, ?, ?, ?, ?, ?, ?)
+    `);
+
+    stmt.run(
+      admin.id,
+      admin.usernameOrEmail,
+      admin.pinHash,
+      admin.passwordHash,
+      admin.setupPinExpiresAt,
+      admin.createdAt,
+      admin.updatedAt,
+    );
+
+    return admin;
+  }
+
+  /**
+   * Update server admin (typically to set password after first setup)
+   */
+  async updateServerAdmin(
+    adminId: string,
+    data: Partial<
+      Pick<ServerAdmin, 'pinHash' | 'passwordHash' | 'setupPinExpiresAt'>
+    >,
+  ): Promise<void> {
+    if (!this.metadataDb) {
+      throw new Error('Storage not initialized');
+    }
+
+    const updates: string[] = [];
+    const values: any[] = [];
+
+    if (data.pinHash !== undefined) {
+      updates.push('pin_hash = ?');
+      values.push(data.pinHash);
+    }
+
+    if (data.passwordHash !== undefined) {
+      updates.push('password_hash = ?');
+      values.push(data.passwordHash);
+    }
+
+    if (data.setupPinExpiresAt !== undefined) {
+      updates.push('setup_pin_expires_at = ?');
+      values.push(data.setupPinExpiresAt);
+    }
+
+    if (updates.length === 0) {
+      return;
+    }
+
+    updates.push('updated_at = ?');
+    values.push(Date.now());
+    values.push(adminId);
+
+    const stmt = this.metadataDb.prepare(`
+      UPDATE server_admin
+      SET ${updates.join(', ')}
+      WHERE id = ?
+    `);
+
+    stmt.run(...values);
+  }
+
+  /**
+   * Admin session operations
+   */
+
+  /**
+   * Create an admin session
+   */
+  async createAdminSession(data: {
+    adminId: string;
+    sessionTokenHash: string;
+    expiresAt: number;
+  }): Promise<AdminSession> {
+    if (!this.metadataDb) {
+      throw new Error('Storage not initialized');
+    }
+
+    const id = randomUUID();
+    const now = Date.now();
+
+    const session: AdminSession = {
+      id,
+      adminId: data.adminId,
+      sessionTokenHash: data.sessionTokenHash,
+      expiresAt: data.expiresAt,
+      createdAt: now,
+      lastUsedAt: now,
+      revokedAt: null,
+    };
+
+    const stmt = this.metadataDb.prepare(`
+      INSERT INTO admin_sessions (
+        id, admin_id, session_token_hash, expires_at,
+        created_at, last_used_at, revoked_at
+      )
+      VALUES (?, ?, ?, ?, ?, ?, ?)
+    `);
+
+    stmt.run(
+      session.id,
+      session.adminId,
+      session.sessionTokenHash,
+      session.expiresAt,
+      session.createdAt,
+      session.lastUsedAt,
+      session.revokedAt,
+    );
+
+    return session;
+  }
+
+  /**
+   * Get an admin session by token hash
+   */
+  async getAdminSession(
+    sessionTokenHash: string,
+  ): Promise<AdminSession | null> {
+    if (!this.metadataDb) {
+      throw new Error('Storage not initialized');
+    }
+
+    const stmt = this.metadataDb.prepare(`
+      SELECT
+        id,
+        admin_id as adminId,
+        session_token_hash as sessionTokenHash,
+        expires_at as expiresAt,
+        created_at as createdAt,
+        last_used_at as lastUsedAt,
+        revoked_at as revokedAt
+      FROM admin_sessions
+      WHERE session_token_hash = ? AND revoked_at IS NULL
+    `);
+
+    const row = stmt.get(sessionTokenHash) as AdminSession | undefined;
+    return row ?? null;
+  }
+
+  /**
+   * Revoke an admin session
+   */
+  async revokeAdminSession(sessionId: string): Promise<void> {
+    if (!this.metadataDb) {
+      throw new Error('Storage not initialized');
+    }
+
+    const stmt = this.metadataDb.prepare(`
+      UPDATE admin_sessions
+      SET revoked_at = ?
+      WHERE id = ?
+    `);
+
+    stmt.run(Date.now(), sessionId);
+  }
+
+  /**
+   * List all admin sessions (active and revoked)
+   */
+  async listAdminSessions(): Promise<AdminSession[]> {
+    if (!this.metadataDb) {
+      throw new Error('Storage not initialized');
+    }
+
+    const stmt = this.metadataDb.prepare(`
+      SELECT
+        id,
+        admin_id as adminId,
+        session_token_hash as sessionTokenHash,
+        expires_at as expiresAt,
+        created_at as createdAt,
+        last_used_at as lastUsedAt,
+        revoked_at as revokedAt
+      FROM admin_sessions
+      ORDER BY created_at DESC
+    `);
+
+    return stmt.all() as AdminSession[];
+  }
+
+  /**
+   * Seat operations
+   */
+
+  /**
+   * Create a seat in a campaign
+   */
+  async createSeat(data: {
+    campaignId: string;
+    displayName: string;
+    role: 'gm' | 'player' | 'spectator';
+  }): Promise<Seat> {
+    if (!this.metadataDb) {
+      throw new Error('Storage not initialized');
+    }
+
+    const id = randomUUID();
+    const now = Date.now();
+
+    const seat: Seat = {
+      id,
+      campaignId: data.campaignId,
+      displayName: data.displayName,
+      role: data.role,
+      isActive: true,
+      createdAt: now,
+      updatedAt: now,
+    };
+
+    const stmt = this.metadataDb.prepare(`
+      INSERT INTO seats (
+        id, campaign_id, display_name, role, is_active,
+        created_at, updated_at
+      )
+      VALUES (?, ?, ?, ?, ?, ?, ?)
+    `);
+
+    stmt.run(
+      seat.id,
+      seat.campaignId,
+      seat.displayName,
+      seat.role,
+      seat.isActive ? 1 : 0,
+      seat.createdAt,
+      seat.updatedAt,
+    );
+
+    return seat;
+  }
+
+  /**
+   * Get a seat by ID
+   */
+  async getSeat(seatId: string): Promise<Seat | null> {
+    if (!this.metadataDb) {
+      throw new Error('Storage not initialized');
+    }
+
+    const stmt = this.metadataDb.prepare(`
+      SELECT
+        id,
+        campaign_id as campaignId,
+        display_name as displayName,
+        role,
+        is_active as isActive,
+        created_at as createdAt,
+        updated_at as updatedAt
+      FROM seats
+      WHERE id = ?
+    `);
+
+    const row = stmt.get(seatId) as any;
+    if (!row) return null;
+
+    return {
+      ...row,
+      isActive: row.isActive === 1,
+    };
+  }
+
+  /**
+   * List all seats for a campaign
+   */
+  async listSeats(campaignId: string): Promise<Seat[]> {
+    if (!this.metadataDb) {
+      throw new Error('Storage not initialized');
+    }
+
+    const stmt = this.metadataDb.prepare(`
+      SELECT
+        id,
+        campaign_id as campaignId,
+        display_name as displayName,
+        role,
+        is_active as isActive,
+        created_at as createdAt,
+        updated_at as updatedAt
+      FROM seats
+      WHERE campaign_id = ?
+      ORDER BY created_at DESC
+    `);
+
+    const rows = stmt.all(campaignId) as any[];
+    return rows.map((row) => ({
+      ...row,
+      isActive: row.isActive === 1,
+    }));
+  }
+
+  /**
+   * Update a seat
+   */
+  async updateSeat(
+    seatId: string,
+    data: Partial<Pick<Seat, 'displayName' | 'role' | 'isActive'>>,
+  ): Promise<void> {
+    if (!this.metadataDb) {
+      throw new Error('Storage not initialized');
+    }
+
+    const updates: string[] = [];
+    const values: any[] = [];
+
+    if (data.displayName !== undefined) {
+      updates.push('display_name = ?');
+      values.push(data.displayName);
+    }
+
+    if (data.role !== undefined) {
+      updates.push('role = ?');
+      values.push(data.role);
+    }
+
+    if (data.isActive !== undefined) {
+      updates.push('is_active = ?');
+      values.push(data.isActive ? 1 : 0);
+    }
+
+    if (updates.length === 0) {
+      return;
+    }
+
+    updates.push('updated_at = ?');
+    values.push(Date.now());
+    values.push(seatId);
+
+    const stmt = this.metadataDb.prepare(`
+      UPDATE seats
+      SET ${updates.join(', ')}
+      WHERE id = ?
+    `);
+
+    stmt.run(...values);
+  }
+
+  /**
+   * Delete a seat (also cascades to invites and auth sessions via FK)
+   */
+  async deleteSeat(seatId: string): Promise<void> {
+    if (!this.metadataDb) {
+      throw new Error('Storage not initialized');
+    }
+
+    const stmt = this.metadataDb.prepare(`
+      DELETE FROM seats WHERE id = ?
+    `);
+
+    stmt.run(seatId);
+  }
+
+  /**
+   * Invite operations
+   */
+
+  /**
+   * Create an invite for a seat
+   */
+  async createInvite(data: {
+    seatId: string;
+    inviteToken: string;
+    pinHash: string;
+    maxUses: number;
+    expiresAt: number;
+  }): Promise<Invite> {
+    if (!this.metadataDb) {
+      throw new Error('Storage not initialized');
+    }
+
+    const id = randomUUID();
+    const now = Date.now();
+
+    const invite: Invite = {
+      id,
+      seatId: data.seatId,
+      inviteToken: data.inviteToken,
+      pinHash: data.pinHash,
+      maxUses: data.maxUses,
+      usesRemaining: data.maxUses,
+      expiresAt: data.expiresAt,
+      createdAt: now,
+      revokedAt: null,
+    };
+
+    const stmt = this.metadataDb.prepare(`
+      INSERT INTO invites (
+        id, seat_id, invite_token, pin_hash, max_uses,
+        uses_remaining, expires_at, created_at, revoked_at
+      )
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+    `);
+
+    stmt.run(
+      invite.id,
+      invite.seatId,
+      invite.inviteToken,
+      invite.pinHash,
+      invite.maxUses,
+      invite.usesRemaining,
+      invite.expiresAt,
+      invite.createdAt,
+      invite.revokedAt,
+    );
+
+    return invite;
+  }
+
+  /**
+   * Get an invite by token
+   */
+  async getInvite(inviteToken: string): Promise<Invite | null> {
+    if (!this.metadataDb) {
+      throw new Error('Storage not initialized');
+    }
+
+    const stmt = this.metadataDb.prepare(`
+      SELECT
+        id,
+        seat_id as seatId,
+        invite_token as inviteToken,
+        pin_hash as pinHash,
+        max_uses as maxUses,
+        uses_remaining as usesRemaining,
+        expires_at as expiresAt,
+        created_at as createdAt,
+        revoked_at as revokedAt
+      FROM invites
+      WHERE invite_token = ?
+    `);
+
+    const row = stmt.get(inviteToken) as Invite | undefined;
+    return row ?? null;
+  }
+
+  /**
+   * List all invites for a seat
+   */
+  async listInvitesForSeat(seatId: string): Promise<Invite[]> {
+    if (!this.metadataDb) {
+      throw new Error('Storage not initialized');
+    }
+
+    const stmt = this.metadataDb.prepare(`
+      SELECT
+        id,
+        seat_id as seatId,
+        invite_token as inviteToken,
+        pin_hash as pinHash,
+        max_uses as maxUses,
+        uses_remaining as usesRemaining,
+        expires_at as expiresAt,
+        created_at as createdAt,
+        revoked_at as revokedAt
+      FROM invites
+      WHERE seat_id = ?
+      ORDER BY created_at DESC
+    `);
+
+    return stmt.all(seatId) as Invite[];
+  }
+
+  /**
+   * Revoke an invite
+   */
+  async revokeInvite(inviteToken: string): Promise<void> {
+    if (!this.metadataDb) {
+      throw new Error('Storage not initialized');
+    }
+
+    const stmt = this.metadataDb.prepare(`
+      UPDATE invites
+      SET revoked_at = ?
+      WHERE invite_token = ?
+    `);
+
+    stmt.run(Date.now(), inviteToken);
+  }
+
+  /**
+   * Decrement invite uses (called when invite is claimed)
+   */
+  async decrementInviteUses(inviteToken: string): Promise<void> {
+    if (!this.metadataDb) {
+      throw new Error('Storage not initialized');
+    }
+
+    const stmt = this.metadataDb.prepare(`
+      UPDATE invites
+      SET uses_remaining = uses_remaining - 1
+      WHERE invite_token = ? AND uses_remaining > 0
+    `);
+
+    stmt.run(inviteToken);
+  }
+
+  /**
+   * Auth session operations
+   */
+
+  /**
+   * Create an auth session for a seat
+   */
+  async createAuthSession(data: {
+    seatId: string;
+    refreshTokenHash: string;
+    accessTokenHash: string;
+    expiresAt: number;
+  }): Promise<AuthSession> {
+    if (!this.metadataDb) {
+      throw new Error('Storage not initialized');
+    }
+
+    const id = randomUUID();
+    const now = Date.now();
+
+    const session: AuthSession = {
+      id,
+      seatId: data.seatId,
+      refreshTokenHash: data.refreshTokenHash,
+      accessTokenHash: data.accessTokenHash,
+      expiresAt: data.expiresAt,
+      createdAt: now,
+      lastUsedAt: now,
+      revokedAt: null,
+    };
+
+    const stmt = this.metadataDb.prepare(`
+      INSERT INTO auth_sessions (
+        id, seat_id, refresh_token_hash, access_token_hash,
+        expires_at, created_at, last_used_at, revoked_at
+      )
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+    `);
+
+    stmt.run(
+      session.id,
+      session.seatId,
+      session.refreshTokenHash,
+      session.accessTokenHash,
+      session.expiresAt,
+      session.createdAt,
+      session.lastUsedAt,
+      session.revokedAt,
+    );
+
+    return session;
+  }
+
+  /**
+   * Get an auth session by refresh token hash
+   */
+  async getAuthSession(refreshTokenHash: string): Promise<AuthSession | null> {
+    if (!this.metadataDb) {
+      throw new Error('Storage not initialized');
+    }
+
+    const stmt = this.metadataDb.prepare(`
+      SELECT
+        id,
+        seat_id as seatId,
+        refresh_token_hash as refreshTokenHash,
+        access_token_hash as accessTokenHash,
+        expires_at as expiresAt,
+        created_at as createdAt,
+        last_used_at as lastUsedAt,
+        revoked_at as revokedAt
+      FROM auth_sessions
+      WHERE refresh_token_hash = ? AND revoked_at IS NULL
+    `);
+
+    const row = stmt.get(refreshTokenHash) as AuthSession | undefined;
+    return row ?? null;
+  }
+
+  /**
+   * Update an auth session (for token rotation)
+   */
+  async updateAuthSession(
+    sessionId: string,
+    data: Partial<
+      Pick<AuthSession, 'refreshTokenHash' | 'accessTokenHash' | 'lastUsedAt'>
+    >,
+  ): Promise<void> {
+    if (!this.metadataDb) {
+      throw new Error('Storage not initialized');
+    }
+
+    const updates: string[] = [];
+    const values: any[] = [];
+
+    if (data.refreshTokenHash !== undefined) {
+      updates.push('refresh_token_hash = ?');
+      values.push(data.refreshTokenHash);
+    }
+
+    if (data.accessTokenHash !== undefined) {
+      updates.push('access_token_hash = ?');
+      values.push(data.accessTokenHash);
+    }
+
+    if (data.lastUsedAt !== undefined) {
+      updates.push('last_used_at = ?');
+      values.push(data.lastUsedAt);
+    }
+
+    if (updates.length === 0) {
+      return;
+    }
+
+    values.push(sessionId);
+
+    const stmt = this.metadataDb.prepare(`
+      UPDATE auth_sessions
+      SET ${updates.join(', ')}
+      WHERE id = ?
+    `);
+
+    stmt.run(...values);
+  }
+
+  /**
+   * Revoke an auth session
+   */
+  async revokeAuthSession(sessionId: string): Promise<void> {
+    if (!this.metadataDb) {
+      throw new Error('Storage not initialized');
+    }
+
+    const stmt = this.metadataDb.prepare(`
+      UPDATE auth_sessions
+      SET revoked_at = ?
+      WHERE id = ?
+    `);
+
+    stmt.run(Date.now(), sessionId);
+  }
+
+  /**
+   * List all auth sessions for a seat
+   */
+  async listAuthSessionsForSeat(seatId: string): Promise<AuthSession[]> {
+    if (!this.metadataDb) {
+      throw new Error('Storage not initialized');
+    }
+
+    const stmt = this.metadataDb.prepare(`
+      SELECT
+        id,
+        seat_id as seatId,
+        refresh_token_hash as refreshTokenHash,
+        access_token_hash as accessTokenHash,
+        expires_at as expiresAt,
+        created_at as createdAt,
+        last_used_at as lastUsedAt,
+        revoked_at as revokedAt
+      FROM auth_sessions
+      WHERE seat_id = ?
+      ORDER BY created_at DESC
+    `);
+
+    return stmt.all(seatId) as AuthSession[];
   }
 }

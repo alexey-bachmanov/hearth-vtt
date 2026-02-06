@@ -72,12 +72,18 @@ Configuration must come from environment variables and/or CLI flags (no hard-cod
 
 Notes:
 
-- Default `HOST=127.0.0.1` prevents accidental LAN exposure (self-hosted servers must explicitly set `HOST=0.0.0.0` for LAN access).
-- Admin UI is protected by setup PIN + password authentication (see ADR 007).
-- For production/cloud deployments, use `ADMIN_SETUP_PIN` to provide admin credentials securely (no console logging).
-- For tunneled deployments, set `ADMIN_ALLOW_REMOTE=true` to allow admin access from internet (requires HTTPS).
-- TLS should be handled by a reverse proxy (recommended) or enabled natively via TLS\_\* config options.
-- When `TLS_ENABLED=true`, WebSocket connections will use WSS protocol; HTTP will use HTTPS.
+- **Security by default:** `HOST=127.0.0.1` prevents accidental LAN/internet exposure. Self-hosted servers must explicitly set `HOST=0.0.0.0` to allow network access.
+- **Admin route protection:** By default, `/api/admin/*` routes only accept connections from localhost (`127.0.0.1`). This prevents unauthorized admin access even if the server is exposed to a network.
+- **Admin authentication:** Admin UI is protected by setup PIN (first-time) + password authentication (see ADR 007).
+- **Allowing remote admin access:** Set `ADMIN_ALLOW_REMOTE=true` to allow admin routes from non-localhost IPs. **Not recommended** without additional security measures:
+  - Use a reverse proxy (Caddy/nginx) with TLS termination
+  - Configure HTTP Basic Auth or mutual TLS at the proxy level for additional protection
+  - Use fail2ban or similar to prevent brute-force attacks
+  - Consider IP whitelisting at firewall/proxy level
+- **Cloud/production deployments:** Use `ADMIN_SETUP_PIN` to provide admin credentials via secure environment variables (avoids console logging).
+- **Tunneled deployments (ngrok, Cloudflare Tunnel, etc.):** These require `ADMIN_ALLOW_REMOTE=true` since connections appear non-local. **Always use HTTPS** and consider additional auth at the tunnel level.
+- **TLS termination:** Use a reverse proxy (recommended) or enable native TLS via `TLS_*` config options. Reverse proxies like Caddy auto-provision Let's Encrypt certificates.
+- When `TLS_ENABLED=true`, WebSocket connections use WSS protocol; HTTP uses HTTPS.
 
 ---
 
@@ -168,6 +174,103 @@ All endpoints must validate input where applicable (Fastify schemas).
   - server replies `{ type: "pong", id: string }`
 
 No auth required in milestone 1; later we require access token on connect.
+
+---
+
+## Deployment Patterns
+
+### Self-hosted (Local Network)
+
+**Basic Setup:**
+
+```bash
+HOST=0.0.0.0 PORT=3000 npm start
+```
+
+- Server binds to all interfaces for LAN access
+- Admin UI accessible at `http://<server-ip>:3000/admin`
+- Admin routes restricted to localhost by default (secure even on LAN)
+- Players access via `http://<server-ip>:3000`
+
+**Secure Setup with Reverse Proxy:**
+
+```bash
+# Server binds to localhost only
+PORT=3000 npm start
+
+# Caddy handles external access with auto-TLS
+# Caddyfile:
+yourdomain.com {
+    reverse_proxy localhost:3000
+}
+```
+
+- Server only accepts connections from Caddy (localhost)
+- Caddy auto-provisions Let's Encrypt certificates
+- Admin routes remain localhost-only (access via SSH tunnel or set `ADMIN_ALLOW_REMOTE=true`)
+
+### Cloud/Container Deployment
+
+**With Reverse Proxy (Recommended):**
+
+```bash
+# Server
+HOST=127.0.0.1
+PORT=3000
+ADMIN_ALLOW_REMOTE=true  # Required for admin access through proxy
+ADMIN_SETUP_PIN=<secure-pin>  # Pre-set to avoid console logging
+
+# Reverse Proxy (nginx example)
+server {
+    listen 443 ssl;
+    server_name yourdomain.com;
+
+    ssl_certificate /path/to/cert.pem;
+    ssl_certificate_key /path/to/key.pem;
+
+    # Optional: Additional admin protection
+    location /api/admin/ {
+        auth_basic "Admin Access";
+        auth_basic_user_file /etc/nginx/.htpasswd;
+        proxy_pass http://localhost:3000;
+    }
+
+    location / {
+        proxy_pass http://localhost:3000;
+        proxy_http_version 1.1;
+        proxy_set_header Upgrade $http_upgrade;
+        proxy_set_header Connection "upgrade";
+    }
+}
+```
+
+**With Tunnel Service (ngrok, Cloudflare Tunnel):**
+
+```bash
+HOST=127.0.0.1
+PORT=3000
+ADMIN_ALLOW_REMOTE=true  # Required - connections appear non-local
+ADMIN_SETUP_PIN=<secure-pin>
+```
+
+- Tunnel service handles TLS termination
+- Server sees all connections as local due to tunnel
+- Must set `ADMIN_ALLOW_REMOTE=true`
+- Consider enabling tunnel authentication for additional security
+
+### Security Recommendations
+
+1. **Always use HTTPS in production** - Either reverse proxy or native TLS
+2. **Localhost admin access by default** - Remote access requires explicit opt-in
+3. **SSH tunneling for admin** - Most secure for remote admin access:
+   ```bash
+   ssh -L 3000:localhost:3000 user@server
+   # Access admin at http://localhost:3000/admin
+   ```
+4. **Reverse proxy auth** - Add HTTP Basic Auth or mutual TLS at proxy level
+5. **Firewall rules** - Restrict admin ports at network level when possible
+6. **Regular updates** - Keep server and dependencies updated
+7. **Backup strategy** - Regular backups of `DATA_DIR` for disaster recovery
 
 ---
 

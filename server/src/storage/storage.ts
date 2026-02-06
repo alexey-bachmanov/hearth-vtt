@@ -31,6 +31,79 @@ export interface Event {
 }
 
 /**
+ * ServerAdmin: Server-level administrator credentials.
+ * One admin per server (extensible to multiple admins later).
+ */
+export interface ServerAdmin {
+  id: string;
+  usernameOrEmail: string; // Always "admin" for self-hosted; email for cloud
+  pinHash: string | null; // Setup PIN hash; null after permanent password set
+  passwordHash: string | null; // Permanent password hash; set after first setup
+  setupPinExpiresAt: number | null; // Unix timestamp; null after setup complete
+  createdAt: number;
+  updatedAt: number;
+}
+
+/**
+ * AdminSession: Server admin authentication session.
+ * Separate from seat-based AuthSessions.
+ */
+export interface AdminSession {
+  id: string;
+  adminId: string; // References ServerAdmin.id
+  sessionTokenHash: string; // Hashed session token (stored in cookie)
+  expiresAt: number; // Unix timestamp
+  createdAt: number;
+  lastUsedAt: number;
+  revokedAt: number | null; // Unix timestamp or null
+}
+
+/**
+ * Seat: Persistent identity within a campaign.
+ * Seats survive server restarts and outlive AuthSessions.
+ */
+export interface Seat {
+  id: string;
+  campaignId: string;
+  displayName: string; // Player's display name in this campaign
+  role: 'gm' | 'player' | 'spectator'; // Campaign role (no 'admin' role)
+  isActive: boolean; // Can be deactivated without deletion
+  createdAt: number;
+  updatedAt: number;
+}
+
+/**
+ * Invite: Capability token for claiming a seat.
+ * Managed by server admin.
+ */
+export interface Invite {
+  id: string;
+  seatId: string; // References Seat.id (each invite tied to exactly one seat)
+  inviteToken: string; // Capability token (128+ bits entropy)
+  pinHash: string; // Hashed PIN for claiming invite
+  maxUses: number; // Total number of times this invite can be claimed
+  usesRemaining: number; // Remaining claims available
+  expiresAt: number; // Unix timestamp
+  createdAt: number;
+  revokedAt: number | null; // Unix timestamp or null
+}
+
+/**
+ * AuthSession: Cookie-based authentication session for campaign participants.
+ * Separate from AdminSession.
+ */
+export interface AuthSession {
+  id: string;
+  seatId: string; // References Seat.id
+  refreshTokenHash: string; // Hashed refresh token
+  accessTokenHash: string; // Hashed access token (short-lived)
+  expiresAt: number; // Unix timestamp
+  createdAt: number;
+  lastUsedAt: number;
+  revokedAt: number | null; // Unix timestamp or null
+}
+
+/**
  * Internal interface for storage backend implementations.
  * Not exported - server code uses the Storage facade class.
  */
@@ -91,6 +164,84 @@ export interface StorageBackend {
   beginTransaction(campaignId: string): Promise<void>;
   commitTransaction(campaignId: string): Promise<void>;
   rollbackTransaction(campaignId: string): Promise<void>;
+
+  /**
+   * Server admin operations (server-level, not per-campaign)
+   */
+  getServerAdmin(): Promise<ServerAdmin | null>;
+  createServerAdmin(data: {
+    usernameOrEmail: string;
+    pinHash: string;
+    setupPinExpiresAt: number;
+  }): Promise<ServerAdmin>;
+  updateServerAdmin(
+    adminId: string,
+    data: Partial<
+      Pick<ServerAdmin, 'pinHash' | 'passwordHash' | 'setupPinExpiresAt'>
+    >,
+  ): Promise<void>;
+
+  /**
+   * Admin session operations (server-level admin authentication)
+   */
+  createAdminSession(data: {
+    adminId: string;
+    sessionTokenHash: string;
+    expiresAt: number;
+  }): Promise<AdminSession>;
+  getAdminSession(sessionTokenHash: string): Promise<AdminSession | null>;
+  revokeAdminSession(sessionId: string): Promise<void>;
+  listAdminSessions(): Promise<AdminSession[]>;
+
+  /**
+   * Seat operations (campaign-scoped identities)
+   */
+  createSeat(data: {
+    campaignId: string;
+    displayName: string;
+    role: 'gm' | 'player' | 'spectator';
+  }): Promise<Seat>;
+  getSeat(seatId: string): Promise<Seat | null>;
+  listSeats(campaignId: string): Promise<Seat[]>;
+  updateSeat(
+    seatId: string,
+    data: Partial<Pick<Seat, 'displayName' | 'role' | 'isActive'>>,
+  ): Promise<void>;
+  deleteSeat(seatId: string): Promise<void>;
+
+  /**
+   * Invite operations (admin-managed capability tokens)
+   */
+  createInvite(data: {
+    seatId: string;
+    inviteToken: string;
+    pinHash: string;
+    maxUses: number;
+    expiresAt: number;
+  }): Promise<Invite>;
+  getInvite(inviteToken: string): Promise<Invite | null>;
+  listInvitesForSeat(seatId: string): Promise<Invite[]>;
+  revokeInvite(inviteToken: string): Promise<void>;
+  decrementInviteUses(inviteToken: string): Promise<void>;
+
+  /**
+   * Auth session operations (seat-based authentication)
+   */
+  createAuthSession(data: {
+    seatId: string;
+    refreshTokenHash: string;
+    accessTokenHash: string;
+    expiresAt: number;
+  }): Promise<AuthSession>;
+  getAuthSession(refreshTokenHash: string): Promise<AuthSession | null>;
+  updateAuthSession(
+    sessionId: string,
+    data: Partial<
+      Pick<AuthSession, 'refreshTokenHash' | 'accessTokenHash' | 'lastUsedAt'>
+    >,
+  ): Promise<void>;
+  revokeAuthSession(sessionId: string): Promise<void>;
+  listAuthSessionsForSeat(seatId: string): Promise<AuthSession[]>;
 }
 
 /**
@@ -206,5 +357,146 @@ export class Storage {
 
   async rollbackTransaction(campaignId: string): Promise<void> {
     return this.backend.rollbackTransaction(campaignId);
+  }
+
+  /**
+   * Server admin operations
+   */
+  async getServerAdmin(): Promise<ServerAdmin | null> {
+    return this.backend.getServerAdmin();
+  }
+
+  async createServerAdmin(data: {
+    usernameOrEmail: string;
+    pinHash: string;
+    setupPinExpiresAt: number;
+  }): Promise<ServerAdmin> {
+    return this.backend.createServerAdmin(data);
+  }
+
+  async updateServerAdmin(
+    adminId: string,
+    data: Partial<
+      Pick<ServerAdmin, 'pinHash' | 'passwordHash' | 'setupPinExpiresAt'>
+    >,
+  ): Promise<void> {
+    return this.backend.updateServerAdmin(adminId, data);
+  }
+
+  /**
+   * Admin session operations
+   */
+  async createAdminSession(data: {
+    adminId: string;
+    sessionTokenHash: string;
+    expiresAt: number;
+  }): Promise<AdminSession> {
+    return this.backend.createAdminSession(data);
+  }
+
+  async getAdminSession(
+    sessionTokenHash: string,
+  ): Promise<AdminSession | null> {
+    return this.backend.getAdminSession(sessionTokenHash);
+  }
+
+  async revokeAdminSession(sessionId: string): Promise<void> {
+    return this.backend.revokeAdminSession(sessionId);
+  }
+
+  async listAdminSessions(): Promise<AdminSession[]> {
+    return this.backend.listAdminSessions();
+  }
+
+  /**
+   * Seat operations
+   */
+  async createSeat(data: {
+    campaignId: string;
+    displayName: string;
+    role: 'gm' | 'player' | 'spectator';
+  }): Promise<Seat> {
+    return this.backend.createSeat(data);
+  }
+
+  async getSeat(seatId: string): Promise<Seat | null> {
+    return this.backend.getSeat(seatId);
+  }
+
+  async listSeats(campaignId: string): Promise<Seat[]> {
+    return this.backend.listSeats(campaignId);
+  }
+
+  async updateSeat(
+    seatId: string,
+    data: Partial<Pick<Seat, 'displayName' | 'role' | 'isActive'>>,
+  ): Promise<void> {
+    return this.backend.updateSeat(seatId, data);
+  }
+
+  async deleteSeat(seatId: string): Promise<void> {
+    return this.backend.deleteSeat(seatId);
+  }
+
+  /**
+   * Invite operations
+   */
+  async createInvite(data: {
+    seatId: string;
+    inviteToken: string;
+    pinHash: string;
+    maxUses: number;
+    expiresAt: number;
+  }): Promise<Invite> {
+    return this.backend.createInvite(data);
+  }
+
+  async getInvite(inviteToken: string): Promise<Invite | null> {
+    return this.backend.getInvite(inviteToken);
+  }
+
+  async listInvitesForSeat(seatId: string): Promise<Invite[]> {
+    return this.backend.listInvitesForSeat(seatId);
+  }
+
+  async revokeInvite(inviteToken: string): Promise<void> {
+    return this.backend.revokeInvite(inviteToken);
+  }
+
+  async decrementInviteUses(inviteToken: string): Promise<void> {
+    return this.backend.decrementInviteUses(inviteToken);
+  }
+
+  /**
+   * Auth session operations
+   */
+  async createAuthSession(data: {
+    seatId: string;
+    refreshTokenHash: string;
+    accessTokenHash: string;
+    expiresAt: number;
+  }): Promise<AuthSession> {
+    return this.backend.createAuthSession(data);
+  }
+
+  async getAuthSession(refreshTokenHash: string): Promise<AuthSession | null> {
+    return this.backend.getAuthSession(refreshTokenHash);
+  }
+
+  async updateAuthSession(
+    sessionId: string,
+    data: Partial<
+      Pick<AuthSession, 'refreshTokenHash' | 'accessTokenHash' | 'lastUsedAt'>
+    >,
+  ): Promise<void> {
+    return this.backend.updateAuthSession(sessionId, data);
+  }
+
+  async revokeAuthSession(sessionId: string): Promise<void> {
+    return this.backend.revokeAuthSession(sessionId);
+  }
+
+  async listAuthSessionsForSeat(seatId: string): Promise<AuthSession[]> {
+    return this.backend.listAuthSessionsForSeat(seatId);
   }
 }

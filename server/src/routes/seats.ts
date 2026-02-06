@@ -12,6 +12,8 @@
  */
 
 import type { FastifyInstance } from 'fastify';
+import type { Storage } from '../storage/storage.js';
+import { requireAdminAuth } from './admin-auth.js';
 
 // Mock seat data
 const mockSeats = [
@@ -44,12 +46,17 @@ const mockSeats = [
   },
 ];
 
-export async function seatRoutes(server: FastifyInstance) {
+export async function seatRoutes(
+  server: FastifyInstance,
+  options: { storage: Storage },
+) {
   /**
    * GET /api/campaigns/:id/seats - List seats for a campaign
+   * Protected: Requires admin authentication
    */
   server.get<{ Params: { id: string } }>(
     '/api/campaigns/:id/seats',
+    { preHandler: requireAdminAuth(options.storage) },
     async (request) => {
       const campaignId = request.params.id;
       const seats = mockSeats.filter((seat) => seat.campaignId === campaignId);
@@ -59,9 +66,11 @@ export async function seatRoutes(server: FastifyInstance) {
 
   /**
    * POST /api/campaigns/:id/seats - Create a new seat
+   * Protected: Requires admin authentication
    */
   server.post<{ Params: { id: string }; Body: { name: string; role: string } }>(
     '/api/campaigns/:id/seats',
+    { preHandler: requireAdminAuth(options.storage) },
     async (request, reply) => {
       const { name, role } = request.body;
       const campaignId = request.params.id;
@@ -94,44 +103,51 @@ export async function seatRoutes(server: FastifyInstance) {
 
   /**
    * PATCH /api/campaigns/:id/seats/:seatId - Update seat metadata
+   * Protected: Requires admin authentication
    */
   server.patch<{
     Params: { id: string; seatId: string };
     Body: { name?: string; role?: string };
-  }>('/api/campaigns/:id/seats/:seatId', async (request, reply) => {
-    const { name, role } = request.body;
-    const { seatId } = request.params;
+  }>(
+    '/api/campaigns/:id/seats/:seatId',
+    { preHandler: requireAdminAuth(options.storage) },
+    async (request, reply) => {
+      const { name, role } = request.body;
+      const { seatId } = request.params;
 
-    // Find existing seat
-    const existingSeat = mockSeats.find((seat) => seat.id === seatId);
+      // Find existing seat
+      const existingSeat = mockSeats.find((seat) => seat.id === seatId);
 
-    if (!existingSeat) {
-      reply.code(404);
-      return {
-        error: {
-          code: 'SEAT_NOT_FOUND',
-          message: 'Seat not found',
-        },
+      if (!existingSeat) {
+        reply.code(404);
+        return {
+          error: {
+            code: 'SEAT_NOT_FOUND',
+            message: 'Seat not found',
+          },
+        };
+      }
+
+      // Return updated seat
+      const updatedSeat = {
+        ...existingSeat,
+        name: name || existingSeat.name,
+        role: role || existingSeat.role,
+        updatedAt: new Date().toISOString(),
       };
-    }
 
-    // Return updated seat
-    const updatedSeat = {
-      ...existingSeat,
-      name: name || existingSeat.name,
-      role: role || existingSeat.role,
-      updatedAt: new Date().toISOString(),
-    };
-
-    reply.code(200);
-    return updatedSeat;
-  });
+      reply.code(200);
+      return updatedSeat;
+    },
+  );
 
   /**
    * DELETE /api/campaigns/:id/seats/:seatId - Delete a seat
+   * Protected: Requires admin authentication
    */
   server.delete<{ Params: { id: string; seatId: string } }>(
     '/api/campaigns/:id/seats/:seatId',
+    { preHandler: requireAdminAuth(options.storage) },
     async (request, reply) => {
       const { seatId } = request.params;
 
