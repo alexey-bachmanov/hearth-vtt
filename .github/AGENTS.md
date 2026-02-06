@@ -211,7 +211,7 @@ Portable artifacts:
 - **Architecture overview:** [`docs/architecture-overview.md`](../docs/architecture-overview.md)
 - **Shared types & terminology:** [`docs/shared-types.md`](../docs/shared-types.md) — **Read this for canonical type definitions and glossary**
 - **Code style guide:** [`docs/code-style-guide.md`](../docs/code-style-guide.md) — **Follow these patterns for documentation and code organization**
-- **To-do list:** [`docs/todo.md`](../docs/todo.md)
+- **To-do list:** [`docs/todo.md`](../docs/todo.md) — **Organized into Current Projects, Future Milestones, and Tech Debt. When tackling tech debt, promote items to Current Projects with comprehensive step-by-step plans.**
 
 ### Component docs
 
