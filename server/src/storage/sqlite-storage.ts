@@ -2,14 +2,23 @@ import Database from 'better-sqlite3';
 import path from 'path';
 import { randomUUID } from 'crypto';
 import { existsSync, unlinkSync } from 'fs';
-import type { Storage, Campaign, Entity, Event } from './storage.js';
+import type { StorageBackend, Campaign, Entity, Event } from './storage.js';
 
 /**
- * SQLite-based storage implementation using per-campaign databases
+ * SQLite-based storage implementation using per-campaign databases.
+ *
+ * Architecture:
  * - Metadata DB: stores campaign list and global settings
  * - Campaign DBs: one database per campaign for entities and events
+ * - Connection pooling via Map<campaignId, Database>
+ *
+ * This separation allows campaigns to be archived/restored independently
+ * while maintaining fast access to the campaign list.
+ *
+ * Note: This class implements StorageBackend interface internally.
+ * Server code uses the Storage facade class, not this implementation directly.
  */
-export class SqliteStorage implements Storage {
+export class SqliteStorage implements StorageBackend {
   private dataDir: string;
   private metadataDb: Database.Database | null = null;
   private campaignDbs = new Map<string, Database.Database>();

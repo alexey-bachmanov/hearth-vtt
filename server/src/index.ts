@@ -1,7 +1,7 @@
 import 'dotenv/config';
 import { buildServer } from './server.js';
 import { ensureDataDir } from './storage/ensure-dirs.js';
-import { SqliteStorage } from './storage/sqlite-storage.js';
+import { Storage } from './storage/index.js';
 
 const PORT = parseInt(process.env.PORT || '3000', 10);
 const HOST = process.env.HOST || '0.0.0.0';
@@ -12,7 +12,7 @@ async function main() {
   await ensureDataDir(DATA_DIR);
 
   // Initialize storage
-  const storage = new SqliteStorage({ dataDir: DATA_DIR });
+  const storage = new Storage(DATA_DIR);
   await storage.init();
 
   // Build and start server
