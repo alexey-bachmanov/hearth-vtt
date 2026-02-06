@@ -28,7 +28,7 @@ As work completes, check off tasks and archive completed projects to keep this d
   - [x] Add check to stub portions of [seats.ts](../server/src/routes/seats.ts) and [invites.ts](../server/src/routes/invites.ts)
 - [x] Restrict CORS configuration
   - [x] Change `origin: true` in [server.ts](../server/src/server.ts#L83) to function checking same-origin + `PUBLIC_BASE_URL`
-- [ ] Add password max-length validation (1024 bytes) in [admin-auth.ts](../server/src/routes/admin-auth.ts#L342) to prevent HashDoS
+- [x] Add password max-length validation (1024 bytes) in [admin-auth.ts](../server/src/routes/admin-auth.ts#L342) to prevent HashDoS
 - [ ] Make admin cookie `secure` conditional on environment
   - [ ] Change `secure: true` to `secure: process.env.NODE_ENV === 'production'` in [admin-auth.ts](../server/src/routes/admin-auth.ts#L375)
 - [ ] Configure `trustProxy` from `TRUST_PROXY` env var in [server.ts](../server/src/server.ts#L79) for rate limiting behind proxies

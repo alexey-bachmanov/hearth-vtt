@@ -25,6 +25,8 @@ const scryptAsync = promisify(scrypt);
 
 const COOKIE_NAME = 'hearth_admin_session';
 const SESSION_DURATION_MS = 30 * 24 * 60 * 60 * 1000; // 30 days
+const MIN_PASSWORD_LENGTH = 8; // Minimum password length requirement
+const MAX_PASSWORD_LENGTH = 1024; // bytes - prevent HashDoS via expensive scrypt computation
 
 /**
  * Rate limit tracking.
@@ -337,14 +339,25 @@ export async function adminAuthRoutes(
         };
       }
 
-      // Optionally set permanent password
+      // Set permanent password
       if (newPassword) {
-        if (newPassword.length < 8) {
+        if (newPassword.length < MIN_PASSWORD_LENGTH) {
           reply.code(400);
           return {
             error: {
               code: 'PASSWORD_TOO_SHORT',
-              message: 'Password must be at least 8 characters',
+              message: `Password must be at least ${MIN_PASSWORD_LENGTH} characters`,
+            },
+          };
+        }
+
+        // Security: Prevent HashDoS by limiting password length
+        if (Buffer.byteLength(newPassword, 'utf8') > MAX_PASSWORD_LENGTH) {
+          reply.code(400);
+          return {
+            error: {
+              code: 'PASSWORD_TOO_LONG',
+              message: `Password cannot exceed ${MAX_PASSWORD_LENGTH} bytes`,
             },
           };
         }
@@ -378,10 +391,8 @@ export async function adminAuthRoutes(
         maxAge: SESSION_DURATION_MS / 1000, // maxAge is in seconds
       });
 
-      // Delete the setup PIN file only after password is set
-      if (newPassword) {
-        await deleteSetupPinFile(options.dataDir);
-      }
+      // Delete the setup PIN file since setup is now complete
+      await deleteSetupPinFile(options.dataDir);
 
       reply.code(200);
       return {
@@ -570,6 +581,17 @@ export async function adminAuthRoutes(
           error: {
             code: 'PASSWORD_TOO_SHORT',
             message: 'New password must be at least 8 characters',
+          },
+        };
+      }
+
+      // Security: Prevent HashDoS by limiting password length
+      if (Buffer.byteLength(newPassword, 'utf8') > MAX_PASSWORD_LENGTH) {
+        reply.code(400);
+        return {
+          error: {
+            code: 'PASSWORD_TOO_LONG',
+            message: `Password cannot exceed ${MAX_PASSWORD_LENGTH} bytes`,
           },
         };
       }
