@@ -98,6 +98,51 @@ export class SqliteStorage implements StorageBackend {
       CREATE INDEX IF NOT EXISTS idx_admin_sessions_admin_id ON admin_sessions(admin_id);
       CREATE INDEX IF NOT EXISTS idx_admin_sessions_expires_at ON admin_sessions(expires_at);
 
+      -- Token lookup tables (lightweight indexes for global token lookups)
+      -- These map tokens to campaign IDs so we can query the correct campaign DB
+      
+      CREATE TABLE IF NOT EXISTS invite_token_index (
+        invite_token TEXT PRIMARY KEY,
+        campaign_id TEXT NOT NULL,
+        FOREIGN KEY (campaign_id) REFERENCES campaigns(id) ON DELETE CASCADE
+      );
+
+      CREATE TABLE IF NOT EXISTS session_token_index (
+        refresh_token_hash TEXT PRIMARY KEY,
+        campaign_id TEXT NOT NULL,
+        FOREIGN KEY (campaign_id) REFERENCES campaigns(id) ON DELETE CASCADE
+      );
+    `);
+  }
+
+  /**
+   * Initialize a campaign database with schema
+   */
+  private initCampaignDb(db: Database.Database): void {
+    db.exec(`
+      CREATE TABLE IF NOT EXISTS entities (
+        id TEXT PRIMARY KEY,
+        type TEXT NOT NULL,
+        data TEXT NOT NULL,
+        created_at INTEGER NOT NULL,
+        updated_at INTEGER NOT NULL
+      );
+      
+      CREATE INDEX IF NOT EXISTS idx_entities_type ON entities(type);
+      CREATE INDEX IF NOT EXISTS idx_entities_created_at ON entities(created_at);
+      
+      CREATE TABLE IF NOT EXISTS events (
+        id TEXT PRIMARY KEY,
+        entity_id TEXT,
+        type TEXT NOT NULL,
+        data TEXT NOT NULL,
+        timestamp INTEGER NOT NULL
+      );
+      
+      CREATE INDEX IF NOT EXISTS idx_events_timestamp ON events(timestamp);
+      CREATE INDEX IF NOT EXISTS idx_events_entity_id ON events(entity_id);
+      CREATE INDEX IF NOT EXISTS idx_events_type ON events(type);
+
       -- Seats table (campaign-scoped identities)
       CREATE TABLE IF NOT EXISTS seats (
         id TEXT PRIMARY KEY,
@@ -106,8 +151,7 @@ export class SqliteStorage implements StorageBackend {
         role TEXT NOT NULL CHECK(role IN ('gm', 'player', 'spectator')),
         is_active INTEGER NOT NULL DEFAULT 1,
         created_at INTEGER NOT NULL,
-        updated_at INTEGER NOT NULL,
-        FOREIGN KEY (campaign_id) REFERENCES campaigns(id) ON DELETE CASCADE
+        updated_at INTEGER NOT NULL
       );
 
       CREATE INDEX IF NOT EXISTS idx_seats_campaign_id ON seats(campaign_id);
@@ -147,36 +191,6 @@ export class SqliteStorage implements StorageBackend {
       CREATE INDEX IF NOT EXISTS idx_auth_sessions_refresh_token ON auth_sessions(refresh_token_hash);
       CREATE INDEX IF NOT EXISTS idx_auth_sessions_seat_id ON auth_sessions(seat_id);
       CREATE INDEX IF NOT EXISTS idx_auth_sessions_expires_at ON auth_sessions(expires_at);
-    `);
-  }
-
-  /**
-   * Initialize a campaign database with schema
-   */
-  private initCampaignDb(db: Database.Database): void {
-    db.exec(`
-      CREATE TABLE IF NOT EXISTS entities (
-        id TEXT PRIMARY KEY,
-        type TEXT NOT NULL,
-        data TEXT NOT NULL,
-        created_at INTEGER NOT NULL,
-        updated_at INTEGER NOT NULL
-      );
-      
-      CREATE INDEX IF NOT EXISTS idx_entities_type ON entities(type);
-      CREATE INDEX IF NOT EXISTS idx_entities_created_at ON entities(created_at);
-      
-      CREATE TABLE IF NOT EXISTS events (
-        id TEXT PRIMARY KEY,
-        entity_id TEXT,
-        type TEXT NOT NULL,
-        data TEXT NOT NULL,
-        timestamp INTEGER NOT NULL
-      );
-      
-      CREATE INDEX IF NOT EXISTS idx_events_timestamp ON events(timestamp);
-      CREATE INDEX IF NOT EXISTS idx_events_entity_id ON events(entity_id);
-      CREATE INDEX IF NOT EXISTS idx_events_type ON events(type);
     `);
   }
 
@@ -777,9 +791,7 @@ export class SqliteStorage implements StorageBackend {
     displayName: string;
     role: 'gm' | 'player' | 'spectator';
   }): Promise<Seat> {
-    if (!this.metadataDb) {
-      throw new Error('Storage not initialized');
-    }
+    const db = this.getOrCreateCampaignDb(data.campaignId);
 
     const id = randomUUID();
     const now = Date.now();
@@ -794,7 +806,7 @@ export class SqliteStorage implements StorageBackend {
       updatedAt: now,
     };
 
-    const stmt = this.metadataDb.prepare(`
+    const stmt = db.prepare(`
       INSERT INTO seats (
         id, campaign_id, display_name, role, is_active,
         created_at, updated_at
@@ -817,13 +829,14 @@ export class SqliteStorage implements StorageBackend {
 
   /**
    * Get a seat by ID
+   *
+   * @param campaignId - Campaign ID to scope the lookup
+   * @param seatId - Seat ID to retrieve
    */
-  async getSeat(seatId: string): Promise<Seat | null> {
-    if (!this.metadataDb) {
-      throw new Error('Storage not initialized');
-    }
+  async getSeat(campaignId: string, seatId: string): Promise<Seat | null> {
+    const db = this.getOrCreateCampaignDb(campaignId);
 
-    const stmt = this.metadataDb.prepare(`
+    const stmt = db.prepare(`
       SELECT
         id,
         campaign_id as campaignId,
@@ -849,11 +862,9 @@ export class SqliteStorage implements StorageBackend {
    * List all seats for a campaign
    */
   async listSeats(campaignId: string): Promise<Seat[]> {
-    if (!this.metadataDb) {
-      throw new Error('Storage not initialized');
-    }
+    const db = this.getOrCreateCampaignDb(campaignId);
 
-    const stmt = this.metadataDb.prepare(`
+    const stmt = db.prepare(`
       SELECT
         id,
         campaign_id as campaignId,
@@ -876,14 +887,17 @@ export class SqliteStorage implements StorageBackend {
 
   /**
    * Update a seat
+   *
+   * @param campaignId - Campaign ID to scope the operation
+   * @param seatId - Seat ID to update
+   * @param data - Partial seat data to update
    */
   async updateSeat(
+    campaignId: string,
     seatId: string,
     data: Partial<Pick<Seat, 'displayName' | 'role' | 'isActive'>>,
   ): Promise<void> {
-    if (!this.metadataDb) {
-      throw new Error('Storage not initialized');
-    }
+    const db = this.getOrCreateCampaignDb(campaignId);
 
     const updates: string[] = [];
     const values: any[] = [];
@@ -911,7 +925,7 @@ export class SqliteStorage implements StorageBackend {
     values.push(Date.now());
     values.push(seatId);
 
-    const stmt = this.metadataDb.prepare(`
+    const stmt = db.prepare(`
       UPDATE seats
       SET ${updates.join(', ')}
       WHERE id = ?
@@ -922,13 +936,14 @@ export class SqliteStorage implements StorageBackend {
 
   /**
    * Delete a seat (also cascades to invites and auth sessions via FK)
+   *
+   * @param campaignId - Campaign ID to scope the operation
+   * @param seatId - Seat ID to delete
    */
-  async deleteSeat(seatId: string): Promise<void> {
-    if (!this.metadataDb) {
-      throw new Error('Storage not initialized');
-    }
+  async deleteSeat(campaignId: string, seatId: string): Promise<void> {
+    const db = this.getOrCreateCampaignDb(campaignId);
 
-    const stmt = this.metadataDb.prepare(`
+    const stmt = db.prepare(`
       DELETE FROM seats WHERE id = ?
     `);
 
@@ -941,8 +956,12 @@ export class SqliteStorage implements StorageBackend {
 
   /**
    * Create an invite for a seat
+   *
+   * @param campaignId - Campaign ID for the seat
+   * @param data - Invite creation data
    */
   async createInvite(data: {
+    campaignId: string;
     seatId: string;
     inviteToken: string;
     pinHash: string;
@@ -953,6 +972,7 @@ export class SqliteStorage implements StorageBackend {
       throw new Error('Storage not initialized');
     }
 
+    const campaignDb = this.getOrCreateCampaignDb(data.campaignId);
     const id = randomUUID();
     const now = Date.now();
 
@@ -968,7 +988,8 @@ export class SqliteStorage implements StorageBackend {
       revokedAt: null,
     };
 
-    const stmt = this.metadataDb.prepare(`
+    // Insert into campaign DB
+    const stmt = campaignDb.prepare(`
       INSERT INTO invites (
         id, seat_id, invite_token, pin_hash, max_uses,
         uses_remaining, expires_at, created_at, revoked_at
@@ -988,18 +1009,40 @@ export class SqliteStorage implements StorageBackend {
       invite.revokedAt,
     );
 
+    // Add to token index in metadata DB
+    const indexStmt = this.metadataDb.prepare(`
+      INSERT INTO invite_token_index (invite_token, campaign_id)
+      VALUES (?, ?)
+    `);
+
+    indexStmt.run(invite.inviteToken, data.campaignId);
+
     return invite;
   }
 
   /**
    * Get an invite by token
+   * Uses token index to find campaign, then queries campaign DB
    */
   async getInvite(inviteToken: string): Promise<Invite | null> {
     if (!this.metadataDb) {
       throw new Error('Storage not initialized');
     }
 
-    const stmt = this.metadataDb.prepare(`
+    // Look up campaign ID from token index
+    const indexStmt = this.metadataDb.prepare(`
+      SELECT campaign_id FROM invite_token_index WHERE invite_token = ?
+    `);
+
+    const indexRow = indexStmt.get(inviteToken) as
+      | { campaign_id: string }
+      | undefined;
+    if (!indexRow) return null;
+
+    // Query campaign DB
+    const campaignDb = this.getOrCreateCampaignDb(indexRow.campaign_id);
+
+    const stmt = campaignDb.prepare(`
       SELECT
         id,
         seat_id as seatId,
@@ -1020,13 +1063,17 @@ export class SqliteStorage implements StorageBackend {
 
   /**
    * List all invites for a seat
+   *
+   * @param campaignId - Campaign ID to scope the lookup
+   * @param seatId - Seat ID to list invites for
    */
-  async listInvitesForSeat(seatId: string): Promise<Invite[]> {
-    if (!this.metadataDb) {
-      throw new Error('Storage not initialized');
-    }
+  async listInvitesForSeat(
+    campaignId: string,
+    seatId: string,
+  ): Promise<Invite[]> {
+    const db = this.getOrCreateCampaignDb(campaignId);
 
-    const stmt = this.metadataDb.prepare(`
+    const stmt = db.prepare(`
       SELECT
         id,
         seat_id as seatId,
@@ -1047,13 +1094,27 @@ export class SqliteStorage implements StorageBackend {
 
   /**
    * Revoke an invite
+   * Uses token index to find campaign, then updates campaign DB
    */
   async revokeInvite(inviteToken: string): Promise<void> {
     if (!this.metadataDb) {
       throw new Error('Storage not initialized');
     }
 
-    const stmt = this.metadataDb.prepare(`
+    // Look up campaign ID from token index
+    const indexStmt = this.metadataDb.prepare(`
+      SELECT campaign_id FROM invite_token_index WHERE invite_token = ?
+    `);
+
+    const indexRow = indexStmt.get(inviteToken) as
+      | { campaign_id: string }
+      | undefined;
+    if (!indexRow) return; // Token not found, nothing to revoke
+
+    // Update campaign DB
+    const campaignDb = this.getOrCreateCampaignDb(indexRow.campaign_id);
+
+    const stmt = campaignDb.prepare(`
       UPDATE invites
       SET revoked_at = ?
       WHERE invite_token = ?
@@ -1064,13 +1125,27 @@ export class SqliteStorage implements StorageBackend {
 
   /**
    * Decrement invite uses (called when invite is claimed)
+   * Uses token index to find campaign, then updates campaign DB
    */
   async decrementInviteUses(inviteToken: string): Promise<void> {
     if (!this.metadataDb) {
       throw new Error('Storage not initialized');
     }
 
-    const stmt = this.metadataDb.prepare(`
+    // Look up campaign ID from token index
+    const indexStmt = this.metadataDb.prepare(`
+      SELECT campaign_id FROM invite_token_index WHERE invite_token = ?
+    `);
+
+    const indexRow = indexStmt.get(inviteToken) as
+      | { campaign_id: string }
+      | undefined;
+    if (!indexRow) return; // Token not found
+
+    // Update campaign DB
+    const campaignDb = this.getOrCreateCampaignDb(indexRow.campaign_id);
+
+    const stmt = campaignDb.prepare(`
       UPDATE invites
       SET uses_remaining = uses_remaining - 1
       WHERE invite_token = ? AND uses_remaining > 0
@@ -1085,8 +1160,12 @@ export class SqliteStorage implements StorageBackend {
 
   /**
    * Create an auth session for a seat
+   *
+   * @param campaignId - Campaign ID for the seat
+   * @param data - Session creation data
    */
   async createAuthSession(data: {
+    campaignId: string;
     seatId: string;
     refreshTokenHash: string;
     accessTokenHash: string;
@@ -1096,6 +1175,7 @@ export class SqliteStorage implements StorageBackend {
       throw new Error('Storage not initialized');
     }
 
+    const campaignDb = this.getOrCreateCampaignDb(data.campaignId);
     const id = randomUUID();
     const now = Date.now();
 
@@ -1110,7 +1190,8 @@ export class SqliteStorage implements StorageBackend {
       revokedAt: null,
     };
 
-    const stmt = this.metadataDb.prepare(`
+    // Insert into campaign DB
+    const stmt = campaignDb.prepare(`
       INSERT INTO auth_sessions (
         id, seat_id, refresh_token_hash, access_token_hash,
         expires_at, created_at, last_used_at, revoked_at
@@ -1129,18 +1210,40 @@ export class SqliteStorage implements StorageBackend {
       session.revokedAt,
     );
 
+    // Add to token index in metadata DB
+    const indexStmt = this.metadataDb.prepare(`
+      INSERT INTO session_token_index (refresh_token_hash, campaign_id)
+      VALUES (?, ?)
+    `);
+
+    indexStmt.run(session.refreshTokenHash, data.campaignId);
+
     return session;
   }
 
   /**
    * Get an auth session by refresh token hash
+   * Uses token index to find campaign, then queries campaign DB
    */
   async getAuthSession(refreshTokenHash: string): Promise<AuthSession | null> {
     if (!this.metadataDb) {
       throw new Error('Storage not initialized');
     }
 
-    const stmt = this.metadataDb.prepare(`
+    // Look up campaign ID from token index
+    const indexStmt = this.metadataDb.prepare(`
+      SELECT campaign_id FROM session_token_index WHERE refresh_token_hash = ?
+    `);
+
+    const indexRow = indexStmt.get(refreshTokenHash) as
+      | { campaign_id: string }
+      | undefined;
+    if (!indexRow) return null;
+
+    // Query campaign DB
+    const campaignDb = this.getOrCreateCampaignDb(indexRow.campaign_id);
+
+    const stmt = campaignDb.prepare(`
       SELECT
         id,
         seat_id as seatId,
@@ -1160,8 +1263,13 @@ export class SqliteStorage implements StorageBackend {
 
   /**
    * Update an auth session (for token rotation)
+   *
+   * @param campaignId - Campaign ID to scope the operation
+   * @param sessionId - Session ID to update
+   * @param data - Partial session data to update
    */
   async updateAuthSession(
+    campaignId: string,
     sessionId: string,
     data: Partial<
       Pick<AuthSession, 'refreshTokenHash' | 'accessTokenHash' | 'lastUsedAt'>
@@ -1171,12 +1279,37 @@ export class SqliteStorage implements StorageBackend {
       throw new Error('Storage not initialized');
     }
 
+    const campaignDb = this.getOrCreateCampaignDb(campaignId);
+
     const updates: string[] = [];
     const values: any[] = [];
 
     if (data.refreshTokenHash !== undefined) {
       updates.push('refresh_token_hash = ?');
       values.push(data.refreshTokenHash);
+
+      // Update token index if refresh token changes
+      // Get old session to find old token hash
+      const oldSessionStmt = campaignDb.prepare(`
+        SELECT refresh_token_hash as refreshTokenHash FROM auth_sessions WHERE id = ?
+      `);
+      const oldSession = oldSessionStmt.get(sessionId) as
+        | { refreshTokenHash: string }
+        | undefined;
+
+      if (oldSession) {
+        // Delete old token from index
+        const deleteIndexStmt = this.metadataDb.prepare(`
+          DELETE FROM session_token_index WHERE refresh_token_hash = ?
+        `);
+        deleteIndexStmt.run(oldSession.refreshTokenHash);
+
+        // Insert new token into index
+        const insertIndexStmt = this.metadataDb.prepare(`
+          INSERT INTO session_token_index (refresh_token_hash, campaign_id)
+          VALUES (?, ?)\n        `);
+        insertIndexStmt.run(data.refreshTokenHash, campaignId);
+      }
     }
 
     if (data.accessTokenHash !== undefined) {
@@ -1195,7 +1328,7 @@ export class SqliteStorage implements StorageBackend {
 
     values.push(sessionId);
 
-    const stmt = this.metadataDb.prepare(`
+    const stmt = campaignDb.prepare(`
       UPDATE auth_sessions
       SET ${updates.join(', ')}
       WHERE id = ?
@@ -1206,13 +1339,17 @@ export class SqliteStorage implements StorageBackend {
 
   /**
    * Revoke an auth session
+   *
+   * @param campaignId - Campaign ID to scope the operation
+   * @param sessionId - Session ID to revoke
    */
-  async revokeAuthSession(sessionId: string): Promise<void> {
-    if (!this.metadataDb) {
-      throw new Error('Storage not initialized');
-    }
+  async revokeAuthSession(
+    campaignId: string,
+    sessionId: string,
+  ): Promise<void> {
+    const campaignDb = this.getOrCreateCampaignDb(campaignId);
 
-    const stmt = this.metadataDb.prepare(`
+    const stmt = campaignDb.prepare(`
       UPDATE auth_sessions
       SET revoked_at = ?
       WHERE id = ?
@@ -1223,13 +1360,17 @@ export class SqliteStorage implements StorageBackend {
 
   /**
    * List all auth sessions for a seat
+   *
+   * @param campaignId - Campaign ID to scope the lookup
+   * @param seatId - Seat ID to list sessions for
    */
-  async listAuthSessionsForSeat(seatId: string): Promise<AuthSession[]> {
-    if (!this.metadataDb) {
-      throw new Error('Storage not initialized');
-    }
+  async listAuthSessionsForSeat(
+    campaignId: string,
+    seatId: string,
+  ): Promise<AuthSession[]> {
+    const db = this.getOrCreateCampaignDb(campaignId);
 
-    const stmt = this.metadataDb.prepare(`
+    const stmt = db.prepare(`
       SELECT
         id,
         seat_id as seatId,

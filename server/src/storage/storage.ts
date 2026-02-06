@@ -201,18 +201,20 @@ export interface StorageBackend {
     displayName: string;
     role: 'gm' | 'player' | 'spectator';
   }): Promise<Seat>;
-  getSeat(seatId: string): Promise<Seat | null>;
+  getSeat(campaignId: string, seatId: string): Promise<Seat | null>;
   listSeats(campaignId: string): Promise<Seat[]>;
   updateSeat(
+    campaignId: string,
     seatId: string,
     data: Partial<Pick<Seat, 'displayName' | 'role' | 'isActive'>>,
   ): Promise<void>;
-  deleteSeat(seatId: string): Promise<void>;
+  deleteSeat(campaignId: string, seatId: string): Promise<void>;
 
   /**
    * Invite operations (admin-managed capability tokens)
    */
   createInvite(data: {
+    campaignId: string;
     seatId: string;
     inviteToken: string;
     pinHash: string;
@@ -220,7 +222,7 @@ export interface StorageBackend {
     expiresAt: number;
   }): Promise<Invite>;
   getInvite(inviteToken: string): Promise<Invite | null>;
-  listInvitesForSeat(seatId: string): Promise<Invite[]>;
+  listInvitesForSeat(campaignId: string, seatId: string): Promise<Invite[]>;
   revokeInvite(inviteToken: string): Promise<void>;
   decrementInviteUses(inviteToken: string): Promise<void>;
 
@@ -228,6 +230,7 @@ export interface StorageBackend {
    * Auth session operations (seat-based authentication)
    */
   createAuthSession(data: {
+    campaignId: string;
     seatId: string;
     refreshTokenHash: string;
     accessTokenHash: string;
@@ -235,13 +238,17 @@ export interface StorageBackend {
   }): Promise<AuthSession>;
   getAuthSession(refreshTokenHash: string): Promise<AuthSession | null>;
   updateAuthSession(
+    campaignId: string,
     sessionId: string,
     data: Partial<
       Pick<AuthSession, 'refreshTokenHash' | 'accessTokenHash' | 'lastUsedAt'>
     >,
   ): Promise<void>;
-  revokeAuthSession(sessionId: string): Promise<void>;
-  listAuthSessionsForSeat(seatId: string): Promise<AuthSession[]>;
+  revokeAuthSession(campaignId: string, sessionId: string): Promise<void>;
+  listAuthSessionsForSeat(
+    campaignId: string,
+    seatId: string,
+  ): Promise<AuthSession[]>;
 }
 
 /**
@@ -419,8 +426,8 @@ export class Storage {
     return this.backend.createSeat(data);
   }
 
-  async getSeat(seatId: string): Promise<Seat | null> {
-    return this.backend.getSeat(seatId);
+  async getSeat(campaignId: string, seatId: string): Promise<Seat | null> {
+    return this.backend.getSeat(campaignId, seatId);
   }
 
   async listSeats(campaignId: string): Promise<Seat[]> {
@@ -428,20 +435,22 @@ export class Storage {
   }
 
   async updateSeat(
+    campaignId: string,
     seatId: string,
     data: Partial<Pick<Seat, 'displayName' | 'role' | 'isActive'>>,
   ): Promise<void> {
-    return this.backend.updateSeat(seatId, data);
+    return this.backend.updateSeat(campaignId, seatId, data);
   }
 
-  async deleteSeat(seatId: string): Promise<void> {
-    return this.backend.deleteSeat(seatId);
+  async deleteSeat(campaignId: string, seatId: string): Promise<void> {
+    return this.backend.deleteSeat(campaignId, seatId);
   }
 
   /**
    * Invite operations
    */
   async createInvite(data: {
+    campaignId: string;
     seatId: string;
     inviteToken: string;
     pinHash: string;
@@ -455,8 +464,11 @@ export class Storage {
     return this.backend.getInvite(inviteToken);
   }
 
-  async listInvitesForSeat(seatId: string): Promise<Invite[]> {
-    return this.backend.listInvitesForSeat(seatId);
+  async listInvitesForSeat(
+    campaignId: string,
+    seatId: string,
+  ): Promise<Invite[]> {
+    return this.backend.listInvitesForSeat(campaignId, seatId);
   }
 
   async revokeInvite(inviteToken: string): Promise<void> {
@@ -471,6 +483,7 @@ export class Storage {
    * Auth session operations
    */
   async createAuthSession(data: {
+    campaignId: string;
     seatId: string;
     refreshTokenHash: string;
     accessTokenHash: string;
@@ -484,19 +497,26 @@ export class Storage {
   }
 
   async updateAuthSession(
+    campaignId: string,
     sessionId: string,
     data: Partial<
       Pick<AuthSession, 'refreshTokenHash' | 'accessTokenHash' | 'lastUsedAt'>
     >,
   ): Promise<void> {
-    return this.backend.updateAuthSession(sessionId, data);
+    return this.backend.updateAuthSession(campaignId, sessionId, data);
   }
 
-  async revokeAuthSession(sessionId: string): Promise<void> {
-    return this.backend.revokeAuthSession(sessionId);
+  async revokeAuthSession(
+    campaignId: string,
+    sessionId: string,
+  ): Promise<void> {
+    return this.backend.revokeAuthSession(campaignId, sessionId);
   }
 
-  async listAuthSessionsForSeat(seatId: string): Promise<AuthSession[]> {
-    return this.backend.listAuthSessionsForSeat(seatId);
+  async listAuthSessionsForSeat(
+    campaignId: string,
+    seatId: string,
+  ): Promise<AuthSession[]> {
+    return this.backend.listAuthSessionsForSeat(campaignId, seatId);
   }
 }
