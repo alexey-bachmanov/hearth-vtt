@@ -66,12 +66,17 @@ Configuration must come from environment variables and/or CLI flags (no hard-cod
 - `TLS_CERT_PATH` (optional; path to TLS certificate file for WSS)
 - `TLS_KEY_PATH` (optional; path to TLS private key file for WSS)
 - `TLS_ENABLED` (default: false; set to true to enable native TLS support)
+- `ADMIN_SETUP_PIN` (optional; override auto-generated setup PIN for cloud deployments)
+- `ADMIN_SETUP_PIN_EXPIRY` (default: 24 hours; how long setup PIN remains valid)
+- `ADMIN_ALLOW_REMOTE` (default: false; if true, allows `/api/admin/*` routes from non-localhost)
 
 Notes:
 
-- Default `HOST=127.0.0.1` prevents accidental LAN exposure.
-- Admin UI (future) must be localhost-only by default or guarded by a setup code.
-- For production, TLS should be handled by a reverse proxy (recommended) or enabled natively via TLS\_\* config options.
+- Default `HOST=127.0.0.1` prevents accidental LAN exposure (self-hosted servers must explicitly set `HOST=0.0.0.0` for LAN access).
+- Admin UI is protected by setup PIN + password authentication (see ADR 007).
+- For production/cloud deployments, use `ADMIN_SETUP_PIN` to provide admin credentials securely (no console logging).
+- For tunneled deployments, set `ADMIN_ALLOW_REMOTE=true` to allow admin access from internet (requires HTTPS).
+- TLS should be handled by a reverse proxy (recommended) or enabled natively via TLS\_\* config options.
 - When `TLS_ENABLED=true`, WebSocket connections will use WSS protocol; HTTP will use HTTPS.
 
 ---
@@ -318,6 +323,54 @@ export class Storage {
     return this.backend.transaction(fn);
   }
 
+  // Server admin operations (server-level, not per-campaign)
+  async getServerAdmin(): Promise<ServerAdmin | null> {
+    return this.backend.getServerAdmin();
+  }
+
+  async createServerAdmin(data: CreateServerAdminData): Promise<ServerAdmin> {
+    return this.backend.createServerAdmin(data);
+  }
+
+  async updateServerAdmin(
+    adminId: string,
+    data: Partial<ServerAdmin>,
+  ): Promise<void> {
+    return this.backend.updateServerAdmin(adminId, data);
+  }
+
+  // Admin session operations (server-level admin authentication)
+  async createAdminSession(
+    data: CreateAdminSessionData,
+  ): Promise<AdminSession> {
+    return this.backend.createAdminSession(data);
+  }
+
+  async getAdminSession(sessionId: string): Promise<AdminSession | null> {
+    return this.backend.getAdminSession(sessionId);
+  }
+
+  async getAdminSessionByToken(
+    sessionTokenHash: string,
+  ): Promise<AdminSession | null> {
+    return this.backend.getAdminSessionByToken(sessionTokenHash);
+  }
+
+  async updateAdminSession(
+    sessionId: string,
+    data: Partial<AdminSession>,
+  ): Promise<void> {
+    return this.backend.updateAdminSession(sessionId, data);
+  }
+
+  async revokeAdminSession(sessionId: string): Promise<void> {
+    return this.backend.revokeAdminSession(sessionId);
+  }
+
+  async listAdminSessions(): Promise<AdminSession[]> {
+    return this.backend.listAdminSessions();
+  }
+
   // Campaign operations
   async getCampaign(campaignId: string): Promise<Campaign | null> {
     return this.backend.getCampaign(campaignId);
@@ -448,7 +501,6 @@ export class Storage {
   }
 
   async deleteSeat(seatId: string): Promise<void> {
-    // Backend must enforce: cannot delete admin seat
     return this.backend.deleteSeat(seatId);
   }
 
@@ -640,30 +692,6 @@ interface CreateCampaignData {
 }
 
 /**
- * Campaign creation automatically creates an immutable "admin" seat.
- *
- * Implementation Note:
- * When createCampaign() is called, the Storage backend must:
- * 1. Create the Campaign record
- * 2. Create an "admin" Seat with:
- *    - id: generated UUID
- *    - campaignId: the new campaign's ID
- *    - name: "Admin"
- *    - role: "admin"
- *    - isImmutable: true (cannot be deleted)
- * 3. Return the Campaign record
- *
- * The admin seat is the only seat that can:
- * - Create and revoke invites
- * - Manage other seats (create, update roles, delete)
- * - Import/export campaign data
- * - Manage rulesets and tomes
- *
- * Admin seat holders use a separate admin UI, not the play UI.
- * See auth-join-flow.md for complete authentication specification.
- */
-
-/**
  * Generic entity stored as JSON with metadata for indexing.
  * EntityType includes: actor, token, item, effect, workflow, scene
  * See shared-types.md for canonical definitions.
@@ -712,6 +740,46 @@ interface EventQueryOptions {
 }
 
 /**
+ * ServerAdmin: Server-level administrator credentials.
+ * One admin per server (extensible to multiple admins later).
+ */
+interface ServerAdmin {
+  id: string;
+  usernameOrEmail: string; // Always "admin" for self-hosted; email for cloud
+  pinHash: string | null; // Setup PIN hash; null after permanent password set
+  passwordHash: string | null; // Permanent password hash; set after first setup
+  setupPinExpiresAt: Date | null; // Setup PIN expiry; null after setup complete
+  createdAt: Date;
+  updatedAt: Date;
+}
+
+interface CreateServerAdminData {
+  usernameOrEmail: string;
+  pinHash: string;
+  setupPinExpiresAt: Date;
+}
+
+/**
+ * AdminSession: Server admin authentication session.
+ * Separate from seat-based AuthSessions.
+ */
+interface AdminSession {
+  id: string;
+  adminId: string; // References ServerAdmin.id
+  sessionTokenHash: string; // Hashed session token (stored in cookie)
+  expiresAt: Date;
+  createdAt: Date;
+  lastUsedAt: Date;
+  revokedAt: Date | null;
+}
+
+interface CreateAdminSessionData {
+  adminId: string;
+  sessionTokenHash: string;
+  expiresAt: Date;
+}
+
+/**
  * Session tracking for auth (future)
  */
 interface Session {
@@ -734,13 +802,14 @@ interface CreateSessionData {
 /**
  * Seat: Persistent identity within a campaign.
  * Seats survive server restarts and outlive AuthSessions.
+ * Note: Admin is a server-level identity (ServerAdmin), not a seat.
  */
 interface Seat {
   id: string;
   campaignId: string;
   name: string;
-  role: 'admin' | 'gm' | 'player' | 'spectator';
-  isImmutable: boolean; // true for admin seat (cannot be deleted)
+  role: 'gm' | 'player' | 'spectator'; // No 'admin' role at seat level
+  isActive: boolean; // Can be deactivated without deletion
   createdAt: Date;
   updatedAt: Date;
 }
@@ -748,40 +817,31 @@ interface Seat {
 interface CreateSeatData {
   campaignId: string;
   name: string;
-  role: 'gm' | 'player' | 'spectator'; // admin seats are only created via createCampaign
+  role: 'gm' | 'player' | 'spectator';
 }
 
 /**
  * Invite: Capability token for claiming a seat.
- * Managed by admin seat holders.
+ * Managed by server admin (not per-campaign admin seat).
  */
 interface Invite {
   id: string;
   inviteToken: string; // long, unguessable (>= 128 bits entropy)
-  campaignId: string;
-  seatId?: string; // existing seat, or null if creating new seat on claim
-  seatTemplate?: CreateSeatData; // used if seatId is null
-  rolesGranted: Array<'gm' | 'player' | 'spectator'>;
+  seatId: string; // References Seat.id (each invite tied to exactly one seat)
   pinHash: string; // argon2/bcrypt hash
   expiresAt: Date;
   maxClaims: number; // typically 1
+  claimsRemaining: number; // decremented on each claim
   claimedAt?: Date;
-  claimedBySessionId?: string;
-  claimedByIp?: string;
   revokedAt?: Date;
-  createdByAdminSeatId: string;
   createdAt: Date;
 }
 
 interface CreateInviteData {
-  campaignId: string;
-  seatId?: string;
-  seatTemplate?: CreateSeatData;
-  rolesGranted: Array<'gm' | 'player' | 'spectator'>;
-  pin: string; // plain text; will be hashed server-side
-  expiresIn: number; // seconds (e.g., 7 days = 604800)
-  maxClaims?: number; // default 1
-  createdByAdminSeatId: string;
+  seatId: string;
+  pinHash: string;
+  expiresAt: Date;
+  maxClaims: number;
 }
 
 /**
@@ -1218,12 +1278,13 @@ See [ruleset-engine.md](ruleset-engine.md) for complete GameEngine specification
 - **Event sequencing**: Event `sequenceNumber` should be monotonically increasing per campaign
 - **ID generation**: Use UUIDs for all IDs; implementation may use a separate `IdGenerator` utility
 - **Timestamps**: Store as ISO 8601 strings or Unix timestamps; convert to Date objects in queries
-- **Admin seat creation**: When `createCampaign()` is called, automatically create an immutable admin seat
+- **Server admin setup**: On first server startup, create ServerAdmin record if none exists, generate setup PIN
+- **Admin setup PIN**: Generate random 8-char alphanumeric PIN (128+ bits entropy); hash with argon2/bcrypt
 - **Invite tokens**: Must be >= 128 bits entropy; store only hash of PIN
 - **Refresh tokens**: Store only hash (argon2/bcrypt); rotate on each refresh
 - **Rate limiting**: Implement rate limiting for invite PIN attempts (per invite, per IP)
 
-See [auth-join-flow.md](auth-join-flow.md) and [ADR 005](../decisions/005-networking-management.md) for authentication architecture details.
+See [auth-join-flow.md](auth-join-flow.md), [ADR 005](../decisions/005-networking-management.md), and [ADR 007](../decisions/007-server-level-admin.md) for authentication architecture details.
 
 ### Usage Example
 

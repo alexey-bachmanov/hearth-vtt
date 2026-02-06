@@ -9,7 +9,8 @@ This document defines the **join link**, **PIN claim**, **cookie session**, and 
 - **Low friction**: players join via a link, not mandatory platform accounts.
 - **Secure by default** (hosted/tunnel): HTTPS + WSS, HttpOnly cookies, token rotation.
 - **No secrets in bookmarks**: join tokens are temporary and not meant to be retained.
-- **Admin ≠ GM**: server access control is an admin responsibility.
+- **Server Admin ≠ Campaign GM**: server access control (admin) is separate from campaign gameplay (GM).
+- **Admin ≠ Seat**: server admin is a server-level identity, not tied to campaign participation.
 - **Single server implementation**: only `PUBLIC_BASE_URL` changes per deployment.
 
 Non-goals (for v1):
@@ -21,10 +22,12 @@ Non-goals (for v1):
 
 ## Terminology
 
-- **Admin**: operator of a given server instance; manages access and hosting.
+- **Server Admin**: operator of the server instance; manages server-wide operations (not tied to any campaign).
+- **Admin** (legacy context): when used in campaign context, refers to admin seat holders (deprecated in favor of server admin model).
 - **Seat**: an access identity within a campaign (player seat / GM seat / spectator).
 - **Invite**: a capability token that can be claimed to create/attach a seat session.
 - **Session**: long-lived access represented by refresh token (cookie), producing short-lived access tokens.
+- **AdminSession**: separate authentication for server admin (distinct from seat-based sessions).
 
 ---
 
@@ -249,14 +252,173 @@ Direct mode is supported for:
 
 ## Admin tooling requirements (server UI/API)
 
-Admin must be able to:
+Server admin must be able to:
 
+- create campaigns
+- delete campaigns
+- import/export campaigns
+- create seats (across all campaigns)
+- delete seats
 - create invite (role, expiry, pin required)
 - revoke invite
-- rotate invite
 - revoke sessions for a seat
 - kick live connections for a seat
 - view audit log: claims, failures, revocations
+
+---
+
+## Server Admin Authentication
+
+Server admin authentication is **separate** from seat-based player authentication. Admin has a dedicated auth system with its own cookies, sessions, and UI.
+
+### Goals
+
+- **Self-hosted convenience**: Server operator gets admin access naturally via setup PIN
+- **Cloud-hosted security**: Platform can manage admin credentials securely
+- **Tunneled deployment support**: Admin UI accessible from internet with strong authentication
+- **No seat coupling**: Admin identity is not tied to campaign participation
+
+### Admin Auth Flow: First-Time Setup
+
+**Applies to**: Pure self-hosted and tunneled deployments
+
+1. **Server starts**: On first startup, if no `ServerAdmin` record exists:
+   - Generate random 8-character alphanumeric setup PIN (128+ bits entropy)
+   - Hash PIN (argon2id/bcrypt) and store in `server_admin` table with `setupPinExpiresAt` = now + 24 hours
+   - Write PIN to `DATA_DIR/admin-setup-pin.txt` with instructions
+   - Log PIN to console: "Admin setup required. Visit http://localhost:3000/admin/setup and enter PIN: ABC123XY"
+
+2. **Admin visits `/admin/setup`**:
+   - Client calls `GET /api/admin/check-setup` → `{ needsSetup: true, setupPinExpired: false }`
+   - Render setup form: PIN input + optional password input
+
+3. **Admin submits setup**:
+   - Client calls `POST /api/admin/setup` with `{ setupPin, newPassword? }`
+   - Server validates PIN hash, checks expiry
+   - If valid:
+     - Create `AdminSession` record
+     - Set `hearth_admin_session` cookie (HttpOnly, Secure, SameSite=Lax)
+     - Optionally set permanent `passwordHash` in `ServerAdmin` record (nulls `pinHash` and `setupPinExpiresAt`)
+     - Delete `admin-setup-pin.txt`
+     - Return `{ success: true }`
+   - Client redirects to `/admin` (server settings page)
+
+**Cloud-hosted override**:
+
+- Platform sets `ADMIN_SETUP_PIN` environment variable instead of generating randomly
+- No console logging (credentials managed by platform)
+- Platform provides admin credentials via secure channel (email, dashboard, etc.)
+
+### Admin Auth Flow: Returning Admin
+
+**Applies to**: All deployments after first setup
+
+1. **Admin visits `/admin`**:
+   - Client checks for `hearth_admin_session` cookie
+   - Client calls `GET /api/admin/check-auth` → `{ authenticated: boolean, needsSetup: boolean }`
+   - If `needsSetup: true`, redirect to `/admin/setup`
+   - If `authenticated: false`, redirect to `/admin/login`
+   - If `authenticated: true`, render admin UI
+
+2. **Admin login** (if not authenticated):
+   - Client renders `/admin/login` with password input
+   - Admin enters password
+   - Client calls `POST /api/admin/login` with `{ password }`
+   - Server validates `passwordHash` from `ServerAdmin` record
+   - If valid:
+     - Create new `AdminSession`
+     - Set `hearth_admin_session` cookie
+     - Return `{ success: true }`
+   - Client redirects to `/admin`
+
+### Admin Session Management
+
+**AdminSession properties**:
+
+- Cookie name: `hearth_admin_session` (distinct from player sessions: `hearth_session`)
+- Cookie attributes: `HttpOnly; Secure; SameSite=Lax; Path=/`
+- Expiry: Configurable (default: 7 days)
+- Stored in `admin_sessions` table (separate from `auth_sessions`)
+
+**Admin logout**:
+
+- Client calls `POST /api/admin/logout`
+- Server revokes `AdminSession` (sets `revokedAt`)
+- Clear `hearth_admin_session` cookie
+- Client redirects to `/admin/login`
+
+**Password change**:
+
+- Client calls `POST /api/admin/change-password` with `{ currentPassword, newPassword }`
+- Server validates `currentPassword` against `ServerAdmin.passwordHash`
+- If valid, update `passwordHash`, revoke all `AdminSession` records (force re-login)
+
+### Admin vs Seat Authentication
+
+| Aspect           | Admin Auth                                 | Seat Auth                   |
+| ---------------- | ------------------------------------------ | --------------------------- |
+| **Purpose**      | Server management                          | Campaign participation      |
+| **UI**           | `/admin` (server/campaign/seat management) | `/play` (gameplay)          |
+| **Cookie**       | `hearth_admin_session`                     | `hearth_session`            |
+| **Database**     | `server_admin`, `admin_sessions`           | `seats`, `auth_sessions`    |
+| **Scope**        | Server-wide (all campaigns)                | Per-campaign (single seat)  |
+| **Auth flow**    | Setup PIN → password                       | Invite claim → PIN          |
+| **Created when** | First server startup                       | Invite claimed              |
+| **Managed by**   | Server operator                            | Server admin (via admin UI) |
+
+**Critical distinction**: Admin never "holds a seat" in campaigns. If admin wants to participate in a campaign as a player or GM, they must create a seat and claim an invite like any other player.
+
+### Security Considerations
+
+**Setup PIN**:
+
+- One-time use, 24-hour expiry
+- Logged to console and file for self-hosted convenience
+- For cloud deployments, use `ADMIN_SETUP_PIN` env var to avoid console logging
+- Rate-limit setup attempts (per IP): 5 attempts / 10 minutes
+
+**Password**:
+
+- argon2id or bcrypt hashing
+- Minimum length: 12 characters (recommended: 16+)
+- Rate-limit login attempts (per IP): 5 attempts / 10 minutes
+- Failed login attempts logged for audit
+
+**Localhost-only default**:
+
+- Default `HOST=127.0.0.1` restricts admin UI to localhost
+- For tunneled deployments, set `HOST=0.0.0.0` + `ADMIN_ALLOW_REMOTE=true` to allow admin UI from internet
+- Recommend HTTPS (via reverse proxy) for any non-localhost admin access
+
+**Session expiry**:
+
+- AdminSessions expire after inactivity (default: 7 days)
+- Expired sessions cleaned up periodically
+- Password change revokes all AdminSessions (force re-login across all devices)
+
+### Admin API Routes
+
+All routes require `hearth_admin_session` cookie (except setup/check routes):
+
+- `GET /api/admin/check-setup` → `{ needsSetup: boolean, setupPinExpired: boolean }`
+- `POST /api/admin/setup` → `{ setupPin, newPassword? }` → creates AdminSession
+- `GET /api/admin/check-auth` → `{ authenticated: boolean, needsSetup: boolean }`
+- `POST /api/admin/login` → `{ password }` → creates AdminSession
+- `POST /api/admin/logout` → revokes current AdminSession
+- `POST /api/admin/change-password` → `{ currentPassword, newPassword }` → updates password, revokes all sessions
+- `GET /api/campaigns` → list all campaigns (admin-only)
+- `POST /api/campaigns` → create campaign (admin-only)
+- `DELETE /api/campaigns/:id` → delete campaign (admin-only)
+- `POST /api/campaigns/:id/import` → import campaign (admin-only)
+- `GET /api/campaigns/:id/export` → export campaign (admin-only)
+- `GET /api/campaigns/:id/seats` → list seats for campaign (admin-only)
+- `POST /api/campaigns/:id/seats` → create seat (admin-only)
+- `DELETE /api/seats/:id` → delete seat (admin-only)
+- `GET /api/seats/:id/invites` → list invites for seat (admin-only)
+- `POST /api/seats/:id/invites` → create invite (admin-only)
+- `DELETE /api/invites/:id` → revoke invite (admin-only)
+
+See [ADR 007](../decisions/007-server-level-admin.md) for complete admin authentication architecture.
 
 ---
 

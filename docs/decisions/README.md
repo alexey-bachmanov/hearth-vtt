@@ -76,6 +76,7 @@ Example:
 - [004: GameEngine Class Architecture](004-gameengine-class-architecture.md) — **Accepted**
 - [005: Networking Management (Join Links + Cookie Sessions)](005-networking-management.md) — **Accepted**
 - [006: Svelte 5 Upgrade](006-svelte-5-upgrade.md) — **Accepted**
+- [007: Server-Level Admin Authentication](007-server-level-admin.md) — **Accepted**
 
 ---
 

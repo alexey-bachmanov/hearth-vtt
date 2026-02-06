@@ -92,30 +92,72 @@ The same Game Server implementation must run:
 
 ## Identity and permissions
 
-> **Terminology Note:** A **Seat** is a persistent identity within a campaign. An **AuthSession** is an authenticated client connection (cookie-based). See [shared-types.md](shared-types.md) for full definitions.
+> **Terminology Note:** A **Seat** is a persistent identity within a campaign. An **AuthSession** is an authenticated client connection (cookie-based). A **ServerAdmin** is the server operator (separate from campaign participation). See [shared-types.md](shared-types.md) for full definitions.
 
 ### Roles
 
-- **Server Admin**: Campaign-level access management (seat creation, invite management, import/export, permissions). Every campaign has an immutable admin seat created automatically. Admin uses a separate management UI.
-- **Campaign GM**: In-game authority (scenes, fog, actors, encounters). Manages gameplay, not access.
+HearthVTT distinguishes between **server administration** (managing the server and campaigns) and **campaign participation** (playing in games):
+
+#### Server-Level Role
+
+- **Server Admin**: The server operator. Manages server-wide operations:
+  - Campaign creation, deletion, import, export
+  - Seat creation and management across all campaigns
+  - Invite generation and revocation
+  - Server settings and configuration
+  - **Not tied to any campaign** — admin is a server-level identity, not a seat
+  - Authenticates via separate admin session system (setup PIN → password)
+  - Uses separate admin UI at `/admin` (not campaign play UI)
+
+#### Campaign-Level Roles (Seats)
+
+All campaign participants hold **seats** within specific campaigns:
+
+- **Campaign GM**: In-game authority (scenes, fog, actors, encounters). Manages gameplay, not access control.
 - **Player**: Controls assigned actor(s), uses allowed actions.
 - **Spectator**: View-only access (optional; implementation TBD).
 
-**Important distinction**: Admin manages **who can join** (seats, invites, sessions). GM manages **what happens in-game** (scenes, encounters, fog). These roles are separate but may be held by the same person in self-hosted scenarios.
+**Important distinction**:
 
-### Authentication and Join Flow
+- **Server Admin** manages **which campaigns exist** and **who can join them** (server operations)
+- **Campaign GM** manages **what happens in-game** (scenes, encounters, fog — gameplay operations)
+- Server admin and campaign GM are **separate roles** that may be held by the same person in self-hosted scenarios
+- Admin authenticates separately from campaign participants — admin never "holds a seat" in campaigns
 
-- Admin creates **Seats** and generates **Invites** (capability tokens with PIN protection)
-- Players receive invite link: `GET /join/<inviteToken>`
-- Claim requires PIN entry (one-time use, mitigates link leakage)
-- Successful claim creates AuthSession with cookie-based refresh token
-- Client redirects to `/play` (clean, bookmarkable URL)
-- WebSocket connections authenticate via cookies (no tokens in URLs)
-- Sessions can be revoked by admin or user logout
+### Authentication Flows
 
-Platform identity (OAuth/passkey/email) may exist later for hosted convenience, but **seat membership remains authoritative** for joining/permissions.
+#### Admin Authentication (Server Operations)
 
-See [auth-join-flow.md](components/auth-join-flow.md) and [ADR 005](decisions/005-networking-management.md) for complete authentication specification.
+**First-time setup**:
+
+1. Server generates random setup PIN on first startup (logged to console + `admin-setup-pin.txt`)
+2. Admin visits `/admin/setup`, enters PIN, optionally sets permanent password
+3. Server creates `AdminSession`, sets `hearth_admin_session` cookie
+4. Admin can now access `/admin` UI and server-wide operations
+
+**Returning admin**:
+
+1. Admin visits `/admin`, server checks for valid `hearth_admin_session` cookie
+2. If valid, render admin UI; if invalid, redirect to `/admin/login`
+3. Admin enters password, server validates, creates session
+
+Admin sessions are **completely separate** from seat-based sessions (different cookies, different database tables).
+
+#### Player Authentication (Campaign Participation)
+
+**Join flow**:
+
+1. Admin creates **Seats** and generates **Invites** (capability tokens with PIN protection)
+2. Players receive invite link: `GET /join/<inviteToken>`
+3. Claim requires PIN entry (one-time use, mitigates link leakage)
+4. Successful claim creates AuthSession with cookie-based refresh token
+5. Client redirects to `/play` (clean, bookmarkable URL)
+6. WebSocket connections authenticate via cookies (no tokens in URLs)
+7. Sessions can be revoked by admin or user logout
+
+Platform identity (OAuth/passkey/email) may exist later for hosted convenience, but **seat membership remains authoritative** for campaign participation.
+
+See [auth-join-flow.md](components/auth-join-flow.md), [ADR 005](decisions/005-networking-management.md), and [ADR 007](decisions/007-server-level-admin.md) for complete authentication specifications.
 
 ---
 

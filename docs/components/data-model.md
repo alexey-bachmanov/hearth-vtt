@@ -129,6 +129,8 @@ interface Snapshot {
 | Tome content        | Loaded from `.tome` files at session start      |
 | Ruleset definitions | Loaded from `.ruleset` file at session start    |
 | EventRecord         | Stored separately, linked by Snapshot ID        |
+| ServerAdmin         | Server-level identity; never per-campaign       |
+| AdminSessions       | Server-level auth; separate from campaigns      |
 | Seats               | Stored separately; persistent across sessions   |
 | Invites             | Stored separately; admin-managed                |
 | AuthSessions        | Stored separately; ephemeral auth state         |
@@ -139,6 +141,63 @@ interface Snapshot {
 
 The following data structures support authentication, authorization, and campaign access management. These are stored in the database but are **not** included in Snapshots or campaign exports.
 
+### ServerAdmin
+
+Server-level administrator credentials. One admin per server (extensible to multiple admins later).
+
+```ts
+interface ServerAdmin {
+  id: string;
+  usernameOrEmail: string; // Always "admin" for self-hosted; email for cloud
+  pinHash: string | null; // Setup PIN hash; null after permanent password set
+  passwordHash: string | null; // Permanent password hash; set after first setup
+  setupPinExpiresAt: Date | null; // Setup PIN expiry; null after setup complete
+  createdAt: Date;
+  updatedAt: Date;
+}
+```
+
+**Lifecycle:**
+
+- Created automatically on first server startup if no admin exists
+- Setup PIN generated randomly (8 chars, 128+ bits entropy), hashed and stored with 24-hour expiry
+- After first setup, admin can set permanent password (PIN becomes null)
+- Credentials never included in campaign exports or snapshots
+
+**Storage:**
+
+- Stored in `server_admin` table (server-level, not per-campaign)
+- One row per server (single admin model)
+- Referenced by AdminSessions
+
+### AdminSession
+
+Server admin authentication session. Separate from seat-based AuthSessions.
+
+```ts
+interface AdminSession {
+  id: string;
+  adminId: string; // References ServerAdmin.id
+  sessionTokenHash: string; // Hashed session token (stored in cookie)
+  expiresAt: Date;
+  createdAt: Date;
+  lastUsedAt: Date;
+  revokedAt: Date | null;
+}
+```
+
+**Lifecycle:**
+
+- Created on successful admin setup or login
+- Token stored as `hearth_admin_session` cookie (HttpOnly, Secure, SameSite=Lax)
+- Revoked on logout or by admin
+- Expired sessions cleaned up periodically
+
+**Storage:**
+
+- Stored in `admin_sessions` table with index on `sessionTokenHash`, `adminId`
+- Completely separate from seat-based `auth_sessions` table
+
 ### Seat
 
 Persistent identity within a campaign. Seats survive server restarts and outlive AuthSessions.
@@ -148,19 +207,19 @@ interface Seat {
   id: SeatId;
   campaignId: CampaignId;
   name: string; // Display name (e.g., "Alice", "Bob")
-  role: 'admin' | 'gm' | 'player' | 'spectator';
-  isImmutable: boolean; // true for admin seat (cannot be deleted)
+  role: 'gm' | 'player' | 'spectator'; // Campaign role (no 'admin' role)
+  isActive: boolean; // Can be deactivated without deletion
   createdAt: Date;
   updatedAt: Date;
 }
 ```
 
-**Admin Seat:**
+**Important notes:**
 
-- Every campaign has exactly one admin seat, created automatically on campaign creation
-- Admin seats have `isImmutable: true` and cannot be deleted
-- Admin seat holders use a separate admin UI for campaign management
-- Admin role is distinct from GM role (admin manages access; GM manages gameplay)
+- Seats are always campaign-scoped; no "admin" role exists at seat level
+- Server admin is a separate identity (ServerAdmin) not tied to any seat
+- Admin can create seats for themselves if they want to participate in campaigns
+- Seats cannot be transferred between campaigns
 
 **Storage:**
 
@@ -170,36 +229,29 @@ interface Seat {
 
 ### Invite
 
-Capability token for claiming a seat. Managed by admin seat holders.
+Capability token for claiming a seat. Managed by server admin.
 
 ```ts
 interface Invite {
   id: string;
   inviteToken: string; // long, unguessable (>= 128 bits entropy)
-  campaignId: CampaignId;
-  seatId?: SeatId; // existing seat, or null if creating new seat on claim
-  seatTemplate?: {
-    name: string;
-    role: 'gm' | 'player' | 'spectator';
-  };
-  rolesGranted: Array<'gm' | 'player' | 'spectator'>;
+  seatId: SeatId; // References Seat.id (each invite tied to exactly one seat)
   pinHash: string; // argon2/bcrypt hash
   expiresAt: Date;
   maxClaims: number; // typically 1
+  claimsRemaining: number; // decremented on each claim
   claimedAt?: Date;
-  claimedBySessionId?: string;
-  claimedByIp?: string;
   revokedAt?: Date;
-  createdByAdminSeatId: SeatId;
   createdAt: Date;
 }
 ```
 
 **Lifecycle:**
 
-- Created by admin via `POST /api/campaigns/<id>/invites`
+- Created by server admin via admin UI
+- Each invite maps to exactly one seat in exactly one campaign
 - Claimed via `POST /api/auth/claim-invite` (one-time PIN required)
-- Revoked immediately after successful claim (or manually by admin)
+- Revoked after `maxClaims` reached, manual revocation by admin, or expiry
 - Expired invites are cleaned up periodically
 
 **Security:**
@@ -211,12 +263,12 @@ interface Invite {
 
 **Storage:**
 
-- Stored in `invites` table with index on `inviteToken`, `campaignId`
+- Stored in `invites` table with index on `inviteToken`, `seatId`
 - Never included in campaign exports or snapshots
 
 ### AuthSession
 
-Cookie-based authentication session.
+Cookie-based authentication session for campaign participants (seat holders). Separate from AdminSession.
 
 ```ts
 interface AuthSession {
@@ -235,16 +287,25 @@ interface AuthSession {
 
 **Lifecycle:**
 
-- Created on successful invite claim
+- Created on successful invite claim (seat-based authentication)
 - Refresh token rotated on each `/api/auth/refresh` call
-- Revoked on logout or by admin
+- Revoked on logout or by server admin
 - Expired sessions cleaned up periodically
 
 **Cookie-based auth:**
 
-- Refresh token stored as `HttpOnly; Secure; SameSite=Lax` cookie
+- Refresh token stored as `hearth_session` cookie (HttpOnly, Secure, SameSite=Lax)
+- Note: Different cookie name than AdminSession (`hearth_admin_session`)
 - Access tokens short-lived (e.g., 15 minutes)
 - WebSocket connections authenticated via cookies during upgrade
+
+**Storage:**
+
+- Stored in `auth_sessions` table with index on `seatId`, `refreshTokenHash`
+- Completely separate from `admin_sessions` table
+- Cleaned up on server shutdown or after long inactivity
+
+See [auth-join-flow.md](auth-join-flow.md), [ADR 005](../decisions/005-networking-management.md), and [ADR 007](../decisions/007-server-level-admin.md) for complete authentication specifications.
 
 **Storage:**
 

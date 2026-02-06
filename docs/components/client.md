@@ -54,7 +54,7 @@ HearthVTT uses a **capability-based join link** system with **cookie-based sessi
 - **Clean URLs**: Never bookmark join links; `/play` is the stable, bookmarkable URL
 - **Session Refresh**: Call `POST /api/auth/refresh` to rotate refresh token and get new access token
 - **Logout**: Call `POST /api/auth/logout` to revoke session
-- **Admin UI**: Separate interface for admin seat holders (campaign management, invite creation, seat management)
+- **Admin UI**: Separate interface for server admin (server and campaign management, not tied to any seat)
 - **Not Logged In**: If `/play` accessed without valid session, show "Not logged in" with instructions
 
 ### Admin UI vs Play UI
@@ -63,19 +63,47 @@ The client must support **two distinct interfaces**:
 
 - **Play UI** (default): Main game interface with map, chat, character sheets, etc.
   - Used by GM, player, and spectator seats
-  - Accessed via `/play` after authentication
+  - Accessed via `/play` after authentication (seat-based sessions)
+  - Requires claimed seat in a campaign
 
-- **Admin UI**: Campaign management interface
-  - Used only by admin seat holders
+- **Admin UI**: Server and campaign management interface
+  - **Server-level access**: Used by server admin only (not tied to any seat)
+  - **Separate authentication**: Uses `hearth_admin_session` cookie (not seat-based)
+  - **Tree-structured navigation**: Server → Campaigns → Seats hierarchy
   - No map/gameplay layer; focuses on:
-    - Campaign import/export
-    - Ruleset and Tome management
-    - Seat creation and permission management
-    - Invite creation and revocation
-    - Session audit and active connection management
-  - Route: `/admin` (or similar; not yet finalized)
+    - **Server settings**: Admin password management, server configuration
+    - **Campaign management**: Create, delete, import, export campaigns
+    - **Ruleset and Tome management**: Attach/detach content packs per campaign
+    - **Seat management**: Create, update, delete seats within campaigns
+    - **Invite management**: Create, revoke invites per seat
+    - **Session audit**: View active sessions, revoke access
+  - Routes:
+    - `/admin/setup` - First-time admin setup (PIN entry)
+    - `/admin/login` - Admin login (password entry)
+    - `/admin` - Main admin UI (server settings, campaign tree)
 
-See [auth-join-flow.md](auth-join-flow.md) and [ADR 005](../decisions/005-networking-management.md) for complete specification.
+**Admin UI Structure**:
+
+```
+┌─────────────────────────────────────────────────────────┐
+│  AdminLayout                                            │
+├──────────────┬──────────────────────────────────────────┤
+│              │                                          │
+│  AdminTree   │       Detail Panel                       │
+│  (Sidebar)   │                                          │
+│              │  • ServerSettings (root selected)        │
+│  ▼ Server    │  • CampaignDetail (campaign selected)    │
+│    ▼ Campaign 1 │  • SeatSettings (seat selected)       │
+│      ○ Seat A│                                          │
+│      ○ Seat B│                                          │
+│    ○ Campaign 2 │                                       │
+│              │                                          │
+└──────────────┴──────────────────────────────────────────┘
+```
+
+**Distinction**: Server admin manages **which campaigns exist** and **who can join them**. Campaign GMs manage **what happens in-game** (scenes, encounters, fog). These are separate roles that may be held by the same person in self-hosted scenarios.
+
+See [auth-join-flow.md](auth-join-flow.md), [ADR 005](../decisions/005-networking-management.md), and [ADR 007](../decisions/007-server-level-admin.md) for complete specifications.
 
 ---
 
