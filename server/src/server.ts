@@ -42,20 +42,8 @@ function findClientDist(): string {
     path.resolve(currentDir, '../../client/dist'),
   ];
 
-  console.log('DEBUG: Looking for client dist directory...');
-  console.log('DEBUG: process.execPath =', process.execPath);
-  console.log('DEBUG: process.cwd() =', process.cwd());
-  console.log('DEBUG: currentDir =', currentDir);
-
   for (const candidate of candidates) {
-    console.log(
-      'DEBUG: Trying candidate:',
-      candidate,
-      '| exists:',
-      candidate && existsSync(candidate),
-    );
     if (candidate && existsSync(candidate)) {
-      console.log('DEBUG: Found client dist at:', candidate);
       return candidate;
     }
   }

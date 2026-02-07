@@ -42,7 +42,7 @@ As work completes, check off tasks and archive completed projects to keep this d
 
 ### Phase 2: Server Code Quality
 
-- [ ] Remove debug logging — delete 6 `console.log('DEBUG: ...')` in [server.ts](../server/src/server.ts#L50-L56)
+- [x] Remove debug logging — delete 6 `console.log('DEBUG: ...')` in [server.ts](../server/src/server.ts#L50-L56)
 - [ ] Implement graceful shutdown
   - [ ] Register `SIGTERM`/`SIGINT` handlers in [index.ts](../server/src/index.ts)
   - [ ] Call `server.close()` on shutdown
