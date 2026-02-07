@@ -1,4 +1,4 @@
-import 'dotenv/config';
+import { loadAndValidateEnv } from './utils/env-local.js';
 import { buildServer } from './server.js';
 import { ensureDataDir } from './storage/ensure-dirs.js';
 import { Storage } from './storage/index.js';
@@ -6,9 +6,12 @@ import { ensureServerAdminSetup } from './auth/setup-pin.js';
 import { startRateLimitCleanup } from './routes/admin-auth.js';
 import type { FastifyInstance } from 'fastify';
 
-const PORT = parseInt(process.env.PORT || '3000', 10);
-const HOST = process.env.HOST || '127.0.0.1';
-const DATA_DIR = process.env.DATA_DIR || './data';
+// Load and validate environment configuration
+loadAndValidateEnv();
+
+const PORT = parseInt(process.env.PORT!, 10);
+const HOST = process.env.HOST!;
+const DATA_DIR = process.env.DATA_DIR!;
 
 async function main() {
   // Ensure data directory exists
@@ -27,7 +30,11 @@ async function main() {
     dataDir: DATA_DIR,
     storage,
     logger: {
-      level: process.env.LOG_LEVEL || 'info',
+      level: (process.env.LOG_LEVEL || 'info') as
+        | 'debug'
+        | 'info'
+        | 'warn'
+        | 'error',
     },
   });
 

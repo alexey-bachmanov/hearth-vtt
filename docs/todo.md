@@ -57,10 +57,12 @@ As work completes, check off tasks and archive completed projects to keep this d
   - [x] Add same pragma to campaign DB init
 - [x] Fix `StorageBackend.createAdminSession` interface — add missing `csrfToken` parameter in [storage.ts](../server/src/storage/storage.ts#L197)
 - [x] Read version from package.json in [health.ts](../server/src/routes/health.ts#L13) instead of hardcoding
-- [ ] Persist `COOKIE_SECRET`
-  - [ ] Generate to file in `DATA_DIR` if not provided via env var
-  - [ ] Load from file on startup if exists
-  - [ ] Ensures sessions survive restarts
+- [x] Persist `COOKIE_SECRET`
+  - [x] Generate to file in `DATA_DIR` if not provided via env var
+  - [x] Load from file on startup if exists
+  - [x] Ensures sessions survive restarts
+  - [x] Strict validation - fails if required env vars missing
+  - [x] Moved to utils/env-local.ts
 
 ### Phase 3: Client Cleanup
 

@@ -3,7 +3,6 @@ import fastifyStatic from '@fastify/static';
 import fastifyWebsocket from '@fastify/websocket';
 import fastifyCors from '@fastify/cors';
 import fastifyCookie from '@fastify/cookie';
-import { randomBytes } from 'crypto';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import { existsSync } from 'fs';
@@ -156,8 +155,9 @@ export async function buildServer(
   });
 
   // Register cookie support for auth
+  // COOKIE_SECRET is ensured to exist by env-local.ts during startup
   await server.register(fastifyCookie, {
-    secret: process.env.COOKIE_SECRET || randomBytes(32).toString('hex'),
+    secret: process.env.COOKIE_SECRET!,
   });
 
   // Register WebSocket support
