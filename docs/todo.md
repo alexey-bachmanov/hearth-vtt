@@ -55,7 +55,7 @@ As work completes, check off tasks and archive completed projects to keep this d
 - [x] Enable SQLite WAL mode
   - [x] Add `PRAGMA journal_mode=WAL` to metadata DB init
   - [x] Add same pragma to campaign DB init
-- [ ] Fix `StorageBackend.createAdminSession` interface — add missing `csrfToken` parameter in [storage.ts](../server/src/storage/storage.ts#L197)
+- [x] Fix `StorageBackend.createAdminSession` interface — add missing `csrfToken` parameter in [storage.ts](../server/src/storage/storage.ts#L197)
 - [ ] Read version from package.json in [health.ts](../server/src/routes/health.ts#L13) instead of hardcoding
 - [ ] Persist `COOKIE_SECRET`
   - [ ] Generate to file in `DATA_DIR` if not provided via env var

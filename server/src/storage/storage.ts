@@ -207,6 +207,7 @@ export interface StorageBackend {
   createAdminSession(data: {
     adminId: string;
     sessionTokenHash: string;
+    csrfToken: string;
     expiresAt: number;
   }): Promise<AdminSession>;
   getAdminSession(sessionTokenHash: string): Promise<AdminSession | null>;
