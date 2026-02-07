@@ -52,6 +52,21 @@ export class SqliteStorage implements StorageBackend {
   }
 
   /**
+   * Validates that a string is a valid UUID format.
+   * Prevents path traversal attacks by ensuring campaignId contains only valid UUID characters.
+   *
+   * @param id - String to validate as UUID
+   * @returns True if valid UUID format, false otherwise
+   */
+  private isValidUuid(id: string): boolean {
+    // UUID format: 8-4-4-4-12 hex characters separated by hyphens
+    // Example: 550e8400-e29b-41d4-a716-446655440000
+    const uuidRegex =
+      /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+    return uuidRegex.test(id);
+  }
+
+  /**
    * Initialize the metadata database with schema
    */
   private initMetadataDb(): void {
@@ -199,6 +214,13 @@ export class SqliteStorage implements StorageBackend {
    * Get or create a campaign database connection
    */
   private getOrCreateCampaignDb(campaignId: string): Database.Database {
+    // Validate UUID format to prevent path traversal attacks
+    if (!this.isValidUuid(campaignId)) {
+      throw new Error(
+        `Invalid campaign ID format: ${campaignId}. Expected valid UUID.`,
+      );
+    }
+
     let db = this.campaignDbs.get(campaignId);
 
     if (!db) {

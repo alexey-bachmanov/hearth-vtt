@@ -37,8 +37,8 @@ As work completes, check off tasks and archive completed projects to keep this d
 - [x] Enable SQLite foreign keys
   - [x] Add `PRAGMA foreign_keys = ON` in `SqliteStorage.init()` [sqlite-storage.ts](../server/src/storage/sqlite-storage.ts)
   - [x] Add same pragma in `getOrCreateCampaignDb()`
-- [ ] Add `campaignId` format validation
-  - [ ] Verify UUID format in `getOrCreateCampaignDb` before constructing paths (defense against path traversal)
+- [x] Add `campaignId` format validation
+  - [x] Verify UUID format in `getOrCreateCampaignDb` before constructing paths (defense against path traversal)
 
 ### Phase 2: Server Code Quality
 
