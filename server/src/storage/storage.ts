@@ -115,6 +115,25 @@ export interface StorageBackend {
   init(): Promise<void>;
 
   /**
+   * Close the metadata database connection.
+   * Use when no admin sessions are active.
+   */
+  closeMetadataDb(): void;
+
+  /**
+   * Close a specific campaign database connection.
+   * @param campaignId - The ID of the campaign to close
+   * Use when a campaign has no active sessions.
+   */
+  closeCampaignDb(campaignId: string): void;
+
+  /**
+   * Close all database connections (metadata + all campaigns).
+   * Use during graceful shutdown.
+   */
+  close(): void;
+
+  /**
    * Campaign operations
    */
   createCampaign(name: string): Promise<Campaign>;
@@ -276,6 +295,31 @@ export class Storage {
    */
   async init(): Promise<void> {
     return this.backend.init();
+  }
+
+  /**
+   * Close the metadata database connection.
+   * Use when no admin sessions are active.
+   */
+  closeMetadataDb(): void {
+    this.backend.closeMetadataDb();
+  }
+
+  /**
+   * Close a specific campaign database connection.
+   * @param campaignId - The ID of the campaign to close
+   * Use when a campaign has no active sessions.
+   */
+  closeCampaignDb(campaignId: string): void {
+    this.backend.closeCampaignDb(campaignId);
+  }
+
+  /**
+   * Close all database connections (metadata + all campaigns).
+   * Use during graceful shutdown.
+   */
+  close(): void {
+    this.backend.close();
   }
 
   /**

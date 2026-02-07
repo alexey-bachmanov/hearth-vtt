@@ -251,6 +251,46 @@ export class SqliteStorage implements StorageBackend {
   }
 
   /**
+   * Close the metadata database connection.
+   * Called when no admin sessions are active.
+   */
+  closeMetadataDb(): void {
+    if (this.metadataDb) {
+      this.metadataDb.close();
+      this.metadataDb = null;
+    }
+  }
+
+  /**
+   * Close a specific campaign database connection.
+   * Called when a campaign has no active sessions.
+   *
+   * @param campaignId - Campaign ID whose database should be closed
+   */
+  closeCampaignDb(campaignId: string): void {
+    const db = this.campaignDbs.get(campaignId);
+    if (db) {
+      db.close();
+      this.campaignDbs.delete(campaignId);
+    }
+  }
+
+  /**
+   * Close all database connections.
+   * Called during graceful shutdown.
+   */
+  close(): void {
+    // Close metadata database
+    this.closeMetadataDb();
+
+    // Close all campaign databases
+    for (const [campaignId, db] of this.campaignDbs.entries()) {
+      db.close();
+    }
+    this.campaignDbs.clear();
+  }
+
+  /**
    * Campaign operations
    */
   async createCampaign(name: string): Promise<Campaign> {

@@ -57,8 +57,9 @@ async function main() {
       await server.close();
       console.log('Server closed successfully');
 
-      // Close storage connections (will be implemented in next step)
-      // await storage.close();
+      // Close storage connections
+      storage.close();
+      console.log('Storage connections closed');
 
       console.log('Graceful shutdown complete');
       process.exit(0);

@@ -48,10 +48,10 @@ As work completes, check off tasks and archive completed projects to keep this d
   - [x] Call `server.close()` on shutdown
   - [x] Clear cleanup interval
   - [x] Close storage connections
-- [ ] Add `close()` method to Storage/SqliteStorage
-  - [ ] Close `metadataDb` connection
-  - [ ] Close all `campaignDbs` connections
-  - [ ] Call from shutdown handler
+- [x] Add `close()` method to Storage/SqliteStorage
+  - [x] Close `metadataDb` connection
+  - [x] Close all `campaignDbs` connections
+  - [x] Call from shutdown handler
 - [ ] Enable SQLite WAL mode
   - [ ] Add `PRAGMA journal_mode=WAL` to metadata DB init
   - [ ] Add same pragma to campaign DB init
