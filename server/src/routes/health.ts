@@ -8,8 +8,9 @@
  */
 
 import type { FastifyInstance } from 'fastify';
+import packageJson from '../../package.json' with { type: 'json' };
 
-const VERSION = '0.1.0';
+const VERSION = packageJson.version;
 const PROTOCOL_VERSION = '1.0';
 
 export async function healthRoutes(server: FastifyInstance) {
