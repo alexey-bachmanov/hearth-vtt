@@ -126,6 +126,7 @@ async function handleSubmit(event: Event) {
   </div>
 </div>
 
+
 <style>
   .join-page {
     display: flex;
@@ -202,52 +203,9 @@ async function handleSubmit(event: Event) {
     font-style: italic;
   }
 
-  form {
-    display: flex;
-    flex-direction: column;
-    gap: var(--space-lg);
-  }
-
-  .form-group {
-    display: flex;
-    flex-direction: column;
-    gap: var(--space-xs);
-  }
-
-  .form-group label {
-    font-size: var(--font-size-sm);
-    font-weight: var(--font-weight-semibold);
-    color: var(--color-text-primary);
-  }
-
-  .form-group input {
-    padding: var(--space-md);
-    background-color: var(--color-bg-primary);
-    border: 1px solid var(--color-border-default);
-    border-radius: var(--radius-sm);
-    color: var(--color-text-primary);
-    font-size: var(--font-size-md);
-    transition: border-color var(--transition-fast);
-  }
-
-  .form-group input:focus {
-    outline: none;
-    border-color: var(--color-accent-primary);
-  }
-
-  .form-group input:disabled {
-    opacity: 0.5;
-    cursor: not-allowed;
-  }
-
   .readonly-input {
     background-color: var(--color-bg-tertiary);
     cursor: default;
-  }
-
-  .help-text {
-    font-size: var(--font-size-xs);
-    color: var(--color-text-tertiary);
   }
 
   .error-message {

@@ -214,6 +214,7 @@ function handleImportData() {
   </section>
 </div>
 
+
 <style>
   .campaign-detail {
     max-width: 1200px;
@@ -223,30 +224,6 @@ function handleImportData() {
     margin-bottom: var(--space-xl);
   }
 
-  .back-button {
-    padding: var(--space-sm) var(--space-md);
-    background-color: transparent;
-    border: 1px solid var(--color-border-default);
-    border-radius: var(--radius-sm);
-    color: var(--color-text-secondary);
-    font-size: var(--font-size-sm);
-    cursor: pointer;
-    transition: all var(--transition-fast);
-  }
-
-  .back-button:hover {
-    background-color: var(--color-bg-tertiary);
-    color: var(--color-text-primary);
-  }
-
-  .detail-section {
-    margin-bottom: var(--space-2xl);
-    padding: var(--space-xl);
-    background-color: var(--color-bg-secondary);
-    border: 1px solid var(--color-border-default);
-    border-radius: var(--radius-md);
-  }
-
   .detail-section h2 {
     margin: 0 0 var(--space-lg) 0;
     font-size: var(--font-size-xl);
@@ -254,46 +231,12 @@ function handleImportData() {
     color: var(--color-text-primary);
   }
 
-  .section-header {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    margin-bottom: var(--space-lg);
-  }
-
-  .section-header h2 {
-    margin: 0;
-  }
-
   .section-actions {
     display: flex;
     gap: var(--space-sm);
   }
 
-  /* Metadata */
-  .metadata-grid {
-    display: flex;
-    flex-direction: column;
-    gap: var(--space-lg);
-  }
-
-  .metadata-item {
-    display: flex;
-    flex-direction: column;
-    gap: var(--space-sm);
-  }
-
-  .metadata-item .label {
-    font-size: var(--font-size-sm);
-    font-weight: var(--font-weight-medium);
-    color: var(--color-text-tertiary);
-  }
-
-  .metadata-item span {
-    font-size: var(--font-size-md);
-    color: var(--color-text-primary);
-  }
-
+  /* Name editing */
   .display-name {
     display: flex;
     align-items: center;
@@ -327,21 +270,7 @@ function handleImportData() {
     border-color: var(--color-accent-primary);
   }
 
-  .btn-icon {
-    padding: var(--space-xs);
-    background: none;
-    border: none;
-    cursor: pointer;
-    font-size: var(--font-size-md);
-    opacity: 0.6;
-    transition: opacity var(--transition-fast);
-  }
-
-  .btn-icon:hover {
-    opacity: 1;
-  }
-
-  /* Ruleset */
+  /* Ruleset section */
   .ruleset-info {
     display: flex;
     flex-direction: column;
@@ -377,7 +306,7 @@ function handleImportData() {
     color: var(--color-text-primary);
   }
 
-  /* Seats */
+  /* Seats grid */
   .seats-grid {
     display: grid;
     grid-template-columns: repeat(auto-fill, minmax(250px, 1fr));
@@ -446,43 +375,5 @@ function handleImportData() {
     padding: var(--space-2xl);
     text-align: center;
     color: var(--color-text-tertiary);
-  }
-
-  /* Buttons */
-  .btn {
-    padding: var(--space-sm) var(--space-lg);
-    background-color: var(--color-bg-tertiary);
-    border: 1px solid var(--color-border-default);
-    border-radius: var(--radius-sm);
-    color: var(--color-text-primary);
-    font-size: var(--font-size-sm);
-    font-weight: var(--font-weight-medium);
-    cursor: pointer;
-    transition: all var(--transition-fast);
-  }
-
-  .btn:hover {
-    background-color: var(--color-bg-primary);
-  }
-
-  .btn-primary {
-    background-color: var(--color-accent-primary);
-    border-color: var(--color-accent-primary);
-    color: white;
-  }
-
-  .btn-primary:hover {
-    background-color: var(--color-accent-secondary);
-    border-color: var(--color-accent-secondary);
-  }
-
-  .btn-secondary {
-    background-color: var(--color-bg-tertiary);
-    border-color: var(--color-border-default);
-  }
-
-  .btn-sm {
-    padding: var(--space-xs) var(--space-sm);
-    font-size: var(--font-size-xs);
   }
 </style>

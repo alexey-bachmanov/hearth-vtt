@@ -185,6 +185,7 @@ onMount(() => {
 </div>
 
 <style>
+  /* Page-specific wrapper with gradient background */
   .login-page {
     min-height: 100vh;
     display: flex;
@@ -194,25 +195,7 @@ onMount(() => {
     background: linear-gradient(135deg, var(--color-bg-primary) 0%, var(--color-bg-secondary) 100%);
   }
 
-  .loading-state {
-    text-align: center;
-    color: var(--color-text-secondary);
-  }
-
-  .spinner {
-    width: 40px;
-    height: 40px;
-    margin: 0 auto var(--space-md);
-    border: 3px solid var(--color-border-default);
-    border-top-color: var(--color-accent-primary);
-    border-radius: 50%;
-    animation: spin 1s linear infinite;
-  }
-
-  @keyframes spin {
-    to { transform: rotate(360deg); }
-  }
-
+  /* Card-specific adjustments (extends .card from components.css) */
   .login-card {
     max-width: 450px;
     width: 100%;
@@ -223,6 +206,7 @@ onMount(() => {
     box-shadow: var(--shadow-large);
   }
 
+  /* Login header section */
   .login-header {
     margin-bottom: var(--space-2xl);
     text-align: center;
@@ -235,103 +219,7 @@ onMount(() => {
     color: var(--color-accent-primary);
   }
 
-  .subtitle {
-    margin: 0;
-    font-size: var(--font-size-md);
-    color: var(--color-text-secondary);
-    line-height: 1.5;
-  }
-
-  form {
-    display: flex;
-    flex-direction: column;
-    gap: var(--space-lg);
-  }
-
-  .form-group {
-    display: flex;
-    flex-direction: column;
-    gap: var(--space-sm);
-  }
-
-  label {
-    font-size: var(--font-size-sm);
-    font-weight: var(--font-weight-medium);
-    color: var(--color-text-secondary);
-  }
-
-  input {
-    padding: var(--space-md);
-    background-color: var(--color-bg-primary);
-    border: 1px solid var(--color-border-default);
-    border-radius: var(--radius-sm);
-    color: var(--color-text-primary);
-    font-size: var(--font-size-md);
-    font-family: inherit;
-    transition: border-color var(--transition-fast);
-  }
-
-  input:focus {
-    outline: none;
-    border-color: var(--color-accent-primary);
-  }
-
-  input:disabled {
-    opacity: 0.5;
-    cursor: not-allowed;
-  }
-
-  .error-banner {
-    display: flex;
-    align-items: center;
-    gap: var(--space-sm);
-    padding: var(--space-md);
-    background-color: rgba(239, 68, 68, 0.1);
-    border: 1px solid rgba(239, 68, 68, 0.3);
-    border-radius: var(--radius-sm);
-    color: var(--color-error, #ef4444);
-    font-size: var(--font-size-sm);
-  }
-
-  .error-icon {
-    font-size: var(--font-size-lg);
-  }
-
-  .btn {
-    padding: var(--space-md) var(--space-xl);
-    background-color: var(--color-bg-tertiary);
-    border: 1px solid var(--color-border-default);
-    border-radius: var(--radius-sm);
-    color: var(--color-text-primary);
-    font-size: var(--font-size-md);
-    font-weight: var(--font-weight-semibold);
-    cursor: pointer;
-    transition: all var(--transition-fast);
-  }
-
-  .btn:hover {
-    background-color: var(--color-bg-primary);
-  }
-
-  .btn-primary {
-    background-color: var(--color-accent-primary);
-    border-color: var(--color-accent-primary);
-    color: white;
-  }
-
-  .btn-primary:hover {
-    background-color: var(--color-accent-secondary, var(--color-accent-primary));
-    border-color: var(--color-accent-secondary, var(--color-accent-primary));
-    transform: translateY(-1px);
-    box-shadow: var(--shadow-medium);
-  }
-
-  .btn:disabled {
-    opacity: 0.6;
-    cursor: not-allowed;
-    transform: none;
-  }
-
+  /* Help section at bottom of card */
   .help-section {
     margin-top: var(--space-xl);
     padding-top: var(--space-xl);

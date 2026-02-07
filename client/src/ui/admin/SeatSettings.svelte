@@ -285,6 +285,7 @@ function isInviteActive(invite: Invite): boolean {
   </section>
 </div>
 
+
 <style>
   .seat-settings {
     max-width: 1200px;
@@ -297,30 +298,6 @@ function isInviteActive(invite: Invite): boolean {
     margin-bottom: var(--space-xl);
   }
 
-  .back-button {
-    padding: var(--space-sm) var(--space-md);
-    background-color: transparent;
-    border: 1px solid var(--color-border-default);
-    border-radius: var(--radius-sm);
-    color: var(--color-text-secondary);
-    font-size: var(--font-size-sm);
-    cursor: pointer;
-    transition: all var(--transition-fast);
-  }
-
-  .back-button:hover {
-    background-color: var(--color-bg-tertiary);
-    color: var(--color-text-primary);
-  }
-
-  .settings-section {
-    margin-bottom: var(--space-2xl);
-    padding: var(--space-xl);
-    background-color: var(--color-bg-secondary);
-    border: 1px solid var(--color-border-default);
-    border-radius: var(--radius-md);
-  }
-
   .settings-section h2 {
     margin: 0 0 var(--space-lg) 0;
     font-size: var(--font-size-xl);
@@ -328,41 +305,11 @@ function isInviteActive(invite: Invite): boolean {
     color: var(--color-text-primary);
   }
 
-  .section-header {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    margin-bottom: var(--space-lg);
-  }
-
   .section-header h2 {
     margin: 0;
   }
 
-  /* Seat Details */
-  .details-grid {
-    display: flex;
-    flex-direction: column;
-    gap: var(--space-lg);
-  }
-
-  .detail-item {
-    display: flex;
-    flex-direction: column;
-    gap: var(--space-sm);
-  }
-
-  .detail-item .label {
-    font-size: var(--font-size-sm);
-    font-weight: var(--font-weight-medium);
-    color: var(--color-text-tertiary);
-  }
-
-  .detail-item span {
-    font-size: var(--font-size-md);
-    color: var(--color-text-primary);
-  }
-
+  /* Field display and editing */
   .display-field {
     display: flex;
     align-items: center;
@@ -393,6 +340,7 @@ function isInviteActive(invite: Invite): boolean {
     border-color: var(--color-accent-primary);
   }
 
+  /* Badges */
   .role-badge {
     padding: var(--space-xs) var(--space-sm);
     background-color: var(--color-bg-primary);
@@ -415,21 +363,7 @@ function isInviteActive(invite: Invite): boolean {
     color: var(--color-success, #48bb78);
   }
 
-  .btn-icon {
-    padding: var(--space-xs);
-    background: none;
-    border: none;
-    cursor: pointer;
-    font-size: var(--font-size-md);
-    opacity: 0.6;
-    transition: opacity var(--transition-fast);
-  }
-
-  .btn-icon:hover {
-    opacity: 1;
-  }
-
-  /* Invites */
+  /* Invites section */
   .invites-list {
     display: flex;
     flex-direction: column;
@@ -515,53 +449,5 @@ function isInviteActive(invite: Invite): boolean {
     padding: var(--space-2xl);
     text-align: center;
     color: var(--color-text-tertiary);
-  }
-
-  /* Buttons */
-  .btn {
-    padding: var(--space-sm) var(--space-lg);
-    background-color: var(--color-bg-tertiary);
-    border: 1px solid var(--color-border-default);
-    border-radius: var(--radius-sm);
-    color: var(--color-text-primary);
-    font-size: var(--font-size-sm);
-    font-weight: var(--font-weight-medium);
-    cursor: pointer;
-    transition: all var(--transition-fast);
-  }
-
-  .btn:hover {
-    background-color: var(--color-bg-primary);
-  }
-
-  .btn-primary {
-    background-color: var(--color-accent-primary);
-    border-color: var(--color-accent-primary);
-    color: white;
-  }
-
-  .btn-primary:hover {
-    background-color: var(--color-accent-secondary);
-    border-color: var(--color-accent-secondary);
-  }
-
-  .btn-secondary {
-    background-color: var(--color-bg-tertiary);
-    border-color: var(--color-border-default);
-  }
-
-  .btn-danger {
-    background-color: var(--color-error);
-    border-color: var(--color-error);
-    color: white;
-  }
-
-  .btn-danger:hover {
-    background-color: var(--color-error-dark, #c53030);
-  }
-
-  .btn-sm {
-    padding: var(--space-xs) var(--space-sm);
-    font-size: var(--font-size-xs);
   }
 </style>

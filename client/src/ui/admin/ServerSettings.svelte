@@ -244,6 +244,7 @@ function handleChangePassword() {
   </section>
 </div>
 
+
 <style>
   .server-settings {
     max-width: 1200px;
@@ -260,26 +261,11 @@ function handleChangePassword() {
     color: var(--color-text-primary);
   }
 
-  .settings-section {
-    margin-bottom: var(--space-2xl);
-    padding: var(--space-xl);
-    background-color: var(--color-bg-secondary);
-    border: 1px solid var(--color-border-default);
-    border-radius: var(--radius-md);
-  }
-
   .settings-section h2 {
     margin: 0 0 var(--space-lg) 0;
     font-size: var(--font-size-xl);
     font-weight: var(--font-weight-semibold);
     color: var(--color-text-primary);
-  }
-
-  .section-header {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    margin-bottom: var(--space-lg);
   }
 
   .section-header h2 {
@@ -291,7 +277,7 @@ function handleChangePassword() {
     gap: var(--space-sm);
   }
 
-  /* Server Info */
+  /* Server Info Grid */
   .info-grid {
     display: grid;
     grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
@@ -367,95 +353,13 @@ function handleChangePassword() {
     gap: var(--space-sm);
   }
 
-  .empty-state {
-    padding: var(--space-2xl);
-    text-align: center;
-    color: var(--color-text-tertiary);
-  }
-
   /* Password Form */
   .password-form {
     max-width: 500px;
   }
 
-  .form-group {
-    margin-bottom: var(--space-lg);
-  }
-
-  .form-group label {
-    display: block;
-    margin-bottom: var(--space-sm);
-    font-size: var(--font-size-sm);
-    font-weight: var(--font-weight-medium);
-    color: var(--color-text-secondary);
-  }
-
-  .form-group input {
-    width: 100%;
-    padding: var(--space-sm) var(--space-md);
-    background-color: var(--color-bg-primary);
-    border: 1px solid var(--color-border-default);
-    border-radius: var(--radius-sm);
-    color: var(--color-text-primary);
-    font-size: var(--font-size-md);
-    transition: border-color var(--transition-fast);
-  }
-
-  .form-group input:focus {
-    outline: none;
-    border-color: var(--color-accent-primary);
-  }
-
   .form-actions {
     display: flex;
     gap: var(--space-sm);
-  }
-
-  /* Buttons */
-  .btn {
-    padding: var(--space-sm) var(--space-lg);
-    background-color: var(--color-bg-tertiary);
-    border: 1px solid var(--color-border-default);
-    border-radius: var(--radius-sm);
-    color: var(--color-text-primary);
-    font-size: var(--font-size-sm);
-    font-weight: var(--font-weight-medium);
-    cursor: pointer;
-    transition: all var(--transition-fast);
-  }
-
-  .btn:hover {
-    background-color: var(--color-bg-primary);
-  }
-
-  .btn-primary {
-    background-color: var(--color-accent-primary);
-    border-color: var(--color-accent-primary);
-    color: white;
-  }
-
-  .btn-primary:hover {
-    background-color: var(--color-accent-secondary);
-    border-color: var(--color-accent-secondary);
-  }
-
-  .btn-secondary {
-    background-color: var(--color-bg-tertiary);
-    border-color: var(--color-border-default);
-  }
-
-  .btn-danger {
-    background-color: var(--color-error);
-    border-color: var(--color-error);
-    color: white;
-  }
-
-  .btn-danger:hover {
-    background-color: var(--color-error-dark, #c53030);
-  }
-
-  .btn-sm {
-    padding: var(--space-xs) var(--space-sm);
-    font-size: var(--font-size-xs);
   }
 </style>

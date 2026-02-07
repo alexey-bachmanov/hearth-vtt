@@ -66,18 +66,18 @@ As work completes, check off tasks and archive completed projects to keep this d
 
 ### Phase 3: Client Cleanup
 
-- [ ] Extract shared CSS
-  - [ ] Create shared CSS file or component library for common button/form/error styles
-  - [ ] Replace duplicated CSS in 6 admin components: AdminLogin, AdminSetup, CampaignDetail, SeatSettings, ServerSettings
-- [ ] Add missing CSS custom properties to [tokens.css](../client/src/styles/tokens.css)
-  - [ ] `--shadow-large`
-  - [ ] `--shadow-medium`
-  - [ ] `--color-accent-secondary`
-  - [ ] `--color-danger`
-  - [ ] `--color-error-dark`
-  - [ ] `--color-bg-hover`
-  - [ ] `--color-border-hover`
-  - [ ] `--radius-xs`
+- [x] Extract shared CSS
+  - [x] Create shared CSS file or component library for common button/form/error styles
+  - [x] Replace duplicated CSS in 6 admin components: AdminLogin, AdminSetup, CampaignDetail, SeatSettings, ServerSettings
+- [x] Add missing CSS custom properties to [tokens.css](../client/src/styles/tokens.css)
+  - [x] `--shadow-large`
+  - [x] `--shadow-medium`
+  - [x] `--color-accent-secondary`
+  - [x] `--color-danger`
+  - [x] `--color-error-dark`
+  - [x] `--color-bg-hover`
+  - [x] `--color-border-hover`
+  - [x] `--radius-xs`
 - [ ] Fix JoinPage error handling — replace `catch` block checking `err.status` with `response.ok` pattern in [JoinPage.svelte](../client/src/ui/auth/JoinPage.svelte#L37)
 - [ ] Update stale barrel files
   - [ ] Fix [canvas/index.ts](../client/src/ui/canvas/index.ts) to export MainCanvas
