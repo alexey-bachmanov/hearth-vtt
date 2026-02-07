@@ -92,18 +92,18 @@ As work completes, check off tasks and archive completed projects to keep this d
 
 ### Phase 4: Documentation Sync
 
-- [ ] Update [server.md](../docs/components/server.md) directory layout
-  - [ ] Change `app.ts` references to `server.ts`
-  - [ ] Change `ws/` directory to `routes/ws.ts`
-  - [ ] Remove references to nonexistent `config.ts`, `logger.ts`, `static.ts`
-- [ ] Fix `check-setup` endpoint docs — change `GET` to `POST` in:
-  - [ ] [auth-join-flow.md](../docs/components/auth-join-flow.md)
-  - [ ] [http-api.md](../docs/protocols/http-api.md)
-- [ ] Standardize cookie `sameSite` to `Strict` in all references in [auth-join-flow.md](../docs/components/auth-join-flow.md)
-- [ ] Fix invite route paths in [auth-join-flow.md](../docs/components/auth-join-flow.md) to `/api/campaigns/:id/invites`
-- [ ] Remove `role: 'admin'` from mock data in [seats.ts](../server/src/routes/seats.ts#L26)
-- [ ] Document `GET /api/info` endpoint in [http-api.md](../docs/protocols/http-api.md)
-- [ ] Document CORS configuration and SPA fallback behavior
+- [x] Update [server.md](../docs/components/server.md) directory layout
+  - [x] Change `app.ts` references to `server.ts`
+  - [x] Change `ws/` directory to `routes/ws.ts`
+  - [x] Remove references to nonexistent `config.ts`, `logger.ts`, `static.ts`
+- [x] Fix `check-setup` endpoint docs — change `GET` to `POST` in:
+  - [x] [auth-join-flow.md](../docs/components/auth-join-flow.md)
+  - [x] [http-api.md](../docs/protocols/http-api.md)
+- [x] Standardize cookie `sameSite` to `Strict` in all references in [auth-join-flow.md](../docs/components/auth-join-flow.md)
+- [x] Fix invite route paths in [auth-join-flow.md](../docs/components/auth-join-flow.md) to `/api/campaigns/:id/invites`
+- [x] Remove `role: 'admin'` from mock data in [seats.ts](../server/src/routes/seats.ts#L26)
+- [x] Document `GET /api/info` endpoint in [http-api.md](../docs/protocols/http-api.md)
+- [x] Document CORS configuration and SPA fallback behavior
 - [x] Align TypeScript versions across workspaces to single version
 
 ### Phase 5: Build Fixes

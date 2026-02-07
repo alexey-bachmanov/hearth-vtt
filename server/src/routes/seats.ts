@@ -16,12 +16,14 @@ import type { Storage } from '../storage/storage.js';
 import { requireAdminAuth, requireCsrfToken } from './admin-auth.js';
 
 // Mock seat data
+// Note: 'admin' is a server-level role (ServerAdmin), not a seat role.
+// Seats have roles: 'gm' | 'player' | 'spectator'
 const mockSeats = [
   {
-    id: 'seat-admin-001',
+    id: 'seat-gm-001',
     campaignId: 'campaign-mock-001',
-    name: 'Admin',
-    role: 'admin',
+    name: 'Game Master',
+    role: 'gm',
     isImmutable: true,
     createdAt: new Date('2026-01-15T10:30:00Z').toISOString(),
     updatedAt: new Date('2026-01-15T10:30:00Z').toISOString(),

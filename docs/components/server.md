@@ -103,16 +103,21 @@ At repo root:
 - `packages/` — shared libs (protocol/types/dice/DSL runtime)
 - `docs/` — design docs
 
-Within `server/` (suggested):
+Within `server/` (current structure):
 
-- `server/src/app.ts` — Fastify app setup
+- `server/src/server.ts` — Fastify app setup and build function
 - `server/src/index.ts` — process entry point (env/flags, start server)
-- `server/src/routes/` — HTTP routes
-- `server/src/ws/` — WebSocket Secure (WSS) handler(s)
+- `server/src/routes/` — HTTP routes and WebSocket handler
+  - `routes/admin-auth.ts` — Admin authentication endpoints
+  - `routes/auth.ts` — Player auth stubs
+  - `routes/campaigns.ts` — Campaign management
+  - `routes/health.ts` — Health checks and server info
+  - `routes/invites.ts` — Invite management
+  - `routes/seats.ts` — Seat management
+  - `routes/sessions.ts` — Session stubs
+  - `routes/ws.ts` — WebSocket handler
 - `server/src/storage/` — Storage class + backend implementations (SQLite, etc.)
-- `server/src/config.ts` — config parsing/validation
-- `server/src/logger.ts` — structured logging config
-- `server/src/static.ts` — static file serving of client bundle
+- `server/src/auth/` — Auth utilities (setup PIN generation)
 
 Runtime data directory:
 
@@ -143,6 +148,126 @@ Runtime data directory:
   - stub endpoint; returns placeholder session for now
 
 All endpoints must validate input where applicable (Fastify schemas).
+
+---
+
+## CORS Configuration
+
+The server implements strict CORS (Cross-Origin Resource Sharing) policies to prevent unauthorized access and CSRF attacks.
+
+### Allowed Origins
+
+The server accepts requests from:
+
+1. **Same-origin requests** (no `Origin` header) - Always allowed
+   - Browser requests from the same domain
+   - Tools like curl, Postman without explicit origin
+
+2. **PUBLIC_BASE_URL** - If configured via environment variable
+   - Used for hosted deployments where client is served from a different domain
+   - Example: `PUBLIC_BASE_URL=https://hearth-vtt.com`
+
+3. **Localhost origins** - In development mode only (`NODE_ENV !== 'production'`)
+   - `localhost`, `127.0.0.1`, `[::1]` with any port
+   - Allows Vite dev server (typically `localhost:5173`) to call API on `localhost:3000`
+
+### Implementation
+
+```typescript
+// server/src/server.ts
+await server.register(fastifyCors, {
+  origin: (origin, callback) => {
+    if (!origin) {
+      callback(null, true); // Same-origin
+      return;
+    }
+
+    // Check PUBLIC_BASE_URL
+    const publicBaseUrl = process.env.PUBLIC_BASE_URL;
+    if (publicBaseUrl && origin === new URL(publicBaseUrl).origin) {
+      callback(null, true);
+      return;
+    }
+
+    // Allow localhost in development
+    if (process.env.NODE_ENV !== 'production') {
+      const originUrl = new URL(origin);
+      if (
+        originUrl.hostname === 'localhost' ||
+        originUrl.hostname === '127.0.0.1' ||
+        originUrl.hostname === '[::1]'
+      ) {
+        callback(null, true);
+        return;
+      }
+    }
+
+    // Reject all other origins
+    callback(new Error('Not allowed by CORS'), false);
+  },
+});
+```
+
+### Security Implications
+
+- **Production**: Only same-origin and PUBLIC_BASE_URL are allowed. All other origins are rejected.
+- **Development**: Localhost origins are allowed to support the Vite dev server workflow.
+- **CSRF Protection**: Strict CORS + `SameSite` cookies + CSRF tokens on admin endpoints provide defense-in-depth.
+
+---
+
+## SPA Fallback (Client-Side Routing)
+
+The server supports client-side routing by serving `index.html` for all non-API routes.
+
+### Behavior
+
+1. **Static files** (`/`, `/assets/*`, etc.) - Served from `client/dist/`
+2. **API routes** (`/api/*`) - Handled by route handlers
+3. **WebSocket** (`/ws`) - WebSocket upgrade handler
+4. **Health checks** (`/healthz`, `/health`) - Health check handlers
+5. **All other routes** - Serve `index.html` for client-side routing
+
+### Implementation
+
+The server uses Fastify's `setNotFoundHandler` to intercept 404s and serve the SPA:
+
+```typescript
+// server/src/server.ts
+server.setNotFoundHandler(async (request, reply) => {
+  const { url } = request;
+
+  // Don't handle API routes, WebSocket, or health checks
+  if (
+    url.startsWith('/api/') ||
+    url.startsWith('/ws') ||
+    url === '/healthz' ||
+    url === '/health'
+  ) {
+    reply.code(404);
+    return { error: { code: 'NOT_FOUND', message: 'Route not found' } };
+  }
+
+  // Serve index.html for client-side routing
+  reply.type('text/html');
+  return reply.sendFile('index.html');
+});
+```
+
+### Use Cases
+
+This enables bookmarkable URLs for client-side routes:
+
+- `/play` - Main game interface (stable URL)
+- `/admin` - Admin dashboard
+- `/admin/campaigns/:id` - Campaign detail page
+- `/join/:token` - Invite claim page
+
+Without SPA fallback, these routes would return 404 if accessed directly (e.g., by bookmark or external link). With SPA fallback, the server serves `index.html`, which boots the Svelte app and routes to the correct view.
+
+### Client-Side Router Integration
+
+The client uses hash-based routing (`#/play`, `#/admin`, etc.) or history API routing. See [client.md](client.md) and [Router.svelte](../../client/src/app/Router.svelte) for routing implementation.
 
 ---
 

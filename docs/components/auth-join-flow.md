@@ -153,12 +153,13 @@ Set refresh cookie:
 
 - `HttpOnly`
 - `Secure` (hosted/tunnel; in direct mode may be false)
-- `SameSite=Lax`
+- `SameSite=Lax` (player sessions; admin sessions use `Strict`)
 - `Path=/`
 
 Name recommendation:
 
-- `hearth_refresh`
+- `hearth_refresh` (player sessions)
+- `hearth_admin_session` (admin sessions)
 
 Optional cookie:
 
@@ -226,8 +227,8 @@ Because we use cookies:
 
 - Prefer using refresh cookie only for `/api/auth/refresh` and use access tokens for other APIs.
 - For cookie-authenticated POST endpoints, use one of:
-  - CSRF tokens
-  - SameSite protections (Lax) + ensure no cross-site POST endpoints are sensitive
+  - CSRF tokens (all admin endpoints use this)
+  - SameSite protections (Lax for player sessions, Strict for admin) + ensure no cross-site POST endpoints are sensitive
   - Origin checks on state-changing endpoints
 
 Hosted mode should validate `Origin` for WS and sensitive endpoints.
@@ -289,7 +290,7 @@ Server admin authentication is **separate** from seat-based player authenticatio
    - Log PIN to console: "Admin setup required. Visit http://localhost:3000/admin/setup and enter PIN: ABC123XY"
 
 2. **Admin visits `/admin/setup`**:
-   - Client calls `GET /api/admin/check-setup` → `{ needsSetup: true, setupPinExpired: false }`
+   - Client calls `POST /api/admin/check-setup` → `{ needsSetup: true, setupPinExpired: false }`
    - Render setup form: PIN input + optional password input
 
 3. **Admin submits setup**:
@@ -297,7 +298,7 @@ Server admin authentication is **separate** from seat-based player authenticatio
    - Server validates PIN hash, checks expiry
    - If valid:
      - Create `AdminSession` record
-     - Set `hearth_admin_session` cookie (HttpOnly, Secure, SameSite=Lax)
+     - Set `hearth_admin_session` cookie (HttpOnly, Secure, SameSite=Strict)
      - Optionally set permanent `passwordHash` in `ServerAdmin` record (nulls `pinHash` and `setupPinExpiresAt`)
      - Delete `admin-setup-pin.txt`
      - Return `{ success: true }`
@@ -459,7 +460,7 @@ All routes require `hearth_admin_session` cookie (except setup/check routes).
 
 #### Authentication Routes
 
-- `GET /api/admin/check-setup` → `{ needsSetup: boolean, setupPinExpired: boolean }`
+- `POST /api/admin/check-setup` → `{ needsSetup: boolean, setupPinExpired: boolean }`
   - Public, no auth required
 
 - `POST /api/admin/setup` → `{ setupPin, newPassword? }`
@@ -520,13 +521,13 @@ All routes require `hearth_admin_session` cookie (except setup/check routes).
 
 #### Invite Management Routes (all require auth + CSRF for mutations)
 
-- `GET /api/seats/:id/invites` → list invites
+- `GET /api/campaigns/:id/invites` → list invites
   - Auth only (no CSRF for read-only)
 
-- `POST /api/seats/:id/invites` → create invite
+- `POST /api/campaigns/:id/invites` → create invite
   - **Requires**: `X-CSRF-Token` header
 
-- `DELETE /api/invites/:id` → revoke invite
+- `DELETE /api/campaigns/:id/invites/:id` → revoke invite
   - **Requires**: `X-CSRF-Token` header
 
 See [ADR 007](../decisions/007-server-level-admin.md) for complete admin authentication architecture.

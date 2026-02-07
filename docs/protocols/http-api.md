@@ -492,9 +492,25 @@ Revoke a specific AuthSession (force logout).
 
 ### Health Check
 
+#### `GET /healthz`
+
+Basic Kubernetes-style health check.
+
+**Auth**: None (public)
+
+**Response** (200 OK):
+
+```json
+{
+  "status": "ok"
+}
+```
+
+---
+
 #### `GET /health`
 
-Check if server is healthy.
+Detailed health check with version and uptime.
 
 **Auth**: None (public)
 
@@ -504,7 +520,8 @@ Check if server is healthy.
 {
   "status": "ok",
   "version": "0.1.0",
-  "uptime": 3600
+  "uptime": 3600,
+  "timestamp": 1707235200000
 }
 ```
 
@@ -514,7 +531,7 @@ Check if server is healthy.
 
 #### `GET /api/info`
 
-Get server version and capabilities.
+Get server version, protocol version, and available features.
 
 **Auth**: None (public)
 
@@ -524,9 +541,15 @@ Get server version and capabilities.
 {
   "version": "0.1.0",
   "protocolVersion": "1.0",
-  "features": ["wss", "cookie-auth", "admin-ui"]
+  "features": ["websocket", "campaigns", "auth", "seats", "invites"]
 }
 ```
+
+**Notes**:
+
+- `version`: Server package version from package.json
+- `protocolVersion`: API/WebSocket protocol version for client compatibility
+- `features`: Array of supported capabilities
 
 ---
 
@@ -604,7 +627,7 @@ For complete admin authentication flow documentation, see [auth-join-flow.md](..
 
 Key endpoints:
 
-- `GET /api/admin/check-setup` - Check if server needs initial setup
+- `POST /api/admin/check-setup` - Check if server needs initial setup
 - `POST /api/admin/setup` - Complete initial setup with PIN and password
 - `GET /api/admin/check-auth` - Check if current session is authenticated
 - `POST /api/admin/login` - Login with password
