@@ -6,130 +6,193 @@ As work completes, check off tasks and archive completed projects to keep this d
 
 ---
 
+# Completed Sprints
+
+<details>
+<summary>Tech Debt Cleanup Sprint — Phases 1–5 (Feb 2026) ✅</summary>
+
+**Goal:** Harden existing code, fix security gaps, sync documentation. Phases 1–5 complete; Phase 6 (Testing) moved to Tech Debt.
+
+- [x] **Phase 1: Security Hardening** — Dev-only gates on stub routes, CORS restriction, password max-length, secure cookie conditionals, trustProxy, rate limit cleanup, SQLite foreign keys, campaignId format validation
+- [x] **Phase 2: Server Code Quality** — Debug log removal, graceful shutdown, storage close(), WAL mode, StorageBackend interface fix, version from package.json, COOKIE_SECRET persistence
+- [x] **Phase 3: Client Cleanup** — Shared CSS extraction, missing CSS custom properties, JoinPage error handling, barrel file fixes, Svelte rune fixes, commented code removal
+- [x] **Phase 4: Documentation Sync** — server.md directory layout, check-setup endpoint, cookie sameSite, invite routes, API info endpoint, CORS docs, TypeScript version alignment
+- [x] **Phase 5: Build Fixes** — Dockerfile workspace stages, redundant build removal, builder stage separation, build-exe.js HOST default
+
+</details>
+
+---
+
 # Current Projects
 
-## Tech Debt Cleanup Sprint (Feb 2026)
+## Play UI Overhaul (Feb 2026)
 
-**Goal:** Harden existing code, fix security gaps, sync documentation, and establish testing foundation. No new features — focus on risk reduction and maintainability.
+**Goal:** Restructure the play interface from a 5-zone grid layout to a modern 3-zone layout with left icon toolbar, canvas overlays, bottom notification toasts, and tabbed floating windows. Admin UI is untouched.
+
+**Decisions locked in:**
+
+- **Icons:** Lucide via `lucide-svelte` (tree-shakeable, Svelte-native)
+- **Drawer behavior:** Overlays canvas (no layout push), one drawer open at a time
+- **Notifications:** Bottom-left anchored, horizontal stack with leftward compaction
+- **Tabbed windows:** Context menu to combine initially, then drag-to-combine
+- **Radial menu:** Custom SVG/CSS, deferred until renderer and token system exist
+- **Target screens:** Desktop and large-format tablets; plan for touch but defer mobile layout
+- **Admin UI:** Completely untouched — all changes scoped to `/play` path
 
 **Verification criteria:**
 
-- `npm run build` passes in client and server after each phase
-- Docker build succeeds after Phase 5
-- Manual smoke test: admin setup → login → create campaign → logout over HTTP locally
+- `npm run build` passes in client after each phase
+- After Phase 2: PlayLayout renders with new 3-zone grid
+- After Phase 4: Left toolbar renders icons, clicking opens/closes drawer overlay
+- After Phase 5: Right sidebar shows only chat log
+- After Phase 6: Actor pills and quick status visible on canvas overlays
+- After Phase 7: Notifications render bottom-left and stack correctly
+- After Phase 8: Can open multiple windows, combine into tab groups, detach tabs
+- After Phase 9: Right-click drag pans, scroll zooms (updates viewport state)
+- Manual smoke test: Load `/play` → see new layout → verify all toolbar icons → open/close drawers → verify chat sidebar → verify admin UI unchanged at `/admin`
 
-### Phase 1: Security Hardening (Highest Priority)
+### Phase 1: Documentation
 
-**Rationale:** Fix active vulnerabilities in production code and add guards to stub endpoints.
+- [ ] Update [client.md](../docs/components/client.md) with new UI layout, component hierarchy, and architecture
+- [ ] Update [todo.md](../docs/todo.md) with new sprint plan, archive completed sprint, move testing to tech debt
 
-- [x] Gate stub routes with dev-only flag
-  - [x] Add `NODE_ENV=development` check to top of [auth.ts](../server/src/routes/auth.ts) (return 501 in production)
-  - [x] Add check to [sessions.ts](../server/src/routes/sessions.ts)
-  - [x] Add check to stub portions of [seats.ts](../server/src/routes/seats.ts) and [invites.ts](../server/src/routes/invites.ts)
-- [x] Restrict CORS configuration
-  - [x] Change `origin: true` in [server.ts](../server/src/server.ts#L83) to function checking same-origin + `PUBLIC_BASE_URL`
-- [x] Add password max-length validation (1024 bytes) in [admin-auth.ts](../server/src/routes/admin-auth.ts#L342) to prevent HashDoS
-- [x] Make admin cookie `secure` conditional on environment
-  - [x] Change `secure: true` to `secure: process.env.NODE_ENV === 'production'` in [admin-auth.ts](../server/src/routes/admin-auth.ts#L375)
-- [x] Configure `trustProxy` from `TRUST_PROXY` env var in [server.ts](../server/src/server.ts#L79) for rate limiting behind proxies
-- [x] Add rate limit map cleanup
-  - [x] Create periodic sweep (hourly) to remove expired entries from `rateLimitMap` in [admin-auth.ts](../server/src/routes/admin-auth.ts#L33)
-- [x] Enable SQLite foreign keys
-  - [x] Add `PRAGMA foreign_keys = ON` in `SqliteStorage.init()` [sqlite-storage.ts](../server/src/storage/sqlite-storage.ts)
-  - [x] Add same pragma in `getOrCreateCampaignDb()`
-- [x] Add `campaignId` format validation
-  - [x] Verify UUID format in `getOrCreateCampaignDb` before constructing paths (defense against path traversal)
+### Phase 2: CampaignState & Mock Data
 
-### Phase 2: Server Code Quality
+- [ ] Implement `CampaignState` as a concrete reactive store with typed entity collections
+  - [ ] Define types: `Actor`, `Token`, `Scene`, `Effect`, seat role/permissions
+  - [ ] Populate with rich D&D-flavored mock data (party actors, GM actors, scenes, tokens)
+  - [ ] Methods: `getActor(id)`, `getToken(id)`, `getScene(id)`, `getActorsForSeat(seatId)`, `getPartyActors()`
+- [ ] Add `seatRole` (`'gm' | 'player' | 'spectator'`) to `connectionState` or `campaignState`
+- [ ] Add `viewportState` store — `zoom`, `panOffset`, `gridSpacing`, `gridType`, `snapToGrid`, `mapName`
+- [ ] Add `notificationState` store — ordered notification array with `push()`, `dismiss(id)`, auto-remove for ephemeral
+- [ ] Wire existing `eventLogState` to `ChatLog` (replace hardcoded sample events) and populate with mock events
 
-- [x] Remove debug logging — delete 6 `console.log('DEBUG: ...')` in [server.ts](../server/src/server.ts#L50-L56)
-- [x] Implement graceful shutdown
-  - [x] Register `SIGTERM`/`SIGINT` handlers in [index.ts](../server/src/index.ts)
-  - [x] Call `server.close()` on shutdown
-  - [x] Clear cleanup interval
-  - [x] Close storage connections
-- [x] Add `close()` method to Storage/SqliteStorage
-  - [x] Close `metadataDb` connection
-  - [x] Close all `campaignDbs` connections
-  - [x] Call from shutdown handler
-- [x] Enable SQLite WAL mode
-  - [x] Add `PRAGMA journal_mode=WAL` to metadata DB init
-  - [x] Add same pragma to campaign DB init
-- [x] Fix `StorageBackend.createAdminSession` interface — add missing `csrfToken` parameter in [storage.ts](../server/src/storage/storage.ts#L197)
-- [x] Read version from package.json in [health.ts](../server/src/routes/health.ts#L13) instead of hardcoding
-- [x] Persist `COOKIE_SECRET`
-  - [x] Generate to file in `DATA_DIR` if not provided via env var
-  - [x] Load from file on startup if exists
-  - [x] Ensures sessions survive restarts
-  - [x] Strict validation - fails if required env vars missing
-  - [x] Moved to utils/env-local.ts
+### Phase 3: Setup & Shared Components
 
-### Phase 3: Client Cleanup
+- [ ] Install `lucide-svelte` in client workspace
+- [ ] Create `Tooltip` component — custom positioned tooltip (hover + focus), replaces native `title` attrs
+- [ ] Create `Icon` wrapper component — standardizes size/color/aria-label for Lucide icons
+- [ ] Update [tokens.css](../client/src/styles/tokens.css):
+  - [ ] Replace `--toolbar-bottom-height` with `--toolbar-left-width` (56px) and `--drawer-width` (320px)
+  - [ ] Add `--z-drawer` layer between canvas and overlay
+  - [ ] Add `--notification-height`, `--pill-height` tokens
+- [ ] Add new CSS component classes to [components.css](../client/src/styles/components.css):
+  - [ ] `.toolbar-icon-btn` — square icon button with hover/active/selected states
+  - [ ] `.drawer-panel` — slide-out panel base styling
+  - [ ] `.notification-toast` — bottom notification card
+  - [ ] `.actor-pill` — split button pill
 
-- [x] Extract shared CSS
-  - [x] Create shared CSS file or component library for common button/form/error styles
-  - [x] Replace duplicated CSS in 6 admin components: AdminLogin, AdminSetup, CampaignDetail, SeatSettings, ServerSettings
-- [x] Add missing CSS custom properties to [tokens.css](../client/src/styles/tokens.css)
-  - [x] `--shadow-large`
-  - [x] `--shadow-medium`
-  - [x] `--color-accent-secondary`
-  - [x] `--color-danger`
-  - [x] `--color-error-dark`
-  - [x] `--color-bg-hover`
-  - [x] `--color-border-hover`
-  - [x] `--radius-xs`
-- [x] Fix JoinPage error handling — replace `catch` block checking `err.status` with `response.ok` pattern in [JoinPage.svelte](../client/src/ui/auth/JoinPage.svelte#L37)
-- [x] Update stale barrel files
-  - [x] Fix [canvas/index.ts](../client/src/ui/canvas/index.ts) to export MainCanvas
-  - [x] Fix [snackbar/index.ts](../client/src/ui/snackbar/index.ts) to export components
-- [x] Fix Svelte rune misuse
-  - [x] Change static `$derived` to `$state` in CampaignDetail
-  - [x] Change static `$derived` to `$state` in SeatSettings
-  - [x] Fix immutable `$state` on `const` in PlayLayout and SnackbarArea
-  - [x] Fix immutable `$state` on `const` in FloatingWindowLayer
-- [x] Remove commented-out code
-  - [x] Clean commented imports in [ws.ts](../client/src/api/ws.ts#L21)
+### Phase 4: Left Toolbar & Drawer System
 
-### Phase 4: Documentation Sync
+- [ ] Create `LeftToolbar` component — narrow vertical icon bar (56px), three sections with dividers:
+  - [ ] **Quick tools** (top): Dice roller, annotation, measurement, initiative toggle, jukebox
+  - [ ] **Big tools** (middle): Campaign journal, player compendium, settings
+  - [ ] **GM tools** (bottom, seat-gated): Lighting, obstructions, scene selector, campaign prep, token library, game settings
+  - [ ] Each icon uses `Tooltip` + `Icon` components; clicking toggles `uiState.activeToolDrawer`
+  - [ ] Active tool gets visual indicator (left accent bar or background highlight)
+- [ ] Create `ToolDrawer` wrapper — 320px slide-out panel overlaying canvas
+  - [ ] Smooth CSS transition (`transform: translateX`) for open/close
+  - [ ] Click-outside or Escape to close
+  - [ ] Header with drawer title + close button, scrollable content area
+  - [ ] Renders correct drawer content based on `uiState.activeToolDrawer`
+- [ ] Create drawer content components in `ui/toolbar/drawers/`:
+  - [ ] `DiceRollerDrawer` — formula input, preset dice buttons, roll history
+  - [ ] `AnnotationDrawer` — shape selection, color/weight pickers
+  - [ ] `MeasurementDrawer` — mode selector, public/private toggle
+  - [ ] `InitiativeDrawer` — turn order list, controls, show/hide panel
+  - [ ] `JukeboxDrawer` — playlist, transport controls, volume (migrated from sidebar)
+  - [ ] `JournalDrawer` — handouts/notes browser (migrated from sidebar)
+  - [ ] `CompendiumDrawer` — search + browse by category/Tome (migrated from sidebar)
+  - [ ] `SettingsDrawer` — audio/video/UI preferences (migrated from sidebar)
+  - [ ] `LightingDrawer` — light placement/editing tools (GM only, migrated from sidebar)
+  - [ ] `ObstructionDrawer` — wall/door/window tools (GM only, migrated from sidebar)
+  - [ ] `SceneDrawer` — map browser/selector (GM only, migrated from sidebar)
+  - [ ] `CampaignPrepDrawer` — encounter setup, NPC staging area (GM only, placeholder)
+  - [ ] `TokenLibraryDrawer` — drag-to-map actor browser (GM only, migrated from sidebar)
+  - [ ] `GameSettingsDrawer` — campaign-level game settings (GM only, placeholder)
+- [ ] Update `uiState` — add `activeToolDrawer: string | null`, remove old `selectedTool`/`activeDrawerTab`
+- [ ] Rewrite `PlayLayout` — 3-column CSS grid: `[toolbar-left] auto [canvas-area] 1fr [sidebar-right] var(--sidebar-right-width)`. Canvas area is `position: relative` for overlay anchoring. Drawer overlays absolutely over canvas
+- [ ] Delete old toolbar components: `BottomToolbar`, `DiceRoller`, `DrawingTools`, `InitiativeTracker`, `MeasurementTool`, `PingTool`
+- [ ] Update [toolbar/index.ts](../client/src/ui/toolbar/index.ts) barrel
 
-- [x] Update [server.md](../docs/components/server.md) directory layout
-  - [x] Change `app.ts` references to `server.ts`
-  - [x] Change `ws/` directory to `routes/ws.ts`
-  - [x] Remove references to nonexistent `config.ts`, `logger.ts`, `static.ts`
-- [x] Fix `check-setup` endpoint docs — change `GET` to `POST` in:
-  - [x] [auth-join-flow.md](../docs/components/auth-join-flow.md)
-  - [x] [http-api.md](../docs/protocols/http-api.md)
-- [x] Standardize cookie `sameSite` to `Strict` in all references in [auth-join-flow.md](../docs/components/auth-join-flow.md)
-- [x] Fix invite route paths in [auth-join-flow.md](../docs/components/auth-join-flow.md) to `/api/campaigns/:id/invites`
-- [x] Remove `role: 'admin'` from mock data in [seats.ts](../server/src/routes/seats.ts#L26)
-- [x] Document `GET /api/info` endpoint in [http-api.md](../docs/protocols/http-api.md)
-- [x] Document CORS configuration and SPA fallback behavior
-- [x] Align TypeScript versions across workspaces to single version
+### Phase 5: Right Sidebar Simplification
 
-### Phase 5: Build Fixes
+- [ ] Rewrite `RightSidebar` — chat/event log only (header + ChatLog + input), no DrawerTabs
+- [ ] Add sidebar collapse/expand toggle — open by default, collapsible for more map space
+- [ ] Wire `ChatLog` to `eventLogState` store (remove hardcoded sample events)
+- [ ] Delete old sidebar components: `DrawerTabs`, `CompendiumDrawer`, `JournalDrawer`, `SettingsDrawer`, `JukeboxDrawer`, `LeftSidebar`, `SceneNavigator`, `WallEditor`, `LightEditor`, `ActorLibrary`
+- [ ] Update [sidebar/index.ts](../client/src/ui/sidebar/index.ts) barrel — export only `RightSidebar`, `ChatLog`, `GameEventCard`
 
-- [x] Fix Dockerfile workspace stages
-  - [x] Copy sibling `package.json` files so `npm ci --workspace=X` resolves correctly
-- [x] Remove redundant local build from [build-docker.js](../scripts/build-docker.js)
-- [x] Add builder stage in Dockerfile for native module compilation
-  - [x] Separate compilation from runtime image
-  - [x] Remove `python3 make g++` from production image
-- [x] Fix `build-exe.js` README — change `HOST=0.0.0.0` to `127.0.0.1` default
+### Phase 6: Canvas Overlays
 
-### Phase 6: Testing Foundation
+- [ ] Create `ActorPills` — positioned top-right of canvas area
+  - [ ] Horizontal row of split-button pills for party-controlled actors
+  - [ ] Main button: actor name (truncated), click to center map on token
+  - [ ] Dropdown caret: flyout with quick stats (HP bar, AC, status indicators), center-on-token and open-character-sheet buttons
+  - [ ] Filtered by seat permissions via `$derived` from `campaignState`
+- [ ] Create `QuickStatus` — positioned top-left of canvas area
+  - [ ] Compact mode (default): low opacity, shows map name + zoom % + connection dot (green/red)
+  - [ ] Hover mode: opacity 1.0, expands downward with zoom slider, grid spacing, snap-to-grid toggle, connection status text
+  - [ ] Reads from `viewportState` and `connectionState`
+- [ ] Update [canvas/index.ts](../client/src/ui/canvas/index.ts) barrel
 
-- [ ] Create `vitest.config.ts` in server workspace
-- [ ] Implement `InMemoryBackend` implementing `StorageBackend` interface
-- [ ] Write first test suite: Storage CRUD operations
-  - [ ] Campaign create/read/update/delete
-  - [ ] Seat create/list/update/delete
-  - [ ] Invite create/claim/revoke
-  - [ ] Admin session lifecycle
-- [ ] Verify unchecked admin auth todo items:
-  - [ ] Test campaign creation with new schema
-  - [ ] Test seat/invite/session CRUD operations
-  - [ ] Test session expiration and cleanup
-  - [ ] Test routing: setup → login → dashboard flows
+### Phase 7: Bottom Notifications
+
+- [ ] Create `NotificationArea` — fixed bottom-left, horizontal flexbox row
+  - [ ] Renders notifications from `notificationState`
+  - [ ] Compact leftward on dismiss with CSS transition
+  - [ ] Z-index between toolbar and floating window layers
+- [ ] Create `NotificationCard` — individual card styled by kind:
+  - [ ] **Ephemeral**: subtle bg, auto-fade, slide-up entrance
+  - [ ] **Blocking**: accent border, action buttons, no auto-dismiss
+  - [ ] **Persistent**: warning border, explicit dismiss button required
+- [ ] Delete old snackbar components and `ui/snackbar/` directory entirely
+- [ ] Create [notifications/index.ts](../client/src/ui/notifications/index.ts) barrel
+
+### Phase 8: Tabbed Floating Windows
+
+- [ ] Redesign window state model in `uiState`:
+  - [ ] Replace `openWindows` Map with `windowGroups: Map<groupId, { tabs, activeTabId, position, size, zIndex }>`
+  - [ ] Methods: `openWindow()`, `closeTab()`, `mergeWindow()`, `detachTab()`, `bringToFront()`
+- [ ] Create `TabbedWindow` component:
+  - [ ] Tab bar below title bar when group has >1 tab
+  - [ ] Click tab to switch, context menu to detach tab
+  - [ ] Single-tab groups look identical to current windows (tab bar hidden)
+  - [ ] Active tab content rendered via dynamic component dispatch
+- [ ] Add tab merge UI: context menu on window title bar with "Merge into..." option listing other open windows
+- [ ] Rewrite `FloatingWindowLayer` — iterate `uiState.windowGroups`
+- [ ] Update `FloatingWindow` — refactor as shell inside `TabbedWindow`
+- [ ] Update [window/index.ts](../client/src/ui/window/index.ts) barrel
+- [ ] Implement drag-to-combine: drag window title bar onto another window's tab bar to merge
+- [ ] Implement drag-to-detach: drag tab out of tab bar to create new window group
+
+### Phase 9: Canvas Input & Viewport
+
+- [ ] Update `MainCanvas` — add pointer event handlers:
+  - [ ] Left click: token selection / tool interaction (delegates to current tool mode)
+  - [ ] Middle scroll: zoom in/out toward cursor, update `viewportState.zoom`
+  - [ ] Right click + drag: pan map, suppress context menu, update `viewportState.panOffset`
+  - [ ] Left click + drag on token: token drag (renderer API calls, no-op until renderer is real)
+- [ ] Wire `viewportState` to `QuickStatus` for reactive zoom/pan display
+
+### Phase 10: Seat Permissions
+
+- [ ] Add `seatPermissions` derived state — computes `canSeeGMTools`, `canDragToken(actorId)`, `canOpenRadialMenu(actorId)`, `visibleActorPills`
+- [ ] Gate GM-only UI: `LeftToolbar` GM section, `ActorPills` filtering
+- [ ] Gate token interactions: drag handlers and radial menu check permissions
+
+### Phase 11: Cleanup & Final Documentation
+
+- [ ] Replace remaining emoji icons in play-UI components with Lucide icons
+- [ ] Update all barrel files across `toolbar/`, `sidebar/`, `canvas/`, `notifications/`, `window/`
+- [ ] Update [client.md](../docs/components/client.md) to reflect actual implementation
+- [ ] Update [todo.md](../docs/todo.md) — check off completed phases, note any deferred items
+
+### Deferred (Post-Sprint)
+
+- **Radial menu** — custom SVG/CSS radial on token click; needs renderer + token system first
+- **Pop-out windows** — open floating window in separate browser window for multi-monitor
+- **Drag-and-drop from drawers** — drag Compendium items to sheets, drag actors to map
 
 ---
 
@@ -281,8 +344,8 @@ Known issues organized by area. Items here can be promoted to "Current Projects"
 
 ### State Management
 
-- [ ] `FloatingWindowLayer` maintains separate `$state` disconnected from `uiState.openWindows` [FloatingWindowLayer.svelte](../client/src/ui/window/FloatingWindowLayer.svelte#L10)
-- [ ] `RightSidebar` maintains own `activeDrawer` instead of using `uiState` [RightSidebar.svelte](../client/src/ui/sidebar/RightSidebar.svelte#L17)
+- [ ] `FloatingWindowLayer` maintains separate `$state` disconnected from `uiState.openWindows` — **addressed in Play UI Overhaul Phase 8**
+- [ ] `RightSidebar` maintains own `activeDrawer` instead of using `uiState` — **addressed in Play UI Overhaul Phase 5**
 
 ### API Layer
 
@@ -305,13 +368,10 @@ Known issues organized by area. Items here can be promoted to "Current Projects"
 
 - [ ] AdminTree missing ARIA tree roles [AdminTree.svelte](../client/src/ui/admin/AdminTree.svelte#L81)
 - [ ] ChatLog input has no label [ChatLog.svelte](../client/src/ui/sidebar/ChatLog.svelte#L36)
-- [ ] SettingsDrawer checkboxes lack explicit IDs/`for` [SettingsDrawer.svelte](../client/src/ui/sidebar/SettingsDrawer.svelte#L21)
 - [ ] FloatingWindow drag has no keyboard navigation [FloatingWindow.svelte](../client/src/ui/window/FloatingWindow.svelte#L55)
 - [ ] No focus trap in floating windows or modals
 - [ ] Emoji-only buttons lack `aria-label` throughout admin UI
 - [ ] No skip navigation or landmark roles in PlayLayout
-- [ ] PromptSnackbar buttons have no handlers or ARIA description
-- [ ] NotificationToast close button lacks `aria-label`
 
 ### Stub Implementations
 
@@ -381,5 +441,17 @@ Known issues organized by area. Items here can be promoted to "Current Projects"
 - [ ] `testing.md` entirely aspirational
 - [ ] No `InMemoryBackend` for testing
 - [ ] No test-specific mocks (MockResolveContext, TestRngProvider, TestClock)
+- [ ] Create `vitest.config.ts` in server workspace
+- [ ] Implement `InMemoryBackend` implementing `StorageBackend` interface
+- [ ] Write first test suite: Storage CRUD operations
+  - [ ] Campaign create/read/update/delete
+  - [ ] Seat create/list/update/delete
+  - [ ] Invite create/claim/revoke
+  - [ ] Admin session lifecycle
+- [ ] Verify admin auth flows:
+  - [ ] Test campaign creation with new schema
+  - [ ] Test seat/invite/session CRUD operations
+  - [ ] Test session expiration and cleanup
+  - [ ] Test routing: setup → login → dashboard flows
 
 ---

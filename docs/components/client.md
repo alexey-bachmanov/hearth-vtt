@@ -109,38 +109,61 @@ See [auth-join-flow.md](auth-join-flow.md), [ADR 005](../decisions/005-networkin
 
 ## UI Layout
 
-The client UI is divided into distinct zones. All coordinates assume a standard landscape desktop viewport.
+The Play UI uses a 3-zone layout: left toolbar, central canvas with overlays, and right sidebar. All tool drawers, overlays, and notifications are layered on top of the canvas to maximize map real estate.
+
+Target: desktop and large-format tablets. Touch-friendly button sizes are a consideration but mobile-specific layout is deferred.
 
 ```
-┌─────────────────────────────────────────────────────────────────────────┐
-│                         SnackbarArea (Prompts)                          │
-├───────────────┬─────────────────────────────────────────┬───────────────┤
-│               │                                         │               │
-│   LeftSidebar │           MainCanvas (WebGL)            │  RightSidebar │
-│   (GM only)   │                                         │               │
-│               │                                         │               │
-│               │                                         │               │
-│               │                                         │               │
-│               │                                         │               │
-├───────────────┴─────────────────────────────────────────┴───────────────┤
-│                           BottomToolbar                                 │
-└─────────────────────────────────────────────────────────────────────────┘
-                    ┌─────────────────────────────────────┐
-                    │   FloatingWindowLayer               │
-                    │   (character sheets, etc.)          │
-                    └─────────────────────────────────────┘
+┌────┬──────────────────────────────────────────────┬──────────────┐
+│    │  ┌──QuickStatus──┐       ┌──ActorPills────┐  │              │
+│    │  │ Map • 100% • ●│       │[Kael][Lyra][Thd]│ │              │
+│ L  │  └───────────────┘       └────────────────┘  │              │
+│ e  │                                               │  RightSidebar│
+│ f  │              MainCanvas (WebGL)               │  (Chat/Event │
+│ t  │                                               │   Log only)  │
+│    │                                               │              │
+│ T  │                                               │  Collapsible │
+│ o  │                                               │  ◀ toggle    │
+│ o  │                                               │              │
+│ l  │                                               │              │
+│ b  │  ┌──NotificationArea──────────────────────┐  │              │
+│ a  │  │ [🔌 Reconnecting...] [⚔ Select target] │  │              │
+│ r  │  └───────────────────────────────────────┘   │              │
+└────┴──────────────────────────────────────────────┴──────────────┘
+       ┌───────────────────────────────────────┐
+       │   FloatingWindowLayer (tabbed windows) │
+       └───────────────────────────────────────┘
+
+  ┌────────────────────┐
+  │ ToolDrawer (overlay)│  ← slides out from left toolbar edge
+  │ 320px wide          │     overlays the canvas, does not push it
+  │ One at a time       │
+  └────────────────────┘
 ```
 
 ### Zone Descriptions
 
-| Zone                    | Visibility                      | Purpose                                                           |
-| ----------------------- | ------------------------------- | ----------------------------------------------------------------- |
-| **SnackbarArea**        | All seats                       | Prompts, notifications, concentration indicators, targeting UI    |
-| **LeftSidebar**         | GM only                         | Scene navigator, wall/light editors, actor library                |
-| **MainCanvas**          | All seats                       | WebGL-rendered map, tokens, fog, lighting, effects                |
-| **RightSidebar**        | All seats                       | Chat log, drawers (Compendium, Journal, Settings)                 |
-| **BottomToolbar**       | All seats (filtered by Ruleset) | Dice roller, drawing tools, measurement, ping, initiative tracker |
-| **FloatingWindowLayer** | All seats                       | Draggable windows for sheets, documents, inspectors               |
+| Zone                    | Visibility                   | Purpose                                                                    |
+| ----------------------- | ---------------------------- | -------------------------------------------------------------------------- |
+| **LeftToolbar**         | All seats (GM section gated) | Narrow icon bar with grouped tools; opens drawers on click                 |
+| **ToolDrawer**          | All seats (content gated)    | Slide-out panel overlaying canvas; one drawer open at a time               |
+| **MainCanvas**          | All seats                    | WebGL-rendered map, tokens, fog, lighting, effects                         |
+| **QuickStatus**         | All seats                    | Overlay top-left: map name, zoom, connection status; expands on hover      |
+| **ActorPills**          | All seats (filtered by seat) | Overlay top-right: split-button pills for party-controlled actors          |
+| **NotificationArea**    | All seats                    | Overlay bottom-left: horizontal toast stack for notifications and prompts  |
+| **RightSidebar**        | All seats                    | Chat log / event log only; open by default, collapsible for more map space |
+| **FloatingWindowLayer** | All seats                    | Draggable, tabbed windows for character sheets, documents, inspectors      |
+
+### Canvas Input Model
+
+| Input                    | Action                                                           |
+| ------------------------ | ---------------------------------------------------------------- |
+| Left click on token      | Select token (future: open radial menu)                          |
+| Left click on empty map  | Deselect / current tool action                                   |
+| Left drag on token       | Drag token (permission-gated, with live preview broadcast)       |
+| Middle scroll wheel      | Zoom in/out toward cursor position                               |
+| Right click + drag       | Pan the map (context menu suppressed)                            |
+| Left click + tool active | Tool-specific interaction (measure point, draw annotation, etc.) |
 
 ---
 
@@ -148,84 +171,122 @@ The client UI is divided into distinct zones. All coordinates assume a standard 
 
 ```
 App
-├── SnackbarArea
-│   ├── PromptSnackbar (targeting, reactions, choices)
-│   ├── ConcentrationIndicator (persistent spell tracking)
-│   └── NotificationToast (ephemeral messages)
-│
-├── MainCanvas (WebGL container)
-│   ├── MapLayer (static image or animated video)
-│   ├── GridLayer (square, hex, or none)
-│   ├── ObstructionLayer (walls — visible to GM, used for collision)
-│   ├── FogLayer (explored vs unexplored visibility mask)
-│   ├── TokenLayer (actors with live drag previews)
-│   ├── EffectLayer (persistent AoEs, auras)
-│   ├── AnnotationLayer (drawings, text, measurement previews)
-│   ├── LightingLayer (dynamic lights composited)
-│   ├── TargetingOverlay (reticle for target selection, AoE placement)
-│   └── VFXLayer (transient visual effects from action resolution)
-│
-├── LeftSidebar (GM only)
-│   ├── SceneNavigator (map directory tree, player movement controls)
-│   ├── WallEditor (draw/edit walls, windows, doors)
-│   ├── LightEditor (place/configure light sources)
-│   ├── ActorLibrary (campaign monsters, NPCs — drag to map)
-│   └── [Extensible for future GM tools]
-│
-├── RightSidebar
-│   ├── ChatLog
-│   │   ├── GameEventCard (roll results, damage, chat messages)
-│   │   └── RichEmbed (interactive spell/item cards)
-│   └── DrawerTabs
-│       ├── CompendiumDrawer (search all, browse by Tome)
-│       ├── JournalDrawer (handouts, notes)
-│       ├── SettingsDrawer (UI preferences, audio controls)
-│       └── JukeboxDrawer (stub — audio/ambient sound, TBD)
-│
-├── BottomToolbar (visibility controlled by Ruleset)
-│   ├── DiceRoller (manual rolls — hidden if Ruleset excludes dice)
-│   ├── InitiativeTracker (button opens modal — hidden if Ruleset excludes initiative)
-│   ├── DrawingTools (shapes, freehand, text on map)
-│   ├── MeasurementTool (point-to-point, path, square, circle, cone; public/private toggle)
-│   ├── PingTool (ephemeral map annotations)
-│   └── [Extensible for Ruleset-defined tools]
+├── PlayLayout (3-column CSS grid)
+│   ├── LeftToolbar (narrow 56px vertical icon bar)
+│   │   ├── [Quick Tools — top section]
+│   │   │   ├── DiceRollerDrawer (custom formula + preset buttons + history)
+│   │   │   ├── AnnotationDrawer (shapes, color, weight)
+│   │   │   ├── MeasurementDrawer (modes, grid-aware, public/private)
+│   │   │   ├── InitiativeDrawer (turn order list, show/hide, controls)
+│   │   │   └── JukeboxDrawer (playlist, transport, volume)
+│   │   ├── ── divider ──
+│   │   ├── [Big Tools — middle section]
+│   │   │   ├── JournalDrawer (handouts, notes browser)
+│   │   │   ├── CompendiumDrawer (search, browse by Tome/category)
+│   │   │   └── SettingsDrawer (audio, video, UI preferences)
+│   │   ├── ── divider ──
+│   │   └── [GM Tools — bottom section, seat-gated]
+│   │       ├── LightingDrawer (place/configure light sources)
+│   │       ├── ObstructionDrawer (walls, doors, windows)
+│   │       ├── SceneDrawer (map browser/selector)
+│   │       ├── CampaignPrepDrawer (encounter setup, NPC staging)
+│   │       ├── TokenLibraryDrawer (actor browser, drag to map)
+│   │       └── GameSettingsDrawer (campaign-level game config)
+│   │
+│   ├── ToolDrawer (320px slide-out overlay, one at a time)
+│   │   └── [Renders active drawer content component]
+│   │
+│   ├── Canvas Area (position: relative — anchors overlays)
+│   │   ├── MainCanvas (WebGL container)
+│   │   │   ├── MapLayer (static image or animated video)
+│   │   │   ├── GridLayer (square, hex, or none)
+│   │   │   ├── ObstructionLayer (walls — visible to GM)
+│   │   │   ├── FogLayer (visibility mask)
+│   │   │   ├── TokenLayer (actors with live drag previews)
+│   │   │   ├── EffectLayer (persistent AoEs, auras)
+│   │   │   ├── AnnotationLayer (drawings, measurements)
+│   │   │   ├── LightingLayer (dynamic lights)
+│   │   │   ├── TargetingOverlay (reticle for target selection)
+│   │   │   └── VFXLayer (transient effects)
+│   │   │
+│   │   ├── QuickStatus (top-left overlay)
+│   │   │   ├── Compact: map name + zoom% + connection dot
+│   │   │   └── Expanded (on hover): zoom slider, grid spacing, snap toggle, connection detail
+│   │   │
+│   │   ├── ActorPills (top-right overlay)
+│   │   │   └── ActorPill (split button per party actor)
+│   │   │       ├── Main: actor name, click to center on token
+│   │   │       └── Dropdown: quick stats (HP, AC, status), center, open sheet
+│   │   │
+│   │   └── NotificationArea (bottom-left overlay)
+│   │       └── NotificationCard (per notification)
+│   │           ├── Ephemeral (auto-dismiss toast)
+│   │           ├── Blocking (action required — e.g., target selection)
+│   │           └── Persistent (dismiss required — e.g., concentration)
+│   │
+│   └── RightSidebar (chat/event log only, collapsible)
+│       ├── Header (campaign/map name)
+│       ├── ChatLog (scrollable, not clearable)
+│       │   ├── GameEventCard (roll results, damage, chat messages)
+│       │   └── RichEmbed (interactive spell/item cards)
+│       └── MessageInput (text input + send)
 │
 └── FloatingWindowLayer (z-index: most-recently-clicked on top)
-    ├── CharacterSheet (per-actor, draggable, future: pop-out to separate window)
-    ├── DocumentReader (handouts, rulebook excerpts)
-    ├── ItemInspector (item details)
-    ├── InitiativeModal (sorted turn order, current turn highlighted)
-    └── [Dynamic based on user interaction]
+    └── TabbedWindow (draggable, resizable, combinable)
+        ├── Tab bar (when >1 tab; context menu to merge/detach)
+        ├── CharacterSheet (per-actor stats, inventory, abilities)
+        ├── DocumentReader (handouts, rulebook excerpts)
+        ├── ItemInspector (item details)
+        ├── InitiativeModal (sorted turn order)
+        ├── SpellCard (spell details, cast button)
+        └── [Dynamic based on user interaction]
 ```
 
 ---
 
-## Snackbar / Prompt System
+## Notification System
 
-Prompts from the server (see [shared-types.md](../shared-types.md) `Prompt` type) are rendered as snackbars along the top of the window.
+Notifications are rendered as toast-like cards anchored to the **bottom-left corner** of the canvas area, stacking **left-to-right**. When a notification is dismissed, remaining cards compact leftward with a smooth transition. This replaces the previous SnackbarArea design.
 
-### Prompt Kinds
+### Notification Kinds
 
-| Kind        | Rendering                     | Behavior                                                     |
-| ----------- | ----------------------------- | ------------------------------------------------------------ |
-| `ephemeral` | Toast notification            | Auto-dismisses after timeout                                 |
-| `blocking`  | Snackbar with actions         | Requires user interaction; may show targeting reticle on map |
-| `inline`    | Embedded in another component | Rendered within character sheet or chat card                 |
+| Kind         | Rendering                                | Behavior                                                                      |
+| ------------ | ---------------------------------------- | ----------------------------------------------------------------------------- |
+| `ephemeral`  | Subtle toast, auto-fades                 | Auto-dismisses after timeout (e.g., "Connection restored"). No close btn      |
+| `blocking`   | Accent-bordered card with action buttons | Requires user interaction (e.g., "Select a target" + Cancel). No auto-dismiss |
+| `persistent` | Warning-bordered card with dismiss btn   | Requires explicit dismiss (e.g., "Concentrating on Wall of Fire — [Drop]")    |
+| `inline`     | Embedded in another component            | Rendered within character sheet or chat card (unchanged from prior design)    |
 
 ### Targeting Flow Example
 
 1. Player clicks "Attack" on character sheet
 2. Server sends `Prompt` with `kind: 'blocking'`, targeting spec in payload
-3. Client renders snackbar: "Select a target" with Cancel button
-4. Client activates `TargetingOverlay` with reticle cursor
+3. Client pushes blocking notification: "Select a target" with Cancel button
+4. Client activates `TargetingOverlay` with reticle cursor on canvas
 5. Player clicks token on map
 6. Client sends `WorkflowInput` with target selection
 7. Server resolves attack, broadcasts `GameEvent`
-8. Snackbar closes, targeting overlay deactivates
+8. Notification dismissed, targeting overlay deactivated
 
 ### Persistent Indicators
 
-Some prompts represent ongoing states (e.g., "Concentrating on Wall of Fire"). These render as persistent snackbars until the effect ends or is dismissed.
+Ongoing state effects (e.g., "Concentrating on Wall of Fire") are rendered as `persistent` notifications. They remain until the effect ends server-side or the user explicitly dismisses them.
+
+### Notification State
+
+Managed by `notificationState` store:
+
+```ts
+interface Notification {
+  id: string;
+  kind: 'ephemeral' | 'blocking' | 'persistent';
+  message: string;
+  actions?: { label: string; callback: () => void }[];
+  timeout?: number; // ms, for ephemeral only
+}
+```
+
+Methods: `push(notification)`, `dismiss(id)`, `clear()`. Ephemeral notifications automatically remove themselves after their timeout.
 
 ---
 
@@ -287,44 +348,177 @@ GameEvent cards support interactive embeds:
 
 ## Floating Windows
 
-Non-persistent, draggable windows for detailed views.
+Non-persistent, draggable, **tabbed** windows for detailed views. Windows can be combined into tab groups for efficient screen management.
 
 ### Window Behavior
 
-- **Z-order:** Most recently clicked window is on top
+- **Z-order:** Most recently clicked window group is on top
 - **Draggable:** Title bar drag to reposition
 - **Resizable:** (Optional) corner drag to resize
-- **Close:** X button or Escape key
+- **Close:** X button or Escape key closes the active tab (whole group if last tab)
+- **Tab combining:** Right-click window title bar → "Merge into..." menu lists other open windows. Dragging a window's title bar onto another window's tab bar also merges them (implemented after context-menu merge)
+- **Tab detaching:** Right-click a tab → "Detach" to pull it out into its own window group. Or drag a tab out of the tab bar
 - **Pop-out:** (Future) Button to open in separate browser window (multi-monitor support)
+
+### Tab Groups
+
+A window group contains one or more tabs. Single-tab groups look identical to plain windows (tab bar is hidden or minimal). Multi-tab groups show a tab bar below the title:
+
+```
+┌──────────────────────────────────┐
+│  Active Tab Title            ─ □ X │
+├─────────┬─────────┬──────────────┤
+│ Sheet A │ Sheet B │ Item Card    │  ← tab bar (only when >1 tab)
+├─────────┴─────────┴──────────────┤
+│                                  │
+│       Active Tab Content         │
+│                                  │
+└──────────────────────────────────┘
+```
+
+### Window State Model
+
+```ts
+interface WindowGroup {
+  id: string;
+  tabs: WindowTab[];
+  activeTabId: string;
+  position: { x: number; y: number };
+  size: { width: number; height: number };
+  zIndex: number;
+}
+
+interface WindowTab {
+  id: string;
+  title: string;
+  componentType: string; // 'CharacterSheet' | 'DocumentReader' | etc.
+  props: Record<string, unknown>;
+}
+```
+
+Managed by `uiState.windowGroups`. Methods: `openWindow()`, `closeTab()`, `mergeWindow(sourceGroupId, targetGroupId)`, `detachTab(groupId, tabId)`, `bringToFront(groupId)`.
 
 ### Window Types
 
 | Window          | Opened By                               | Content                                 |
 | --------------- | --------------------------------------- | --------------------------------------- |
-| CharacterSheet  | Click token, click actor in sidebar     | Actor stats, inventory, abilities       |
-| DocumentReader  | Click handout in Journal                | Formatted document content              |
+| CharacterSheet  | Click token, click actor pill dropdown  | Actor stats, inventory, abilities       |
+| DocumentReader  | Click handout in Journal drawer         | Formatted document content              |
 | ItemInspector   | Click item in Compendium or inventory   | Item stats, description                 |
 | InitiativeModal | Click initiative button in toolbar      | Turn order list, current turn highlight |
 | SpellCard       | Click spell in Compendium or chat embed | Spell details, cast button              |
 
 ---
 
+## Left Toolbar & Drawer System
+
+The left toolbar is a narrow vertical icon bar (56px wide) that replaces the previous BottomToolbar and LeftSidebar. All tools are accessed through icons that open slide-out drawer panels.
+
+### Toolbar Layout
+
+Icons are arranged top-to-bottom in three sections separated by dividers. Each icon uses Lucide SVG icons with a custom `Tooltip` component for accessible hover labels.
+
+| Section         | Visibility | Tools                                                                               |
+| --------------- | ---------- | ----------------------------------------------------------------------------------- |
+| **Quick Tools** | All seats  | Dice roller, Map annotation, Measurement, Initiative show/hide, Jukebox             |
+| **Big Tools**   | All seats  | Campaign journal, Player compendium, Settings                                       |
+| **GM Tools**    | GM only    | Lighting, Obstructions, Scene selector, Campaign prep, Token library, Game settings |
+
+### Drawer Behavior
+
+- Clicking a toolbar icon toggles its drawer panel open/closed
+- Clicking a different icon switches to that drawer (one open at a time)
+- Drawer slides out (320px) from the toolbar's right edge, **overlaying** the canvas
+- Smooth CSS transition (`transform: translateX`) for open/close animation
+- Dismissed via: click the same icon again, click outside drawer, or press Escape
+- Drawer has a header (title + close button) and scrollable content area
+
+### Ruleset-Controlled Visibility
+
+The loaded Ruleset can hide specific toolbar icons. For example, a diceless game can hide the dice roller, a narrative game can hide initiative. Icons not enabled by the Ruleset are simply omitted from the toolbar.
+
+```ts
+// Example Ruleset UI config (structure TBD)
+{
+  toolbar: {
+    diceRoller: true,
+    initiativeTracker: true,
+    measurementTool: true,
+    jukebox: true,
+    // ...
+  }
+}
+```
+
+---
+
+## Actor Pills
+
+Party-controlled actors are represented as **split-button pills** positioned in the **top-right corner** of the canvas area.
+
+### Behavior
+
+- **Main button**: Shows actor name (truncated if needed) + optional class icon. Click centers the map on that actor's token via the renderer API
+- **Dropdown caret**: Opens a flyout panel with:
+  - **Quick stats**: HP bar, AC value, active status indicators (e.g., concentration icon). Stats are ruleset-determined (D&D example: HP, AC, concentration; other systems may differ)
+  - **Center on Token** button
+  - **Open Character Sheet** button (opens a floating window)
+
+### Seat Permissions
+
+- Players see pills for their own party actors only
+- GM sees pills for all party actors (or none, based on preference)
+- Players do **not** see pills for GM-controlled actors (NPCs, monsters)
+- Pill data is `$derived` from `campaignState` filtered by seat ownership
+
+---
+
+## Quick Status Overlay
+
+Unobtrusive status information positioned in the **top-left corner** of the canvas area.
+
+### Compact Mode (Default)
+
+Low opacity (~0.4). Displays:
+
+- Map name
+- Zoom percentage
+- Connection status dot (green = connected, red = disconnected)
+
+### Expanded Mode (On Hover)
+
+Opacity increases to 1.0. Panel expands downward to show:
+
+- Map name (full, untruncated)
+- Zoom level with slider control
+- Grid spacing (e.g., "5ft square grid", "5mi hex grid")
+- Snap to grid toggle
+- Connection status with text label
+
+### Data Sources
+
+- Map name, grid spacing, grid type: from `viewportState` (populated by renderer/scene data)
+- Zoom level: from `viewportState.zoom` (updated by scroll wheel handler)
+- Connection status: from `connectionState.status`
+
+---
+
 ## Compendium Drawer
 
-The Compendium drawer provides access to all loaded Tomes.
+Accessed via the Compendium icon in the left toolbar's "Big Tools" section.
 
 ### Features
 
 - **Global search:** Search across entire Compendium (all Tomes)
 - **Browse by Tome:** Expand individual Tome, browse by category (spells, items, monsters, etc.)
 - **Filters:** Filter by type, level, tags, etc.
-- **Drag-and-drop:** Drag items/spells to character sheets, drag monsters to map (GM only)
+- **Drag-and-drop:** (Future) Drag items/spells to character sheets, drag monsters to map (GM only)
 
 ---
 
 ## Measurement Tools
 
-Located in the bottom toolbar. Support multiple grid types.
+Accessed via the Measurement icon in the left toolbar's "Quick Tools" section. Opens a drawer with mode selection and options.
 
 ### Measurement Modes
 
@@ -351,28 +545,9 @@ Each measurement can be:
 
 ---
 
-## Ruleset-Controlled UI
+## Audio / Jukebox
 
-The loaded Ruleset specifies which toolbar items are visible:
-
-```ts
-// Example Ruleset UI config (structure TBD)
-{
-  toolbar: {
-    diceRoller: true,
-    initiativeTracker: true,
-    measurementTool: true,
-    pingTool: true,
-    // ...
-  }
-}
-```
-
-If a tool is disabled by the Ruleset, it is hidden from the toolbar. This allows deterministic/diceless games to hide the dice roller, narrative games to hide initiative, etc.
-
----
-
-## Audio / Jukebox (Stub)
+Accessed via the Jukebox icon in the left toolbar's "Quick Tools" section.
 
 > **⚠️ TBD:** Audio implementation details are not yet defined.
 
@@ -383,7 +558,36 @@ Planned features:
 - GM-controlled music playlist (jukebox)
 - Per-seat volume controls
 
-Location: Either in RightSidebar drawers or BottomToolbar. Decision deferred.
+---
+
+## Seat Permissions
+
+All play UI elements are gated by the current seat's role. Permissions are computed as `$derived` state from `connectionState.seatId` and `campaignState`.
+
+| Permission             | GM  | Player | Spectator |
+| ---------------------- | --- | ------ | --------- |
+| See GM toolbar section | ✅  | ❌     | ❌        |
+| Drag own tokens        | ✅  | ✅     | ❌        |
+| Drag GM tokens         | ✅  | ❌     | ❌        |
+| Open radial menu (own) | ✅  | ✅     | ❌        |
+| Open radial menu (GM)  | ✅  | ❌     | ❌        |
+| See party actor pills  | ✅  | ✅     | ✅        |
+| See GM actor pills     | ❌  | ❌     | ❌        |
+| Open GM-only drawers   | ✅  | ❌     | ❌        |
+| Send chat messages     | ✅  | ✅     | ❌        |
+
+---
+
+## Token Radial Menu (Deferred)
+
+> **Deferred** until the WebGL renderer and token system are implemented.
+
+Left-clicking a token will open a small custom SVG/CSS radial menu centered on the token's screen position. Initial menu segments:
+
+- **Open Character Sheet** — opens associated actor's sheet in a floating window
+- (Additional actions TBD — attack, interact, inspect, etc.)
+
+Coordinate translation between WebGL canvas coordinates and DOM overlay coordinates is handled via a renderer API method (`tokenScreenPosition(tokenId)`). Click outside or Escape to dismiss.
 
 ---
 
@@ -391,30 +595,36 @@ Location: Either in RightSidebar drawers or BottomToolbar. Decision deferred.
 
 ### Keyboard Shortcuts
 
-Keyboard shortcuts for common actions (e.g., Escape to close windows, R to roll dice). Implementation deferred; reserve keybinding system architecture.
+Keyboard shortcuts for common actions (e.g., Escape to close windows/drawers, R to roll dice). Implementation deferred; reserve keybinding system architecture.
 
 ### Multi-Window / Pop-Out
 
-Allow floating windows to be "popped out" into separate browser windows for multi-monitor setups. Important for GMs managing many windows.
+Allow floating windows to be "popped out" into separate browser windows for multi-monitor setups. Important for GMs managing many windows. The tabbed window architecture makes this straightforward — detach a tab group into a `window.open()` context.
+
+### Drag-and-Drop from Drawers
+
+Drag Compendium items to character sheet windows, drag actors from token library to map. Requires coordination between DOM drag events and the WebGL renderer's drop zone.
 
 ### Mobile / Touch
 
 Touch input support for tablets. Considerations:
 
-- Touch-friendly button sizes
+- Touch-friendly button sizes (toolbar icons already sized for touch at 56px)
 - Gesture support (pinch to zoom map, two-finger pan)
 - Responsive layout for portrait/landscape
 
-Mark touch compatibility as a requirement during implementation of each tool.
+Mark touch compatibility as a requirement during implementation of each tool. Mobile-specific layout deferred.
 
 ### Accessibility
 
-- ARIA labels on all interactive elements
+- ARIA labels on all interactive elements (Lucide icons get `aria-label` via `Icon` wrapper)
 - Keyboard navigation for DOM UI
+- Custom `Tooltip` component provides accessible labels for icon-only buttons
 - High-contrast mode option
 - Colorblind-friendly token indicators (shapes, patterns, not just colors)
+- Focus trap in floating windows and drawers
 
-Implementation deferred to after basic application is functional.
+Implementation addressed incrementally as components are built.
 
 ---
 
@@ -538,24 +748,61 @@ See [realtime-ws.md](../protocols/realtime-ws.md) for the complete WebSocket Sec
 
 ## State Management
 
-Client state is managed in stores (Svelte stores or similar reactive primitives).
+Client state is managed via Svelte 5 rune-based reactive classes. Each store is a singleton class instance using `$state()` for reactive properties.
 
 ### Store Categories
 
-| Store             | Contents                                           | Updated By             |
-| ----------------- | -------------------------------------------------- | ---------------------- |
-| `campaignState`   | Current entity state (actors, tokens, scenes)      | Server deltas          |
-| `eventLog`        | Recent GameEvents for chat display                 | Server event broadcast |
-| `uiState`         | Local UI state (open windows, selected tool, etc.) | User interaction       |
-| `connectionState` | WSS connection status, sync state, protocol info   | API layer              |
+| Store               | Contents                                                              | Updated By                    |
+| ------------------- | --------------------------------------------------------------------- | ----------------------------- |
+| `campaignState`     | Actors, tokens, scenes, effects, seat role information                | Server deltas, mock data      |
+| `eventLogState`     | Recent GameEvents for chat display                                    | Server event broadcast        |
+| `uiState`           | Active drawer, window groups, sidebar collapse state                  | User interaction              |
+| `connectionState`   | WSS connection status, sync state, protocol info, seat ID             | API layer                     |
+| `viewportState`     | Zoom level, pan offset, grid spacing/type, snap toggle, map name      | Canvas input handlers         |
+| `notificationState` | Ordered array of active notifications (ephemeral/blocking/persistent) | Server prompts, system events |
+| `adminAuth`         | CSRF token for admin UI (unchanged)                                   | Admin auth flow               |
+
+### CampaignState
+
+The `campaignState` store is the central source of truth for all game entity data. Components read from it the same way they will when connected to the real server — using typed accessor methods, not inline mock data.
+
+```ts
+class CampaignState {
+  campaignId = $state<string | null>(null);
+  actors = $state<Map<string, Actor>>(new Map());
+  tokens = $state<Map<string, Token>>(new Map());
+  scenes = $state<Map<string, Scene>>(new Map());
+
+  getActor(id: string): Actor | undefined;
+  getToken(id: string): Token | undefined;
+  getScene(id: string): Scene | undefined;
+  getPartyActors(): Actor[];
+  getActorsForSeat(seatId: string): Actor[];
+  setInitialState(bundle: SyncBundle): void;
+  applyDelta(delta: StateDelta): void;
+}
+```
+
+### Seat Permissions (Derived)
+
+Seat permissions are computed reactively from `connectionState.seatId` and `campaignState`:
+
+```ts
+// Conceptual — computed via $derived
+const seatPermissions = $derived({
+  canSeeGMTools: seatRole === 'gm',
+  canDragToken: (actorId: string) => /* ownership check */,
+  visibleActorPills: /* filtered party actors */,
+});
+```
 
 ### Sync Flow
 
 1. On connect, server sends `sync.initial` with CampaignState + recent EventRecord
-2. Client populates stores
+2. Client calls `campaignState.setInitialState()` and `eventLogState.setEvents()`
 3. Server sends `sync.delta` (patches) and `event.new` (GameEvents) as changes occur
-4. Client applies patches to `campaignState`, appends events to `eventLog`
-5. UI reactively updates based on store changes
+4. Client calls `campaignState.applyDelta()`, `eventLogState.addEvent()`
+5. UI reactively updates based on store changes via `$derived` runes
 
 ---
 
@@ -564,21 +811,34 @@ Client state is managed in stores (Svelte stores or similar reactive primitives)
 ```
 client/
 ├── src/
-│   ├── api/           # HTTP/WS client, action dispatch
-│   ├── app/           # Application orchestration, routing
-│   ├── domain/        # Pure domain helpers (no framework deps)
-│   ├── render/        # WebGL renderer (stable public API)
-│   ├── state/         # Reactive stores
-│   ├── ui/            # Svelte components
-│   │   ├── canvas/    # MainCanvas wrapper
-│   │   ├── chat/      # ChatLog, GameEventCard
-│   │   ├── drawers/   # Compendium, Journal, Settings
-│   │   ├── sidebar/   # LeftSidebar, RightSidebar
-│   │   ├── snackbar/  # PromptSnackbar, notifications
-│   │   ├── toolbar/   # BottomToolbar, tool components
-│   │   └── windows/   # Floating windows (sheets, readers)
-│   └── util/          # Pure utilities
-└── dist/              # Built bundle (served by server)
+│   ├── api/               # HTTP/WS client, action dispatch
+│   ├── app/               # Application orchestration, routing
+│   ├── domain/            # Pure domain helpers (no framework deps)
+│   ├── render/            # WebGL renderer (stable public API)
+│   ├── state/             # Reactive stores
+│   │   ├── admin.svelte.ts
+│   │   ├── campaign.svelte.ts
+│   │   ├── connection.svelte.ts
+│   │   ├── event-log.svelte.ts
+│   │   ├── notifications.svelte.ts
+│   │   ├── ui.svelte.ts
+│   │   └── viewport.svelte.ts
+│   ├── styles/            # Global CSS tokens and component classes
+│   │   ├── tokens.css
+│   │   └── components.css
+│   ├── ui/                # Svelte components
+│   │   ├── admin/         # Admin UI (unchanged)
+│   │   ├── auth/          # Join/login pages
+│   │   ├── canvas/        # MainCanvas, QuickStatus, ActorPills
+│   │   ├── layout/        # PlayLayout, AdminLayout
+│   │   ├── notifications/ # NotificationArea, NotificationCard
+│   │   ├── shared/        # Icon, Tooltip, reusable primitives
+│   │   ├── sidebar/       # RightSidebar, ChatLog, GameEventCard
+│   │   ├── toolbar/       # LeftToolbar, ToolDrawer
+│   │   │   └── drawers/   # All drawer content components
+│   │   └── window/        # FloatingWindowLayer, TabbedWindow, FloatingWindow, content windows
+│   └── util/              # Pure utilities
+└── dist/                  # Built bundle (served by server)
 ```
 
 ---
