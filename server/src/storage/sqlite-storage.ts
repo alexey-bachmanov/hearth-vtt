@@ -230,6 +230,9 @@ export class SqliteStorage implements StorageBackend {
       // Enable foreign key enforcement
       db.pragma('foreign_keys = ON');
 
+      // Enable WAL mode for better concurrency
+      db.pragma('journal_mode = WAL');
+
       this.initCampaignDb(db);
       this.campaignDbs.set(campaignId, db);
     }
@@ -246,6 +249,9 @@ export class SqliteStorage implements StorageBackend {
 
     // Enable foreign key enforcement
     this.metadataDb.pragma('foreign_keys = ON');
+
+    // Enable WAL mode for better concurrency
+    this.metadataDb.pragma('journal_mode = WAL');
 
     this.initMetadataDb();
   }

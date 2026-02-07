@@ -52,9 +52,9 @@ As work completes, check off tasks and archive completed projects to keep this d
   - [x] Close `metadataDb` connection
   - [x] Close all `campaignDbs` connections
   - [x] Call from shutdown handler
-- [ ] Enable SQLite WAL mode
-  - [ ] Add `PRAGMA journal_mode=WAL` to metadata DB init
-  - [ ] Add same pragma to campaign DB init
+- [x] Enable SQLite WAL mode
+  - [x] Add `PRAGMA journal_mode=WAL` to metadata DB init
+  - [x] Add same pragma to campaign DB init
 - [ ] Fix `StorageBackend.createAdminSession` interface — add missing `csrfToken` parameter in [storage.ts](../server/src/storage/storage.ts#L197)
 - [ ] Read version from package.json in [health.ts](../server/src/routes/health.ts#L13) instead of hardcoding
 - [ ] Persist `COOKIE_SECRET`
@@ -102,7 +102,7 @@ As work completes, check off tasks and archive completed projects to keep this d
 - [ ] Remove `role: 'admin'` from mock data in [seats.ts](../server/src/routes/seats.ts#L26)
 - [ ] Document `GET /api/info` endpoint in [http-api.md](../docs/protocols/http-api.md)
 - [ ] Document CORS configuration and SPA fallback behavior
-- [ ] Align TypeScript versions across workspaces to single version
+- [x] Align TypeScript versions across workspaces to single version
 
 ### Phase 5: Build Fixes
 
@@ -361,7 +361,7 @@ Known issues organized by area. Items here can be promoted to "Current Projects"
 
 ### Configuration
 
-- [ ] TypeScript versions inconsistent across workspaces (root/server `^5.3.3`, client `^5.9.3`, ADR says `^5.6.3`)
+- [x] TypeScript versions inconsistent across workspaces (root/server `^5.3.3`, client `^5.9.3`, ADR says `^5.6.3`) — now standardized to `^5.9.3`
 - [ ] `declaration: true` generates unnecessary `.d.ts` files [tsconfig.json](../server/tsconfig.json)
 - [ ] No `noUncheckedIndexedAccess` in tsconfig
 - [ ] `moduleResolution: "bundler"` may conflict with bare `.js` imports
