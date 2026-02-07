@@ -78,7 +78,7 @@ As work completes, check off tasks and archive completed projects to keep this d
   - [x] `--color-bg-hover`
   - [x] `--color-border-hover`
   - [x] `--radius-xs`
-- [ ] Fix JoinPage error handling — replace `catch` block checking `err.status` with `response.ok` pattern in [JoinPage.svelte](../client/src/ui/auth/JoinPage.svelte#L37)
+- [x] Fix JoinPage error handling — replace `catch` block checking `err.status` with `response.ok` pattern in [JoinPage.svelte](../client/src/ui/auth/JoinPage.svelte#L37)
 - [ ] Update stale barrel files
   - [ ] Fix [canvas/index.ts](../client/src/ui/canvas/index.ts) to export MainCanvas
   - [ ] Fix [snackbar/index.ts](../client/src/ui/snackbar/index.ts) to export components

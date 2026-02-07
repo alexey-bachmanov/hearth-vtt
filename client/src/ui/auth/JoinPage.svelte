@@ -40,7 +40,30 @@ async function handleSubmit(event: Event) {
     console.log('Claiming invite:', { token, pin });
     
     // Simulate API call
-    await new Promise(resolve => setTimeout(resolve, 1000));
+    const response = await new Promise<Response>((resolve) => {
+      setTimeout(() => {
+        // Mock successful response
+        resolve(new Response(JSON.stringify({ success: true }), { 
+          status: 200,
+          headers: { 'Content-Type': 'application/json' }
+        }));
+      }, 1000);
+    });
+
+    if (!response.ok) {
+      // Handle HTTP error status codes
+      if (response.status === 404) {
+        error = 'Invite not found or has expired';
+      } else if (response.status === 409) {
+        error = 'This invite has already been claimed';
+      } else if (response.status === 403) {
+        error = 'Incorrect PIN';
+      } else {
+        error = 'An error occurred. Please try again.';
+      }
+      isLoading = false;
+      return;
+    }
     
     // Mock success - TODO: Handle actual response
     success = true;
@@ -49,17 +72,10 @@ async function handleSubmit(event: Event) {
     setTimeout(() => {
       window.location.href = '/play';
     }, 2000);
-  } catch (err: any) {
-    // Handle various error cases
-    if (err.status === 404) {
-      error = 'Invite not found or has expired';
-    } else if (err.status === 409) {
-      error = 'This invite has already been claimed';
-    } else if (err.status === 403) {
-      error = 'Incorrect PIN';
-    } else {
-      error = 'An error occurred. Please try again.';
-    }
+  } catch (err) {
+    // Network error or parse error
+    error = 'Failed to connect to server. Please try again.';
+    isLoading = false;
   } finally {
     isLoading = false;
   }
