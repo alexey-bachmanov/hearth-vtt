@@ -33,7 +33,7 @@ interface Props {
 let { campaignId, onBack, onSelectSeat }: Props = $props();
 
 // Mock campaign data - in real app, loaded from API
-let campaign = $derived<Campaign>({
+let campaign = $state<Campaign>({
   id: campaignId,
   name: 'Lost Mines of Phandelver',
   createdAt: '2026-01-15T10:00:00Z',

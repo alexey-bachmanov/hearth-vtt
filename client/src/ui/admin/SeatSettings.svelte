@@ -39,7 +39,7 @@ interface Props {
 let { seatId, onBack }: Props = $props();
 
 // Mock seat data - in real app, loaded from API
-let seat = $derived<Seat>({
+let seat = $state<Seat>({
   id: seatId,
   campaignId: 'campaign-1',
   displayName: 'Player 1',

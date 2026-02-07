@@ -6,7 +6,7 @@
  */
 
 // Mock window state - TODO: Wire to uiState
-const openWindows = $state<Array<{id: string, type: string, zIndex: number}>>([]);
+let openWindows = $state<Array<{id: string, type: string, zIndex: number}>>([]);
 
 // Example: openWindows could contain:
 // { id: 'char-1', type: 'character', zIndex: 200 }

@@ -11,9 +11,9 @@ import NotificationToast from './NotificationToast.svelte';
 import ConcentrationIndicator from './ConcentrationIndicator.svelte';
 
 // TODO: Wire to prompt/notification state
-const hasPrompts = $state(false);
-const hasNotifications = $state(false);
-const hasConcentration = $state(false);
+let hasPrompts = $state(false);
+let hasNotifications = $state(false);
+let hasConcentration = $state(false);
 </script>
 
 <div class="snackbar-area">

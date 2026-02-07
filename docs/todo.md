@@ -82,10 +82,11 @@ As work completes, check off tasks and archive completed projects to keep this d
 - [x] Update stale barrel files
   - [x] Fix [canvas/index.ts](../client/src/ui/canvas/index.ts) to export MainCanvas
   - [x] Fix [snackbar/index.ts](../client/src/ui/snackbar/index.ts) to export components
-- [ ] Fix Svelte rune misuse
-  - [ ] Change static `$derived` to `$state` in CampaignDetail
-  - [ ] Change static `$derived` to `$state` in SeatSettings
-  - [ ] Fix immutable `$state` on `const` in PlayLayout and SnackbarArea
+- [x] Fix Svelte rune misuse
+  - [x] Change static `$derived` to `$state` in CampaignDetail
+  - [x] Change static `$derived` to `$state` in SeatSettings
+  - [x] Fix immutable `$state` on `const` in PlayLayout and SnackbarArea
+  - [x] Fix immutable `$state` on `const` in FloatingWindowLayer
 - [ ] Remove commented-out code
   - [ ] Clean commented imports in [ws.ts](../client/src/api/ws.ts#L21)
   - [ ] Remove unused `renderer` import in [MainCanvas.svelte](../client/src/ui/canvas/MainCanvas.svelte#L17)

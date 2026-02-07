@@ -20,7 +20,7 @@ import { BottomToolbar } from '../toolbar';
 import { FloatingWindowLayer } from '../window';
 
 // TODO: Get from auth/session state
-const isGM = $state(true); // Placeholder for role detection
+let isGM = $state(true); // Placeholder for role detection
 </script>
 
 <div class="play-layout">
