@@ -34,9 +34,9 @@ As work completes, check off tasks and archive completed projects to keep this d
 - [x] Configure `trustProxy` from `TRUST_PROXY` env var in [server.ts](../server/src/server.ts#L79) for rate limiting behind proxies
 - [x] Add rate limit map cleanup
   - [x] Create periodic sweep (hourly) to remove expired entries from `rateLimitMap` in [admin-auth.ts](../server/src/routes/admin-auth.ts#L33)
-- [ ] Enable SQLite foreign keys
-  - [ ] Add `PRAGMA foreign_keys = ON` in `SqliteStorage.init()` [sqlite-storage.ts](../server/src/storage/sqlite-storage.ts)
-  - [ ] Add same pragma in `getOrCreateCampaignDb()`
+- [x] Enable SQLite foreign keys
+  - [x] Add `PRAGMA foreign_keys = ON` in `SqliteStorage.init()` [sqlite-storage.ts](../server/src/storage/sqlite-storage.ts)
+  - [x] Add same pragma in `getOrCreateCampaignDb()`
 - [ ] Add `campaignId` format validation
   - [ ] Verify UUID format in `getOrCreateCampaignDb` before constructing paths (defense against path traversal)
 

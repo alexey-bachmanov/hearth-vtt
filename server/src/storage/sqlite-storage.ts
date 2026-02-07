@@ -204,6 +204,10 @@ export class SqliteStorage implements StorageBackend {
     if (!db) {
       const dbPath = this.getCampaignDbPath(campaignId);
       db = new Database(dbPath);
+
+      // Enable foreign key enforcement
+      db.pragma('foreign_keys = ON');
+
       this.initCampaignDb(db);
       this.campaignDbs.set(campaignId, db);
     }
@@ -217,6 +221,10 @@ export class SqliteStorage implements StorageBackend {
   async init(): Promise<void> {
     const metadataPath = this.getMetadataDbPath();
     this.metadataDb = new Database(metadataPath);
+
+    // Enable foreign key enforcement
+    this.metadataDb.pragma('foreign_keys = ON');
+
     this.initMetadataDb();
   }
 
