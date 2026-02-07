@@ -32,8 +32,8 @@ As work completes, check off tasks and archive completed projects to keep this d
 - [x] Make admin cookie `secure` conditional on environment
   - [x] Change `secure: true` to `secure: process.env.NODE_ENV === 'production'` in [admin-auth.ts](../server/src/routes/admin-auth.ts#L375)
 - [x] Configure `trustProxy` from `TRUST_PROXY` env var in [server.ts](../server/src/server.ts#L79) for rate limiting behind proxies
-- [ ] Add rate limit map cleanup
-  - [ ] Create periodic sweep (hourly) to remove expired entries from `rateLimitMap` in [admin-auth.ts](../server/src/routes/admin-auth.ts#L33)
+- [x] Add rate limit map cleanup
+  - [x] Create periodic sweep (hourly) to remove expired entries from `rateLimitMap` in [admin-auth.ts](../server/src/routes/admin-auth.ts#L33)
 - [ ] Enable SQLite foreign keys
   - [ ] Add `PRAGMA foreign_keys = ON` in `SqliteStorage.init()` [sqlite-storage.ts](../server/src/storage/sqlite-storage.ts)
   - [ ] Add same pragma in `getOrCreateCampaignDb()`

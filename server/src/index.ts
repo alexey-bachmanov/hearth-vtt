@@ -3,6 +3,7 @@ import { buildServer } from './server.js';
 import { ensureDataDir } from './storage/ensure-dirs.js';
 import { Storage } from './storage/index.js';
 import { ensureServerAdminSetup } from './auth/setup-pin.js';
+import { startRateLimitCleanup } from './routes/admin-auth.js';
 
 const PORT = parseInt(process.env.PORT || '3000', 10);
 const HOST = process.env.HOST || '127.0.0.1';
@@ -28,6 +29,9 @@ async function main() {
       level: process.env.LOG_LEVEL || 'info',
     },
   });
+
+  // Start rate limit cleanup (runs hourly)
+  startRateLimitCleanup();
 
   try {
     await server.listen({ port: PORT, host: HOST });

@@ -34,6 +34,53 @@ const MAX_PASSWORD_LENGTH = 1024; // bytes - prevent HashDoS via expensive scryp
  */
 const rateLimitMap = new Map<string, { count: number; resetAt: number }>();
 
+/**
+ * Removes expired entries from the rate limit map.
+ * Called periodically to prevent unbounded memory growth.
+ *
+ * Side effects:
+ * - Deletes entries from rateLimitMap where resetAt has passed
+ */
+function cleanupExpiredRateLimits(): void {
+  const now = Date.now();
+  let removedCount = 0;
+
+  for (const [key, record] of rateLimitMap.entries()) {
+    if (record.resetAt < now) {
+      rateLimitMap.delete(key);
+      removedCount++;
+    }
+  }
+
+  // Log cleanup activity for monitoring (can be removed or gated by log level later)
+  if (removedCount > 0) {
+    console.log(
+      `[Rate Limit Cleanup] Removed ${removedCount} expired entries. ${rateLimitMap.size} entries remaining.`,
+    );
+  }
+}
+
+/**
+ * Starts periodic cleanup of expired rate limit entries.
+ * Should be called once during server startup.
+ *
+ * @returns Interval ID that can be used to stop cleanup via clearInterval
+ */
+export function startRateLimitCleanup(): NodeJS.Timeout {
+  const CLEANUP_INTERVAL_MS = 60 * 60 * 1000; // 1 hour
+
+  // Run initial cleanup
+  cleanupExpiredRateLimits();
+
+  // Schedule periodic cleanup
+  const intervalId = setInterval(cleanupExpiredRateLimits, CLEANUP_INTERVAL_MS);
+
+  // Ensure interval doesn't prevent process exit
+  intervalId.unref();
+
+  return intervalId;
+}
+
 interface CheckSetupResponse {
   needsSetup: boolean;
   setupPinExpired: boolean;
