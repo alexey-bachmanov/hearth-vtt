@@ -17,9 +17,6 @@
  */
 
 import { connectionState } from '../state/connection.svelte';
-// TODO: Uncomment when implementing full message handling
-// import { campaignState } from '../state/campaign.svelte';
-// import { eventLogState } from '../state/event-log.svelte';
 
 /**
  * WebSocket message types (Server → Client).

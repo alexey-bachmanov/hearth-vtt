@@ -87,9 +87,8 @@ As work completes, check off tasks and archive completed projects to keep this d
   - [x] Change static `$derived` to `$state` in SeatSettings
   - [x] Fix immutable `$state` on `const` in PlayLayout and SnackbarArea
   - [x] Fix immutable `$state` on `const` in FloatingWindowLayer
-- [ ] Remove commented-out code
-  - [ ] Clean commented imports in [ws.ts](../client/src/api/ws.ts#L21)
-  - [ ] Remove unused `renderer` import in [MainCanvas.svelte](../client/src/ui/canvas/MainCanvas.svelte#L17)
+- [x] Remove commented-out code
+  - [x] Clean commented imports in [ws.ts](../client/src/api/ws.ts#L21)
 
 ### Phase 4: Documentation Sync
 
