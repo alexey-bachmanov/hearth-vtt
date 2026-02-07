@@ -13,12 +13,11 @@
  * Uses CSS Grid for layout management.
  */
 
-import SnackbarArea from '../snackbar/SnackbarArea.svelte';
-import LeftSidebar from '../sidebar/LeftSidebar.svelte';
-import MainCanvas from '../canvas/MainCanvas.svelte';
-import RightSidebar from '../sidebar/RightSidebar.svelte';
-import BottomToolbar from '../toolbar/BottomToolbar.svelte';
-import FloatingWindowLayer from '../window/FloatingWindowLayer.svelte';
+import { SnackbarArea } from '../snackbar';
+import { LeftSidebar, RightSidebar } from '../sidebar';
+import { MainCanvas } from '../canvas';
+import { BottomToolbar } from '../toolbar';
+import { FloatingWindowLayer } from '../window';
 
 // TODO: Get from auth/session state
 const isGM = $state(true); // Placeholder for role detection
