@@ -43,11 +43,11 @@ As work completes, check off tasks and archive completed projects to keep this d
 ### Phase 2: Server Code Quality
 
 - [x] Remove debug logging — delete 6 `console.log('DEBUG: ...')` in [server.ts](../server/src/server.ts#L50-L56)
-- [ ] Implement graceful shutdown
-  - [ ] Register `SIGTERM`/`SIGINT` handlers in [index.ts](../server/src/index.ts)
-  - [ ] Call `server.close()` on shutdown
-  - [ ] Clear cleanup interval
-  - [ ] Close storage connections
+- [x] Implement graceful shutdown
+  - [x] Register `SIGTERM`/`SIGINT` handlers in [index.ts](../server/src/index.ts)
+  - [x] Call `server.close()` on shutdown
+  - [x] Clear cleanup interval
+  - [x] Close storage connections
 - [ ] Add `close()` method to Storage/SqliteStorage
   - [ ] Close `metadataDb` connection
   - [ ] Close all `campaignDbs` connections
