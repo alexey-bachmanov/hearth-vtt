@@ -65,6 +65,44 @@ function findClientDist(): string {
   );
 }
 
+/**
+ * Parses TRUST_PROXY environment variable into Fastify trustProxy configuration.
+ *
+ * Supports:
+ * - "true" -> trust all proxies
+ * - "false" or undefined -> trust no proxies
+ * - Number string (e.g., "1") -> trust N hops
+ * - Comma-separated IPs (e.g., "10.0.0.1,10.0.0.2") -> trust specific IPs
+ *
+ * @param value - TRUST_PROXY environment variable value
+ * @returns Fastify trustProxy configuration
+ */
+function parseTrustProxy(
+  value: string | undefined,
+): boolean | number | string | string[] {
+  if (!value || value === 'false') {
+    return false;
+  }
+
+  if (value === 'true') {
+    return true;
+  }
+
+  // Try parsing as number (e.g., "1" means trust 1 hop)
+  const asNumber = parseInt(value, 10);
+  if (!isNaN(asNumber) && asNumber.toString() === value) {
+    return asNumber;
+  }
+
+  // Check if comma-separated list of IPs
+  if (value.includes(',')) {
+    return value.split(',').map((ip) => ip.trim());
+  }
+
+  // Single IP address or other string value
+  return value;
+}
+
 export interface ServerOptions {
   dataDir: string;
   storage: Storage;
@@ -74,8 +112,12 @@ export interface ServerOptions {
 export async function buildServer(
   options: ServerOptions,
 ): Promise<FastifyInstance> {
+  // Configure proxy trust for rate limiting and IP detection behind load balancers
+  const trustProxyConfig = parseTrustProxy(process.env.TRUST_PROXY);
+
   const server = Fastify({
     logger: options.logger ?? true,
+    trustProxy: trustProxyConfig,
   });
 
   // Register CORS support

@@ -385,7 +385,7 @@ export async function adminAuthRoutes(
       // Set session cookie
       reply.setCookie(COOKIE_NAME, sessionToken, {
         httpOnly: true,
-        secure: true, // Always require HTTPS for admin cookies
+        secure: process.env.NODE_ENV === 'production', // Require HTTPS in production, allow HTTP in dev
         sameSite: 'strict', // Strict CSRF protection for admin
         path: '/',
         maxAge: SESSION_DURATION_MS / 1000, // maxAge is in seconds
@@ -491,7 +491,7 @@ export async function adminAuthRoutes(
       // Set session cookie
       reply.setCookie(COOKIE_NAME, sessionToken, {
         httpOnly: true,
-        secure: true, // Always require HTTPS for admin cookies
+        secure: process.env.NODE_ENV === 'production', // Require HTTPS in production, allow HTTP in dev
         sameSite: 'strict', // Strict CSRF protection for admin
         path: '/',
         maxAge: SESSION_DURATION_MS / 1000,
