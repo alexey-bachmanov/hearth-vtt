@@ -108,13 +108,13 @@ As work completes, check off tasks and archive completed projects to keep this d
 
 ### Phase 5: Build Fixes
 
-- [ ] Fix Dockerfile workspace stages
-  - [ ] Copy sibling `package.json` files so `npm ci --workspace=X` resolves correctly
-- [ ] Remove redundant local build from [build-docker.js](../scripts/build-docker.js)
-- [ ] Add builder stage in Dockerfile for native module compilation
-  - [ ] Separate compilation from runtime image
-  - [ ] Remove `python3 make g++` from production image
-- [ ] Fix `build-exe.js` README — change `HOST=0.0.0.0` to `127.0.0.1` default
+- [x] Fix Dockerfile workspace stages
+  - [x] Copy sibling `package.json` files so `npm ci --workspace=X` resolves correctly
+- [x] Remove redundant local build from [build-docker.js](../scripts/build-docker.js)
+- [x] Add builder stage in Dockerfile for native module compilation
+  - [x] Separate compilation from runtime image
+  - [x] Remove `python3 make g++` from production image
+- [x] Fix `build-exe.js` README — change `HOST=0.0.0.0` to `127.0.0.1` default
 
 ### Phase 6: Testing Foundation
 

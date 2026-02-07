@@ -2,8 +2,10 @@
 FROM node:20-alpine AS client-builder
 
 WORKDIR /app
+# Copy all package.json files for workspace resolution
 COPY package*.json ./
 COPY client/package*.json ./client/
+COPY server/package*.json ./server/
 RUN npm ci --workspace=client
 
 COPY client/ ./client/
@@ -13,27 +15,43 @@ RUN npm run build --workspace=client
 FROM node:20-alpine AS server-builder
 
 WORKDIR /app
+# Copy all package.json files for workspace resolution
 COPY package*.json ./
+COPY client/package*.json ./client/
 COPY server/package*.json ./server/
 RUN npm ci --workspace=server
 
 COPY server/ ./server/
 RUN npm run build --workspace=server
 
-# Production stage
-FROM node:20-alpine AS production
+# Native module builder stage (for better-sqlite3)
+FROM node:20-alpine AS native-builder
 
-# Install build dependencies for better-sqlite3 (native module)
+# Install build tools for native compilation
 RUN apk add --no-cache python3 make g++
 
 WORKDIR /app
-
-# Copy package files for production install
+# Copy all package.json files for workspace resolution
 COPY package*.json ./
+COPY client/package*.json ./client/
 COPY server/package*.json ./server/
 
-# Install production dependencies only
+# Install production dependencies (this compiles better-sqlite3)
 RUN npm ci --workspace=server --omit=dev
+
+# Production stage
+FROM node:20-alpine AS production
+
+WORKDIR /app
+
+# Copy all package.json files
+COPY package*.json ./
+COPY client/package*.json ./client/
+COPY server/package*.json ./server/
+
+# Copy production node_modules with compiled native modules from builder
+COPY --from=native-builder /app/node_modules ./node_modules
+COPY --from=native-builder /app/server/node_modules ./server/node_modules
 
 # Copy built artifacts
 COPY --from=client-builder /app/client/dist ./client/dist

@@ -333,7 +333,7 @@ ${platform() === 'win32' ? 'Double-click `hearth-vtt.exe` or run from command li
 Set environment variables before running:
 
 - PORT: Server port (default: 3000)
-- HOST: Bind address (default: 0.0.0.0)
+- HOST: Bind address (default: 127.0.0.1 for localhost-only; use 0.0.0.0 for network access)
 - DATA_DIR: Data storage directory (default: ./data)
 - LOG_LEVEL: Logging level (default: info)
 
@@ -352,9 +352,13 @@ Campaign data is stored in the \`data/\` directory (configurable via DATA_DIR).
   // Create a .env.example
   const envExample = `# HearthVTT Configuration
 PORT=3000
-HOST=0.0.0.0
+HOST=127.0.0.1
 DATA_DIR=./data
 LOG_LEVEL=info
+
+# Security Note:
+# HOST=127.0.0.1 restricts to localhost (recommended for security)
+# Set HOST=0.0.0.0 to allow network access
 `;
   writeFileSync(join(distDir, '.env.example'), envExample);
 }

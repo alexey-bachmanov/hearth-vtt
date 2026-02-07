@@ -15,19 +15,11 @@ const projectRoot = join(__dirname, '..');
 
 console.log('Building HearthVTT Docker image...');
 console.log('');
-
-// Step 1: Build client
-console.log('1. Building client...');
-execSync('npm run build:client', { cwd: projectRoot, stdio: 'inherit' });
-
-// Step 2: Build server
+console.log('Note: Client and server will be built inside Docker.');
 console.log('');
-console.log('2. Building server...');
-execSync('npm run build:server', { cwd: projectRoot, stdio: 'inherit' });
 
-// Step 3: Build Docker image
-console.log('');
-console.log('3. Building Docker image (with --no-cache)...');
+// Build Docker image (builds happen inside Docker)
+console.log('Building Docker image (with --no-cache)...');
 execSync('docker build --no-cache -t hearth-vtt .', {
   cwd: projectRoot,
   stdio: 'inherit',
