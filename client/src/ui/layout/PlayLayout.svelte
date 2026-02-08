@@ -28,13 +28,9 @@ import { FloatingWindowLayer } from '../window';
   <div class="canvas-zone">
     <MainCanvas />
     <ToolDrawer />
+    <RightSidebar />
     <!-- TODO: Phase 6 - ActorPills, QuickStatus -->
     <!-- TODO: Phase 7 - NotificationArea -->
-  </div>
-
-  <!-- Right: Chat + event log -->
-  <div class="sidebar-zone">
-    <RightSidebar />
   </div>
 
   <!-- Overlay: Floating windows -->
@@ -49,11 +45,10 @@ import { FloatingWindowLayer } from '../window';
     overflow: hidden;
     background-color: var(--color-bg-primary);
     
-    /* 3-column grid: toolbar-left | canvas-area | sidebar-right */
+    /* 2-column grid: toolbar-left | canvas-area */
     grid-template-columns: 
       var(--toolbar-left-width) 
-      1fr 
-      var(--sidebar-right-width);
+      1fr;
     grid-template-rows: 1fr;
   }
 
@@ -65,11 +60,6 @@ import { FloatingWindowLayer } from '../window';
   .canvas-zone {
     position: relative; /* Anchor for absolute-positioned overlays */
     z-index: var(--z-canvas);
-    overflow: hidden;
-  }
-
-  .sidebar-zone {
-    z-index: var(--z-sidebar);
     overflow: hidden;
   }
 </style>

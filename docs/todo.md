@@ -1,25 +1,8 @@
 # Todo List Strategy
 
-**Workflow:** Items in "Tech Debt" represent known issues organized by category. When we decide to tackle a category, we **promote it to "Current Projects"** with a comprehensive, step-by-step plan. This prevents plans from rolling out of context during implementation.
+**Workflow:** Items in "Tech Debt" and "Bugs" represent known issues organized by category. When we decide to tackle a category, we **promote it to "Current Projects"** with a comprehensive, step-by-step plan. This prevents plans from rolling out of context during implementation.
 
-As work completes, check off tasks and archive completed projects to keep this document focused on active and pending work.
-
----
-
-# Completed Sprints
-
-<details>
-<summary>Tech Debt Cleanup Sprint — Phases 1–5 (Feb 2026) ✅</summary>
-
-**Goal:** Harden existing code, fix security gaps, sync documentation. Phases 1–5 complete; Phase 6 (Testing) moved to Tech Debt.
-
-- [x] **Phase 1: Security Hardening** — Dev-only gates on stub routes, CORS restriction, password max-length, secure cookie conditionals, trustProxy, rate limit cleanup, SQLite foreign keys, campaignId format validation
-- [x] **Phase 2: Server Code Quality** — Debug log removal, graceful shutdown, storage close(), WAL mode, StorageBackend interface fix, version from package.json, COOKIE_SECRET persistence
-- [x] **Phase 3: Client Cleanup** — Shared CSS extraction, missing CSS custom properties, JoinPage error handling, barrel file fixes, Svelte rune fixes, commented code removal
-- [x] **Phase 4: Documentation Sync** — server.md directory layout, check-setup endpoint, cookie sameSite, invite routes, API info endpoint, CORS docs, TypeScript version alignment
-- [x] **Phase 5: Build Fixes** — Dockerfile workspace stages, redundant build removal, builder stage separation, build-exe.js HOST default
-
-</details>
+As work completes, check off tasks.
 
 ---
 
@@ -84,44 +67,44 @@ As work completes, check off tasks and archive completed projects to keep this d
 
 ### Phase 4: Left Toolbar & Drawer System
 
-- [ ] Create `LeftToolbar` component — narrow vertical icon bar (56px), three sections with dividers:
-  - [ ] **Quick tools** (top): Dice roller, annotation, measurement, initiative toggle, jukebox
-  - [ ] **Big tools** (middle): Campaign journal, player compendium, settings
-  - [ ] **GM tools** (bottom, seat-gated): Lighting, obstructions, scene selector, campaign prep, token library, game settings
-  - [ ] Each icon uses `Tooltip` + `Icon` components; clicking toggles `uiState.activeToolDrawer`
-  - [ ] Active tool gets visual indicator (left accent bar or background highlight)
-- [ ] Create `ToolDrawer` wrapper — 320px slide-out panel overlaying canvas
-  - [ ] Smooth CSS transition (`transform: translateX`) for open/close
-  - [ ] Click-outside or Escape to close
+- [x] Create `LeftToolbar` component — narrow vertical icon bar (56px), three sections with dividers:
+  - [x] **Quick tools** (top): Dice roller, annotation, measurement, initiative toggle, jukebox
+  - [x] **Big tools** (middle): Campaign journal, player compendium, settings
+  - [x] **GM tools** (bottom, seat-gated): Lighting, obstructions, scene selector, campaign prep, token library, game settings
+  - [x] Each icon uses `Tooltip` + `Icon` components; clicking toggles `uiState.activeToolDrawer`
+  - [x] Active tool gets visual indicator (left accent bar or background highlight)
+- [x] Create `ToolDrawer` wrapper — 320px slide-out panel overlaying canvas
+  - [x] Smooth CSS transition (`transform: translateX`) for open/close
+  - [x] Click-outside or Escape to close
   - [ ] Header with drawer title + close button, scrollable content area
-  - [ ] Renders correct drawer content based on `uiState.activeToolDrawer`
-- [ ] Create drawer content components in `ui/toolbar/drawers/`:
-  - [ ] `DiceRollerDrawer` — preset dice buttons (simple mode), and custom formula editor (advanced mode)
-  - [ ] `AnnotationDrawer` — shape selection, color/weight pickers
-  - [ ] `MeasurementDrawer` — mode selector, public/private toggle
-  - [ ] `InitiativeDrawer` — turn order list, controls, show/hide panel
-  - [ ] `JukeboxDrawer` — playlist, transport controls, volume (migrated from sidebar)
-  - [ ] `JournalDrawer` — handouts/notes browser (migrated from sidebar)
-  - [ ] `CompendiumDrawer` — search + browse by category/Tome (migrated from sidebar)
-  - [ ] `SettingsDrawer` — audio/video/UI preferences (migrated from sidebar)
-  - [ ] `LightingDrawer` — light placement/editing tools (GM only, migrated from sidebar)
-  - [ ] `ObstructionDrawer` — wall/door/window tools (GM only, migrated from sidebar)
-  - [ ] `SceneDrawer` — map browser/selector (GM only, migrated from sidebar)
-  - [ ] `CampaignPrepDrawer` — encounter setup, NPC staging area (GM only, placeholder)
-  - [ ] `TokenLibraryDrawer` — drag-to-map actor browser (GM only, migrated from sidebar)
-  - [ ] `GameSettingsDrawer` — campaign-level game settings (GM only, placeholder)
-- [ ] Update `uiState` — add `activeToolDrawer: string | null`, remove old `selectedTool`/`activeDrawerTab`
-- [ ] Rewrite `PlayLayout` — 3-column CSS grid: `[toolbar-left] auto [canvas-area] 1fr [sidebar-right] var(--sidebar-right-width)`. Canvas area is `position: relative` for overlay anchoring. Drawer overlays absolutely over canvas
-- [ ] Delete old toolbar components: `BottomToolbar`, `DiceRoller`, `DrawingTools`, `InitiativeTracker`, `MeasurementTool`, `PingTool`
-- [ ] Update [toolbar/index.ts](../client/src/ui/toolbar/index.ts) barrel
+  - [x] Renders correct drawer content based on `uiState.activeToolDrawer`
+- [x] Create drawer content components in `ui/toolbar/drawers/`:
+  - [x] `DiceRollerDrawer` — preset dice buttons (simple mode), and custom formula editor (advanced mode)
+  - [x] `AnnotationDrawer` — shape selection, color/weight pickers
+  - [x] `MeasurementDrawer` — mode selector, public/private toggle
+  - [x] `InitiativeDrawer` — turn order list, controls, show/hide panel
+  - [x] `JukeboxDrawer` — playlist, transport controls, volume (migrated from sidebar)
+  - [x] `JournalDrawer` — handouts/notes browser (migrated from sidebar)
+  - [x] `CompendiumDrawer` — search + browse by category/Tome (migrated from sidebar)
+  - [x] `SettingsDrawer` — audio/video/UI preferences (migrated from sidebar)
+  - [x] `LightingDrawer` — light placement/editing tools (GM only, migrated from sidebar)
+  - [x] `ObstructionDrawer` — wall/door/window tools (GM only, migrated from sidebar)
+  - [x] `SceneDrawer` — map browser/selector (GM only, migrated from sidebar)
+  - [x] `CampaignPrepDrawer` — encounter setup, NPC staging area (GM only, placeholder)
+  - [x] `TokenLibraryDrawer` — drag-to-map actor browser (GM only, migrated from sidebar)
+  - [x] `GameSettingsDrawer` — campaign-level game settings (GM only, placeholder)
+- [x] Update `uiState` — add `activeToolDrawer: string | null`, remove old `selectedTool`/`activeDrawerTab`
+- [x] Rewrite `PlayLayout` — 3-column CSS grid: `[toolbar-left] auto [canvas-area] 1fr [sidebar-right] var(--sidebar-right-width)`. Canvas area is `position: relative` for overlay anchoring. Drawer overlays absolutely over canvas
+- [x] Delete old toolbar components: `BottomToolbar`, `DiceRoller`, `DrawingTools`, `InitiativeTracker`, `MeasurementTool`, `PingTool`
+- [x] Update [toolbar/index.ts](../client/src/ui/toolbar/index.ts) barrel
 
 ### Phase 5: Right Sidebar Simplification
 
-- [ ] Rewrite `RightSidebar` — chat/event log only (header + ChatLog + input), no DrawerTabs
-- [ ] Add sidebar collapse/expand toggle — open by default, collapsible for more map space
-- [ ] Wire `ChatLog` to `eventLogState` store (remove hardcoded sample events)
-- [ ] Delete old sidebar components: `DrawerTabs`, `CompendiumDrawer`, `JournalDrawer`, `SettingsDrawer`, `JukeboxDrawer`, `LeftSidebar`, `SceneNavigator`, `WallEditor`, `LightEditor`, `ActorLibrary`
-- [ ] Update [sidebar/index.ts](../client/src/ui/sidebar/index.ts) barrel — export only `RightSidebar`, `ChatLog`, `GameEventCard`
+- [x] Rewrite `RightSidebar` — chat/event log only (header + ChatLog + input), no DrawerTabs
+- [x] Add sidebar collapse/expand toggle — open by default, collapsible for more map space
+- [x] Wire `ChatLog` to `campaignState.events` (remove hardcoded sample events)
+- [x] Delete old sidebar components: `DrawerTabs`, `CompendiumDrawer`, `JournalDrawer`, `SettingsDrawer`, `JukeboxDrawer`, `LeftSidebar`, `SceneNavigator`, `WallEditor`, `LightEditor`, `ActorLibrary`
+- [x] Update [sidebar/index.ts](../client/src/ui/sidebar/index.ts) barrel — export only `RightSidebar`, `ChatLog`, `GameEventCard`
 
 ### Phase 6: Canvas Overlays
 
@@ -455,3 +438,14 @@ Known issues organized by area. Items here can be promoted to "Current Projects"
   - [ ] Test routing: setup → login → dashboard flows
 
 ---
+
+# Bugs
+
+## UI
+
+- [ ] Left sidebar tooltips should appear on hover, but don't.
+- [ ] Admin setup page extends past the bottom of the screen and isn't scrollable.
+
+## Backend
+
+## GameEngine and RulesetRuntime

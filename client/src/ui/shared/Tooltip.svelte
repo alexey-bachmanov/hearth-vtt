@@ -39,11 +39,14 @@ let {
 
 let visible = $state(false);
 let timeoutId: number | null = null;
+let wrapperEl: HTMLDivElement | null = $state(null);
+let tooltipStyle = $state('');
 
 function show() {
   if (timeoutId !== null) return; // Already showing or scheduled
   timeoutId = window.setTimeout(() => {
     visible = true;
+    updateTooltipPosition();
     timeoutId = null;
   }, delay);
 }
@@ -55,9 +58,45 @@ function hide() {
   }
   visible = false;
 }
+
+/**
+ * Calculate tooltip position relative to viewport.
+ * This allows the tooltip to escape container overflow clipping.
+ */
+function updateTooltipPosition() {
+  if (!wrapperEl) return;
+  
+  const rect = wrapperEl.getBoundingClientRect();
+  const offset = 8; // spacing from target element
+  
+  let top = 0;
+  let left = 0;
+  
+  switch (position) {
+    case 'top':
+      top = rect.top - offset;
+      left = rect.left + rect.width / 2;
+      break;
+    case 'bottom':
+      top = rect.bottom + offset;
+      left = rect.left + rect.width / 2;
+      break;
+    case 'left':
+      top = rect.top + rect.height / 2;
+      left = rect.left - offset;
+      break;
+    case 'right':
+      top = rect.top + rect.height / 2;
+      left = rect.right + offset;
+      break;
+  }
+  
+  tooltipStyle = `top: ${top}px; left: ${left}px;`;
+}
 </script>
 
 <div
+  bind:this={wrapperEl}
   class="tooltip-wrapper"
   role="presentation"
   onmouseenter={show}
@@ -66,13 +105,13 @@ function hide() {
   onfocusout={hide}
 >
   {@render children()}
-
-  {#if visible}
-    <div class="tooltip tooltip--{position}" role="tooltip">
-      {text}
-    </div>
-  {/if}
 </div>
+
+{#if visible}
+  <div class="tooltip tooltip--{position}" role="tooltip" style={tooltipStyle}>
+    {text}
+  </div>
+{/if}
 
 <style>
   .tooltip-wrapper {
@@ -81,11 +120,11 @@ function hide() {
   }
 
   .tooltip {
-    position: absolute;
+    position: fixed; /* Changed from absolute to fixed to escape container clipping */
     z-index: var(--z-tooltip);
     padding: 0.375rem 0.625rem;
     background: var(--color-bg-elevated);
-    border: 1px solid var(--color-border);
+    border: 1px solid var(--color-border-default);
     border-radius: var(--radius-sm);
     color: var(--color-text-primary);
     font-size: var(--font-size-sm);
@@ -94,28 +133,20 @@ function hide() {
     box-shadow: var(--shadow-md);
   }
 
-  /* Position variants */
+  /* Position variants - transform only handles centering */
   .tooltip--top {
-    bottom: 100%;
-    left: 50%;
-    transform: translateX(-50%) translateY(-0.5rem);
+    transform: translate(-50%, -100%);
   }
 
   .tooltip--bottom {
-    top: 100%;
-    left: 50%;
-    transform: translateX(-50%) translateY(0.5rem);
+    transform: translate(-50%, 0);
   }
 
   .tooltip--left {
-    right: 100%;
-    top: 50%;
-    transform: translateY(-50%) translateX(-0.5rem);
+    transform: translate(-100%, -50%);
   }
 
   .tooltip--right {
-    left: 100%;
-    top: 50%;
-    transform: translateY(-50%) translateX(0.5rem);
+    transform: translate(0, -50%);
   }
 </style>

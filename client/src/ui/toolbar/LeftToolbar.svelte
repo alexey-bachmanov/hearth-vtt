@@ -22,7 +22,7 @@ import {
   Library,
   Settings,
   Lightbulb,
-  BoxSelect,
+  Box,
   Map,
   Scroll,
   Users,
@@ -55,7 +55,7 @@ const bigTools: ToolConfig[] = [
 // GM-only tools section
 const gmTools: ToolConfig[] = [
   { id: 'lighting', icon: Lightbulb, label: 'Lighting Tools', gmOnly: true },
-  { id: 'obstruction', icon: BoxSelect, label: 'Walls & Obstructions', gmOnly: true },
+  { id: 'obstruction', icon: Box, label: 'Walls & Obstructions', gmOnly: true },
   { id: 'scene', icon: Map, label: 'Scene Browser', gmOnly: true },
   { id: 'campaign-prep', icon: Scroll, label: 'Campaign Prep', gmOnly: true },
   { id: 'token-library', icon: Users, label: 'Token Library', gmOnly: true },

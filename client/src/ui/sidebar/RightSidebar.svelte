@@ -1,68 +1,99 @@
 <script lang="ts">
 /**
- * RightSidebar - Always-visible chat and drawer tabs.
+ * RightSidebar - Chat and event log overlay.
  * 
- * Contains chat log at the top and tabbed drawers below.
+ * Slides in/out from the right edge, overlaying the canvas.
+ * Toggle via vertical tab button on the left edge.
  */
 
+import { Icon } from '../shared';
+import { MessageSquare, X } from 'lucide-svelte';
 import ChatLog from './ChatLog.svelte';
-import DrawerTabs from './DrawerTabs.svelte';
-import CompendiumDrawer from './CompendiumDrawer.svelte';
-import JournalDrawer from './JournalDrawer.svelte';
-import SettingsDrawer from './SettingsDrawer.svelte';
-import JukeboxDrawer from './JukeboxDrawer.svelte';
 
-// Which drawer tab is active
-let activeDrawer = $state<'compendium' | 'journal' | 'settings' | 'jukebox'>('compendium');
+let isOpen = $state(true);
+let showContent = $state(true);
+let sidebarEl: HTMLDivElement | null = $state(null);
+
+function toggleSidebar() {
+  if (isOpen) {
+    // Closing: hide content immediately, then slide out
+    showContent = false;
+    isOpen = false;
+  } else {
+    // Opening: start slide in, wait for it to complete before showing content
+    isOpen = true;
+    showContent = false;
+  }
+}
+
+function handleTransitionEnd(event: TransitionEvent) {
+  // Only respond to transform transitions on the sidebar itself
+  if (event.propertyName === 'transform' && event.target === sidebarEl && isOpen) {
+    showContent = true;
+  }
+}
 </script>
 
-<div class="right-sidebar">
-  <div class="chat-zone">
+<div
+  bind:this={sidebarEl}
+  class="right-sidebar"
+  class:right-sidebar--closed={!isOpen}
+  ontransitionend={handleTransitionEnd}
+>
+  <!-- Vertical tab button on left edge -->
+  <button
+    class="sidebar-tab"
+    onclick={toggleSidebar}
+    aria-label={isOpen ? 'Close chat' : 'Open chat'}
+  >
+    <Icon icon={isOpen ? X : MessageSquare} label="" size={20} />
+  </button>
+
+  {#if showContent}
     <ChatLog />
-  </div>
-  
-  <div class="drawer-zone">
-    <DrawerTabs bind:activeDrawer />
-    
-    <div class="drawer-content">
-      {#if activeDrawer === 'compendium'}
-        <CompendiumDrawer />
-      {:else if activeDrawer === 'journal'}
-        <JournalDrawer />
-      {:else if activeDrawer === 'settings'}
-        <SettingsDrawer />
-      {:else if activeDrawer === 'jukebox'}
-        <JukeboxDrawer />
-      {/if}
-    </div>
-  </div>
+  {/if}
 </div>
 
 <style>
   .right-sidebar {
+    position: fixed;
+    top: 0;
+    right: 0;
+    height: 100vh;
+    width: var(--sidebar-right-width);
     display: flex;
     flex-direction: column;
-    height: 100%;
     background-color: var(--color-bg-secondary);
     border-left: 1px solid var(--color-border-default);
+    box-shadow: var(--shadow-lg);
+    z-index: var(--z-sidebar);
+    transition: transform var(--transition-normal);
   }
 
-  .chat-zone {
-    flex: 1;
-    min-height: 0; /* Allow flexbox shrinking */
-    border-bottom: 1px solid var(--color-border-default);
+  .right-sidebar--closed {
+    transform: translateX(100%);
   }
 
-  .drawer-zone {
-    flex: 1;
+  /* Vertical tab button on left edge */
+  .sidebar-tab {
+    position: absolute;
+    top: var(--space-md);
+    left: -40px; /* Tab width */
+    width: 40px;
+    height: 80px;
     display: flex;
-    flex-direction: column;
-    min-height: 0;
+    align-items: center;
+    justify-content: center;
+    background-color: var(--color-bg-secondary);
+    border: 1px solid var(--color-border-default);
+    border-right: none;
+    border-radius: var(--radius-sm) 0 0 var(--radius-sm);
+    cursor: pointer;
+    transition: all var(--transition-fast);
   }
 
-  .drawer-content {
-    flex: 1;
-    overflow-y: auto;
-    padding: var(--space-md);
+  .sidebar-tab:hover {
+    background-color: var(--color-bg-hover);
+    border-color: var(--color-border-hover);
   }
 </style>

@@ -2,24 +2,64 @@
 /**
  * GameEventCard - Single event/message entry.
  * 
- * Displays a chat message, dice roll, or system event.
+ * Displays a chat message, dice roll, damage, effect, or system event.
+ * Renders appropriate content based on event type.
  */
 
+import type { GameEvent } from '../../state/campaign.svelte';
+
 interface Props {
-  event: {
-    id: number;
-    type: 'chat' | 'dice' | 'system';
-    content: string;
-    timestamp: string;
-  };
+  event: GameEvent;
 }
 
 let { event }: Props = $props();
+
+// Format timestamp from ISO string
+const timestamp = $derived(() => {
+  try {
+    const date = new Date(event.timestamp);
+    return date.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' });
+  } catch {
+    return '';
+  }
+});
+
+// Generate event content based on type
+const content = $derived(() => {
+  switch (event.type) {
+    case 'chat.message':
+      return `${event.actorName || 'Unknown'}: ${event.message || ''}`;
+    
+    case 'roll.result':
+      const dice = event.dice?.map(d => `d${d.sides}:${d.result}`).join(', ') || '';
+      return `${event.actorName || 'Unknown'} rolled ${event.formula || ''}: ${event.total || 0}${dice ? ` (${dice})` : ''}`;
+    
+    case 'damage.applied':
+      return `${event.actorName || 'Unknown'} dealt ${event.damage || 0} ${event.damageType || 'damage'} to ${event.target || 'target'}`;
+    
+    case 'effect.applied':
+      return `${event.effectName || 'Effect'} applied to ${event.target || event.actorName || 'target'}`;
+    
+    case 'system':
+      return event.message || 'System event';
+    
+    default:
+      return 'Unknown event';
+  }
+});
+
+// Determine card styling variant
+const variant = $derived(() => {
+  if (event.type === 'roll.result') return 'roll';
+  if (event.type === 'damage.applied') return 'damage';
+  if (event.type === 'system') return 'system';
+  return 'chat';
+});
 </script>
 
-<div class="event-card" data-type={event.type}>
-  <div class="event-timestamp">{event.timestamp}</div>
-  <div class="event-content">{event.content}</div>
+<div class="event-card" data-variant={variant()}>
+  <div class="event-timestamp">{timestamp()}</div>
+  <div class="event-content">{content()}</div>
 </div>
 
 <style>
@@ -31,14 +71,19 @@ let { event }: Props = $props();
     font-size: var(--font-size-sm);
   }
 
-  .event-card[data-type="system"] {
+  .event-card[data-variant="system"] {
     background-color: var(--color-bg-elevated);
     border-color: var(--color-accent-primary);
   }
 
-  .event-card[data-type="dice"] {
+  .event-card[data-variant="roll"] {
     background-color: var(--color-bg-elevated);
     border-left: 3px solid var(--color-accent-primary);
+  }
+
+  .event-card[data-variant="damage"] {
+    background-color: var(--color-bg-elevated);
+    border-left: 3px solid var(--color-danger);
   }
 
   .event-timestamp {
@@ -48,7 +93,7 @@ let { event }: Props = $props();
   }
 
   .event-content {
-    color: var(--color-text-secondary);
-    line-height: 1.4;
+    color: var(--color-text-primary);
+    line-height: var(--line-height-relaxed);
   }
 </style>
