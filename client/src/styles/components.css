@@ -100,6 +100,280 @@
   font-size: var(--font-size-sm);
 }
 
+/* ========================================
+   Toolbar Icon Button
+   ======================================== */
+
+.toolbar-icon-btn {
+  width: 48px;
+  height: 48px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: transparent;
+  border: none;
+  border-radius: var(--radius-sm);
+  color: var(--color-text-secondary);
+  cursor: pointer;
+  transition: all var(--transition-fast);
+  position: relative;
+}
+
+.toolbar-icon-btn:hover {
+  background-color: var(--color-bg-hover);
+  color: var(--color-text-primary);
+}
+
+.toolbar-icon-btn:active,
+.toolbar-icon-btn--active {
+  background-color: var(--color-bg-tertiary);
+  color: var(--color-accent-primary);
+}
+
+/* Active indicator (left accent bar) */
+.toolbar-icon-btn--active::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 3px;
+  height: 32px;
+  background-color: var(--color-accent-primary);
+  border-radius: 0 var(--radius-xs) var(--radius-xs) 0;
+}
+
+.toolbar-icon-btn:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+/* ========================================
+   Drawer Panel
+   ======================================== */
+
+.drawer-panel {
+  position: fixed;
+  top: 0;
+  left: var(--toolbar-left-width);
+  bottom: 0;
+  width: var(--drawer-width);
+  background-color: var(--color-bg-secondary);
+  border-right: 1px solid var(--color-border-default);
+  box-shadow: var(--shadow-lg);
+  z-index: var(--z-drawer);
+  display: flex;
+  flex-direction: column;
+  transition: transform var(--transition-normal);
+}
+
+.drawer-panel--closed {
+  transform: translateX(calc(-1 * var(--drawer-width)));
+}
+
+.drawer-panel__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: var(--space-md);
+  border-bottom: 1px solid var(--color-border-default);
+  background-color: var(--color-bg-tertiary);
+}
+
+.drawer-panel__title {
+  font-size: var(--font-size-lg);
+  font-weight: var(--font-weight-semibold);
+  color: var(--color-text-primary);
+}
+
+.drawer-panel__close {
+  width: 32px;
+  height: 32px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: transparent;
+  border: none;
+  border-radius: var(--radius-sm);
+  color: var(--color-text-secondary);
+  cursor: pointer;
+  transition: all var(--transition-fast);
+}
+
+.drawer-panel__close:hover {
+  background-color: var(--color-bg-hover);
+  color: var(--color-text-primary);
+}
+
+.drawer-panel__content {
+  flex: 1;
+  overflow-y: auto;
+  padding: var(--space-md);
+}
+
+/* ========================================
+   Notification Toast
+   ======================================== */
+
+.notification-toast {
+  min-width: 280px;
+  max-width: 400px;
+  padding: var(--space-md);
+  background-color: var(--color-bg-elevated);
+  border: 1px solid var(--color-border-default);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-lg);
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-md);
+  animation: slideIn var(--transition-normal);
+}
+
+@keyframes slideIn {
+  from {
+    transform: translateY(1rem);
+    opacity: 0;
+  }
+  to {
+    transform: translateY(0);
+    opacity: 1;
+  }
+}
+
+.notification-toast--info {
+  border-left: 3px solid var(--color-info);
+}
+
+.notification-toast--success {
+  border-left: 3px solid var(--color-success);
+}
+
+.notification-toast--warning {
+  border-left: 3px solid var(--color-warning);
+}
+
+.notification-toast--error {
+  border-left: 3px solid var(--color-error);
+}
+
+.notification-toast__icon {
+  flex-shrink: 0;
+  color: var(--color-text-secondary);
+}
+
+.notification-toast__content {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-sm);
+}
+
+.notification-toast__message {
+  font-size: var(--font-size-md);
+  color: var(--color-text-primary);
+  line-height: var(--line-height-normal);
+}
+
+.notification-toast__actions {
+  display: flex;
+  gap: var(--space-sm);
+  margin-top: var(--space-xs);
+}
+
+.notification-toast__dismiss {
+  flex-shrink: 0;
+  width: 24px;
+  height: 24px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: transparent;
+  border: none;
+  border-radius: var(--radius-sm);
+  color: var(--color-text-secondary);
+  cursor: pointer;
+  transition: all var(--transition-fast);
+}
+
+.notification-toast__dismiss:hover {
+  background-color: var(--color-bg-hover);
+  color: var(--color-text-primary);
+}
+
+/* ========================================
+   Actor Pill (Split Button)
+   ======================================== */
+
+.actor-pill {
+  height: var(--pill-height);
+  display: inline-flex;
+  align-items: center;
+  background-color: var(--color-bg-elevated);
+  border: 1px solid var(--color-border-default);
+  border-radius: var(--radius-full);
+  overflow: hidden;
+  box-shadow: var(--shadow-md);
+}
+
+.actor-pill__main {
+  padding: 0 var(--space-md);
+  display: flex;
+  align-items: center;
+  gap: var(--space-sm);
+  background: transparent;
+  border: none;
+  color: var(--color-text-primary);
+  font-size: var(--font-size-sm);
+  font-weight: var(--font-weight-medium);
+  cursor: pointer;
+  transition: all var(--transition-fast);
+}
+
+.actor-pill__main:hover {
+  background-color: var(--color-bg-hover);
+}
+
+.actor-pill__avatar {
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  background-color: var(--color-bg-tertiary);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: var(--font-size-xs);
+}
+
+.actor-pill__name {
+  max-width: 120px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.actor-pill__divider {
+  width: 1px;
+  height: 20px;
+  background-color: var(--color-border-default);
+}
+
+.actor-pill__dropdown {
+  padding: 0 var(--space-sm);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: transparent;
+  border: none;
+  color: var(--color-text-secondary);
+  cursor: pointer;
+  transition: all var(--transition-fast);
+}
+
+.actor-pill__dropdown:hover {
+  background-color: var(--color-bg-hover);
+  color: var(--color-text-primary);
+}
+
 .btn-icon {
   padding: var(--space-xs);
   background: none;

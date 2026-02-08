@@ -69,18 +69,18 @@ As work completes, check off tasks and archive completed projects to keep this d
 
 ### Phase 3: Setup & Shared Components
 
-- [ ] Install `lucide-svelte` in client workspace
-- [ ] Create `Tooltip` component — custom positioned tooltip (hover + focus), replaces native `title` attrs
-- [ ] Create `Icon` wrapper component — standardizes size/color/aria-label for Lucide icons
-- [ ] Update [tokens.css](../client/src/styles/tokens.css):
-  - [ ] Replace `--toolbar-bottom-height` with `--toolbar-left-width` (56px) and `--drawer-width` (320px)
-  - [ ] Add `--z-drawer` layer between canvas and overlay
-  - [ ] Add `--notification-height`, `--pill-height` tokens
-- [ ] Add new CSS component classes to [components.css](../client/src/styles/components.css):
-  - [ ] `.toolbar-icon-btn` — square icon button with hover/active/selected states
-  - [ ] `.drawer-panel` — slide-out panel base styling
-  - [ ] `.notification-toast` — bottom notification card
-  - [ ] `.actor-pill` — split button pill
+- [x] Install `lucide-svelte` in client workspace
+- [x] Create `Tooltip` component — custom positioned tooltip (hover + focus), replaces native `title` attrs
+- [x] Create `Icon` wrapper component — standardizes size/color/aria-label for Lucide icons
+- [x] Update [tokens.css](../client/src/styles/tokens.css):
+  - [x] Replace `--toolbar-bottom-height` with `--toolbar-left-width` (56px) and `--drawer-width` (320px)
+  - [x] Add `--z-drawer` layer between canvas and overlay
+  - [x] Add `--notification-height`, `--pill-height` tokens
+- [x] Add new CSS component classes to [components.css](../client/src/styles/components.css):
+  - [x] `.toolbar-icon-btn` — square icon button with hover/active/selected states
+  - [x] `.drawer-panel` — slide-out panel base styling
+  - [x] `.notification-toast` — bottom notification card
+  - [x] `.actor-pill` — split button pill
 
 ### Phase 4: Left Toolbar & Drawer System
 
@@ -96,7 +96,7 @@ As work completes, check off tasks and archive completed projects to keep this d
   - [ ] Header with drawer title + close button, scrollable content area
   - [ ] Renders correct drawer content based on `uiState.activeToolDrawer`
 - [ ] Create drawer content components in `ui/toolbar/drawers/`:
-  - [ ] `DiceRollerDrawer` — formula input, preset dice buttons, roll history
+  - [ ] `DiceRollerDrawer` — preset dice buttons (simple mode), and custom formula editor (advanced mode)
   - [ ] `AnnotationDrawer` — shape selection, color/weight pickers
   - [ ] `MeasurementDrawer` — mode selector, public/private toggle
   - [ ] `InitiativeDrawer` — turn order list, controls, show/hide panel

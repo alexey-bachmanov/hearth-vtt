@@ -111,14 +111,17 @@
      Layout Dimensions
      ======================================== */
 
-  /* Sidebar widths */
-  --sidebar-left-width: 280px;
-  --sidebar-right-width: 320px;
-  --sidebar-left-collapsed-width: 0px;
+  /* Left toolbar and drawer */
+  --toolbar-left-width: 56px;
+  --drawer-width: 320px;
 
-  /* Toolbar heights */
-  --toolbar-bottom-height: 56px;
-  --snackbar-area-height: auto;
+  /* Sidebar widths */
+  --sidebar-right-width: 320px;
+
+  /* Canvas overlays */
+  --notification-height: 64px;
+  --pill-height: 36px;
+  --quick-status-height: 120px; /* Expanded height */
 
   /* Floating window defaults */
   --window-min-width: 320px;
@@ -132,11 +135,12 @@
 
   /* Z-index hierarchy ensures proper stacking of UI elements */
   --z-canvas: 0;
+  --z-canvas-overlay: 5; /* Actor pills, quick status */
   --z-sidebar: 10;
   --z-toolbar: 10;
   --z-drawer: 20;
+  --z-notification: 50;
   --z-floating-window: 100;
-  --z-snackbar: 200;
   --z-modal: 300;
   --z-tooltip: 400;
   --z-dropdown: 500;
