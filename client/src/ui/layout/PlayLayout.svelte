@@ -2,53 +2,39 @@
 /**
  * PlayLayout - Main game interface layout.
  * 
- * Defines the 5-zone spatial layout for the game UI:
- * - SnackbarArea (top)
- * - LeftSidebar (left, GM only)
- * - MainCanvas (center)
- * - RightSidebar (right)
- * - BottomToolbar (bottom)
- * - FloatingWindowLayer (overlay)
+ * Defines the 3-zone spatial layout for the game UI:
+ * - LeftToolbar (left vertical icon bar, 56px)
+ * - MainCanvas (center, with overlays for ActorPills, QuickStatus, Notifications)
+ * - RightSidebar (right, chat/event log, 320px)
+ * - ToolDrawer (slides out over canvas when tool active)
+ * - FloatingWindowLayer (overlay for tabbed windows)
  * 
  * Uses CSS Grid for layout management.
  */
 
-import { SnackbarArea } from '../snackbar';
-import { LeftSidebar, RightSidebar } from '../sidebar';
+import { RightSidebar } from '../sidebar';
 import { MainCanvas } from '../canvas';
-import { BottomToolbar } from '../toolbar';
+import { LeftToolbar, ToolDrawer } from '../toolbar';
 import { FloatingWindowLayer } from '../window';
-
-// TODO: Get from auth/session state
-let isGM = $state(true); // Placeholder for role detection
 </script>
 
 <div class="play-layout">
-  <!-- Top: Snackbar area for prompts and notifications -->
-  <div class="snackbar-zone">
-    <SnackbarArea />
+  <!-- Left: Vertical toolbar -->
+  <div class="toolbar-zone">
+    <LeftToolbar />
   </div>
 
-  <!-- Left: GM-only sidebar -->
-  {#if isGM}
-    <div class="left-sidebar-zone">
-      <LeftSidebar />
-    </div>
-  {/if}
-
-  <!-- Center: WebGL canvas -->
+  <!-- Center: Canvas with overlays -->
   <div class="canvas-zone">
     <MainCanvas />
+    <ToolDrawer />
+    <!-- TODO: Phase 6 - ActorPills, QuickStatus -->
+    <!-- TODO: Phase 7 - NotificationArea -->
   </div>
 
-  <!-- Right: Chat + drawers -->
-  <div class="right-sidebar-zone">
+  <!-- Right: Chat + event log -->
+  <div class="sidebar-zone">
     <RightSidebar />
-  </div>
-
-  <!-- Bottom: Toolbar -->
-  <div class="toolbar-zone">
-    <BottomToolbar />
   </div>
 
   <!-- Overlay: Floating windows -->
@@ -63,55 +49,27 @@ let isGM = $state(true); // Placeholder for role detection
     overflow: hidden;
     background-color: var(--color-bg-primary);
     
-    /* Grid template: [snackbar] [left | center | right] [toolbar] */
+    /* 3-column grid: toolbar-left | canvas-area | sidebar-right */
     grid-template-columns: 
-      var(--sidebar-left-width) 
+      var(--toolbar-left-width) 
       1fr 
       var(--sidebar-right-width);
-    grid-template-rows: 
-      auto 
-      1fr 
-      var(--toolbar-bottom-height);
-    grid-template-areas:
-      "snackbar snackbar snackbar"
-      "left     canvas   right"
-      "toolbar  toolbar  toolbar";
+    grid-template-rows: 1fr;
   }
 
-  /* When GM sidebar is hidden */
-  .play-layout:not(:has(.left-sidebar-zone)) {
-    grid-template-columns: 
-      0 
-      1fr 
-      var(--sidebar-right-width);
-  }
-
-  .snackbar-zone {
-    grid-area: snackbar;
-    z-index: var(--z-snackbar);
-  }
-
-  .left-sidebar-zone {
-    grid-area: left;
-    z-index: var(--z-sidebar);
+  .toolbar-zone {
+    z-index: var(--z-toolbar);
     overflow: hidden;
   }
 
   .canvas-zone {
-    grid-area: canvas;
+    position: relative; /* Anchor for absolute-positioned overlays */
     z-index: var(--z-canvas);
     overflow: hidden;
   }
 
-  .right-sidebar-zone {
-    grid-area: right;
+  .sidebar-zone {
     z-index: var(--z-sidebar);
-    overflow: hidden;
-  }
-
-  .toolbar-zone {
-    grid-area: toolbar;
-    z-index: var(--z-toolbar);
     overflow: hidden;
   }
 </style>
