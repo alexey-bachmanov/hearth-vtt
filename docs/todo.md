@@ -53,19 +53,19 @@ As work completes, check off tasks and archive completed projects to keep this d
 
 ### Phase 1: Documentation
 
-- [ ] Update [client.md](../docs/components/client.md) with new UI layout, component hierarchy, and architecture
-- [ ] Update [todo.md](../docs/todo.md) with new sprint plan, archive completed sprint, move testing to tech debt
+- [x] Update [client.md](../docs/components/client.md) with new UI layout, component hierarchy, and architecture
+- [x] Update [todo.md](../docs/todo.md) with new sprint plan, archive completed sprint, move testing to tech debt
 
 ### Phase 2: CampaignState & Mock Data
 
-- [ ] Implement `CampaignState` as a concrete reactive store with typed entity collections
-  - [ ] Define types: `Actor`, `Token`, `Scene`, `Effect`, seat role/permissions
-  - [ ] Populate with rich D&D-flavored mock data (party actors, GM actors, scenes, tokens)
-  - [ ] Methods: `getActor(id)`, `getToken(id)`, `getScene(id)`, `getActorsForSeat(seatId)`, `getPartyActors()`
-- [ ] Add `seatRole` (`'gm' | 'player' | 'spectator'`) to `connectionState` or `campaignState`
-- [ ] Add `viewportState` store — `zoom`, `panOffset`, `gridSpacing`, `gridType`, `snapToGrid`, `mapName`
-- [ ] Add `notificationState` store — ordered notification array with `push()`, `dismiss(id)`, auto-remove for ephemeral
-- [ ] Wire existing `eventLogState` to `ChatLog` (replace hardcoded sample events) and populate with mock events
+- [x] Implement `CampaignState` as a concrete reactive store with typed entity collections
+  - [x] Define types: `Actor`, `Token`, `Scene`, `Effect`, seat role/permissions
+  - [x] Populate with rich D&D-flavored mock data (party actors, GM actors, scenes, tokens)
+  - [x] Methods: `getActor(id)`, `getToken(id)`, `getScene(id)`, `getActorsForSeat(seatId)`, `getPartyActors()`
+- [x] Add `seatRole` (`'gm' | 'player' | 'spectator'`) to `connectionState` or `campaignState`
+- [x] Add `viewportState` store — `zoom`, `panOffset`, `gridSpacing`, `gridType`, `snapToGrid`, `mapName`
+- [x] Add `notificationState` store — ordered notification array with `push()`, `dismiss(id)`, auto-remove for ephemeral
+- [x] Wire existing `eventLogState` to `ChatLog` (replace hardcoded sample events) and populate with mock events
 
 ### Phase 3: Setup & Shared Components
 

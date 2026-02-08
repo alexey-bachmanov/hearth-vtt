@@ -1,102 +1,292 @@
 /**
  * UI state management using Svelte 5 runes.
- * 
- * This module holds local-only UI state that is not synced with the server.
- * Includes open windows, selected tools, drawer tabs, sidebar collapsed state, etc.
+ *
+ * This module holds the reactive state for the player UI,
+ * including drawer/sidebar visibility, active tool drawers,
+ * tabbed floating windows, and seat permissions.
  */
+
+import { connectionState } from './connection.svelte';
+import type { SeatRole } from './types';
 
 /**
- * UI state store.
- * 
- * Manages client-side UI state for windows, tools, and layout preferences.
- * Not persisted across page reloads (future: use localStorage).
+ * Tool drawer IDs for the left toolbar.
+ */
+export type ToolDrawerId =
+  | 'dice'
+  | 'annotation'
+  | 'measurement'
+  | 'initiative'
+  | 'jukebox'
+  | 'journal'
+  | 'compendium'
+  | 'settings'
+  | 'lighting'
+  | 'obstruction'
+  | 'scene'
+  | 'campaign-prep'
+  | 'token-library'
+  | 'game-settings';
+
+/**
+ * Window IDs for floating windows.
+ */
+export type WindowId =
+  | 'actor-sheet'
+  | 'token-config'
+  | 'scene-config'
+  | 'campaign-prep'
+  | 'settings';
+
+/**
+ * Window metadata for tracking position, size, z-index, etc.
+ */
+export interface WindowMeta {
+  id: string; // unique ID (e.g., "actor-sheet-123")
+  type: WindowId; // window type
+  title: string;
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+  zIndex: number;
+  groupId?: string; // optional tab group ID
+}
+
+/**
+ * Window tab group for tabbed window containers.
+ */
+export interface WindowGroup {
+  id: string;
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+  zIndex: number;
+  activeTabIndex: number;
+  tabs: string[]; // array of window IDs in this group
+}
+
+/**
+ * UIState holds the reactive state for the player UI.
+ *
+ * Includes drawer/sidebar visibility, active tool drawers, tabbed windows, and derived seat permissions.
+ * Each state field is wrapped in $state() to make it reactively tracked by Svelte 5.
  */
 class UIState {
-  // Sidebar state
-  leftSidebarCollapsed = $state<boolean>(false);
+  // Left toolbar drawer (null = none open)
+  activeToolDrawer = $state<ToolDrawerId | null>(null);
+
+  // Right sidebar visibility
   rightSidebarCollapsed = $state<boolean>(false);
 
-  // Active drawer tab in RightSidebar
-  activeDrawerTab = $state<'compendium' | 'journal' | 'settings' | 'jukebox'>('compendium');
+  // Open windows (mapped by unique window ID)
+  openWindows = $state<Map<string, WindowMeta>>(new Map());
 
-  // Selected tool in BottomToolbar
-  selectedTool = $state<string | null>(null);
+  // Window tab groups (mapped by group ID)
+  windowGroups = $state<Map<string, WindowGroup>>(new Map());
 
-  // Open floating windows (window ID → window state)
-  openWindows = $state<Map<string, { type: string; data: unknown; zIndex: number }>>(new Map());
-  nextZIndex = $state<number>(100); // Start at z-floating-window
-
-  /**
-   * Toggle left sidebar collapsed state.
-   */
-  toggleLeftSidebar() {
-    this.leftSidebarCollapsed = !this.leftSidebarCollapsed;
+  // Seat role (derived from connection state)
+  // TODO: Retrieve actual seat role from server
+  get seatRole(): SeatRole {
+    return connectionState.seatId ? 'player' : null;
   }
 
-  /**
-   * Toggle right sidebar collapsed state.
-   */
-  toggleRightSidebar() {
-    this.rightSidebarCollapsed = !this.rightSidebarCollapsed;
+  // Permission flags (derived from seat role)
+  get canAccessGMTools(): boolean {
+    return this.seatRole === 'gm';
   }
 
-  /**
-   * Set the active drawer tab.
-   */
-  setActiveDrawerTab(tab: 'compendium' | 'journal' | 'settings' | 'jukebox') {
-    this.activeDrawerTab = tab;
+  get canDragTokens(): boolean {
+    return this.seatRole === 'gm' || this.seatRole === 'player';
   }
 
-  /**
-   * Set the selected tool.
-   */
-  setSelectedTool(tool: string | null) {
-    this.selectedTool = tool;
+  get canUseRadialMenu(): boolean {
+    return this.seatRole === 'gm' || this.seatRole === 'player';
   }
 
-  /**
-   * Open a floating window.
-   */
-  openWindow(id: string, type: string, data: unknown) {
-    this.openWindows.set(id, { type, data, zIndex: this.nextZIndex });
-    this.nextZIndex += 1;
+  get canSeeActorPills(): boolean {
+    return this.seatRole === 'gm' || this.seatRole === 'player';
   }
 
-  /**
-   * Close a floating window.
-   */
-  closeWindow(id: string) {
-    this.openWindows.delete(id);
-  }
+  // ============================================================================
+  // Drawer Methods
+  // ============================================================================
 
   /**
-   * Bring a window to front (update z-index).
+   * Toggle a tool drawer (close if already open, open if closed).
    */
-  bringWindowToFront(id: string) {
-    const window = this.openWindows.get(id);
-    if (window) {
-      window.zIndex = this.nextZIndex;
-      this.nextZIndex += 1;
+  toggleToolDrawer(drawerId: ToolDrawerId) {
+    if (this.activeToolDrawer === drawerId) {
+      this.activeToolDrawer = null;
+    } else {
+      this.activeToolDrawer = drawerId;
     }
   }
 
   /**
-   * Close all windows.
+   * Close the active tool drawer.
    */
-  closeAllWindows() {
-    this.openWindows.clear();
+  closeToolDrawer() {
+    this.activeToolDrawer = null;
+  }
+
+  // ============================================================================
+  // Sidebar Methods
+  // ============================================================================
+
+  toggleRightSidebar() {
+    this.rightSidebarCollapsed = !this.rightSidebarCollapsed;
+  }
+
+  // ============================================================================
+  // Window Management Methods
+  // ============================================================================
+
+  /**
+   * Open a new floating window (standalone, not in a group).
+   */
+  openWindow(windowMeta: WindowMeta) {
+    this.openWindows.set(windowMeta.id, windowMeta);
   }
 
   /**
-   * Reset UI state to defaults.
+   * Close a floating window and remove from any tab group.
    */
+  closeWindow(windowId: string) {
+    const windowMeta = this.openWindows.get(windowId);
+    if (windowMeta?.groupId) {
+      this.removeWindowFromGroup(windowId, windowMeta.groupId);
+    }
+    this.openWindows.delete(windowId);
+  }
+
+  /**
+   * Bring a window (or its group) to the front.
+   */
+  bringWindowToFront(windowId: string) {
+    const windowMeta = this.openWindows.get(windowId);
+    if (!windowMeta) return;
+
+    const maxZ = Math.max(
+      ...Array.from(this.openWindows.values()).map((w) => w.zIndex),
+      ...Array.from(this.windowGroups.values()).map((g) => g.zIndex),
+      0,
+    );
+
+    if (windowMeta.groupId) {
+      // Bring entire group to front
+      const group = this.windowGroups.get(windowMeta.groupId);
+      if (group) {
+        group.zIndex = maxZ + 1;
+      }
+    } else {
+      // Bring standalone window to front
+      windowMeta.zIndex = maxZ + 1;
+    }
+  }
+
+  // ============================================================================
+  // Window Tab Group Methods
+  // ============================================================================
+
+  /**
+   * Create a new window tab group with one or more windows.
+   */
+  createWindowGroup(
+    windowIds: string[],
+    x: number,
+    y: number,
+    width: number,
+    height: number,
+  ) {
+    const groupId = `group-${Date.now()}`;
+    const maxZ = Math.max(
+      ...Array.from(this.openWindows.values()).map((w) => w.zIndex),
+      ...Array.from(this.windowGroups.values()).map((g) => g.zIndex),
+      0,
+    );
+
+    this.windowGroups.set(groupId, {
+      id: groupId,
+      x,
+      y,
+      width,
+      height,
+      zIndex: maxZ + 1,
+      activeTabIndex: 0,
+      tabs: windowIds,
+    });
+
+    // Update all windows to reference this group
+    for (const windowId of windowIds) {
+      const windowMeta = this.openWindows.get(windowId);
+      if (windowMeta) {
+        windowMeta.groupId = groupId;
+      }
+    }
+
+    return groupId;
+  }
+
+  /**
+   * Add a window to an existing tab group.
+   */
+  addWindowToGroup(windowId: string, groupId: string) {
+    const group = this.windowGroups.get(groupId);
+    const windowMeta = this.openWindows.get(windowId);
+    if (!group || !windowMeta) return;
+
+    // Remove from old group if present
+    if (windowMeta.groupId) {
+      this.removeWindowFromGroup(windowId, windowMeta.groupId);
+    }
+
+    // Add to new group
+    group.tabs.push(windowId);
+    windowMeta.groupId = groupId;
+  }
+
+  /**
+   * Remove a window from its tab group (and destroy group if empty).
+   */
+  removeWindowFromGroup(windowId: string, groupId: string) {
+    const group = this.windowGroups.get(groupId);
+    const windowMeta = this.openWindows.get(windowId);
+    if (!group || !windowMeta) return;
+
+    // Remove from tab array
+    group.tabs = group.tabs.filter((id) => id !== windowId);
+    windowMeta.groupId = undefined;
+
+    // If group is now empty, delete it
+    if (group.tabs.length === 0) {
+      this.windowGroups.delete(groupId);
+    } else if (group.activeTabIndex >= group.tabs.length) {
+      // Clamp active tab index
+      group.activeTabIndex = group.tabs.length - 1;
+    }
+  }
+
+  /**
+   * Set the active tab in a window group.
+   */
+  setActiveTab(groupId: string, tabIndex: number) {
+    const group = this.windowGroups.get(groupId);
+    if (group && tabIndex >= 0 && tabIndex < group.tabs.length) {
+      group.activeTabIndex = tabIndex;
+    }
+  }
+
+  // ============================================================================
+  // Reset
+  // ============================================================================
+
   reset() {
-    this.leftSidebarCollapsed = false;
+    this.activeToolDrawer = null;
     this.rightSidebarCollapsed = false;
-    this.activeDrawerTab = 'compendium';
-    this.selectedTool = null;
     this.openWindows.clear();
-    this.nextZIndex = 100;
+    this.windowGroups.clear();
   }
 }
 
