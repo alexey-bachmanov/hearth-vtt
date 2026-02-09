@@ -25,11 +25,16 @@ const currentDir =
 /**
  * Find the client dist directory by trying multiple candidate paths
  * This makes the server work across different deployment scenarios:
- * - Development (from server/dist/)
+ * - Development (from server/dist/) - returns null if not found in dev mode
  * - Docker (from /app/)
  * - Native executable (from dist-exe/)
  */
-function findClientDist(): string {
+function findClientDist(): string | null {
+  // In development mode with Vite, skip static file serving
+  if (process.env.NODE_ENV === 'development') {
+    return null;
+  }
+
   const candidates = [
     // 1. Explicit environment override
     process.env.CLIENT_DIST_PATH,
@@ -37,7 +42,7 @@ function findClientDist(): string {
     path.join(path.dirname(process.execPath), 'client', 'dist'),
     // 3. Relative to current working directory (for Docker and some runtimes)
     path.join(process.cwd(), 'client', 'dist'),
-    // 4. Relative to this file (for development)
+    // 4. Relative to this file (for production builds)
     path.resolve(currentDir, '../../client/dist'),
   ];
 
@@ -211,38 +216,54 @@ export async function buildServer(
   await sessionRoutes(server);
   await wsRoutes(server);
 
-  // Serve static files from client/dist
+  // Serve static files from client/dist (only in production)
+  // In development, Vite serves the client on a separate port
   const clientDistPath = findClientDist();
-  await server.register(fastifyStatic, {
-    root: clientDistPath,
-    prefix: '/',
-  });
+  if (clientDistPath) {
+    await server.register(fastifyStatic, {
+      root: clientDistPath,
+      prefix: '/',
+    });
 
-  // SPA fallback: serve index.html for any non-API, non-ws routes
-  // This must be registered AFTER static files
-  server.setNotFoundHandler(async (request, reply) => {
-    const { url } = request;
+    // SPA fallback: serve index.html for any non-API, non-ws routes
+    // This must be registered AFTER static files
+    server.setNotFoundHandler(async (request, reply) => {
+      const { url } = request;
 
-    // Don't handle API routes, WebSocket, or health checks
-    if (
-      url.startsWith('/api/') ||
-      url.startsWith('/ws') ||
-      url === '/healthz' ||
-      url === '/health'
-    ) {
+      // Don't handle API routes, WebSocket, or health checks
+      if (
+        url.startsWith('/api/') ||
+        url.startsWith('/ws') ||
+        url === '/healthz' ||
+        url === '/health'
+      ) {
+        reply.code(404);
+        return {
+          error: {
+            code: 'NOT_FOUND',
+            message: 'Route not found',
+          },
+        };
+      }
+
+      // Serve index.html for client-side routing
+      reply.type('text/html');
+      return reply.sendFile('index.html');
+    });
+  } else {
+    // In dev mode, return 404 for non-API routes
+    // Client is served by Vite on a different port
+    server.setNotFoundHandler(async (request, reply) => {
       reply.code(404);
       return {
         error: {
           code: 'NOT_FOUND',
-          message: 'Route not found',
+          message:
+            'Route not found - in development mode, access client at http://localhost:5173',
         },
       };
-    }
-
-    // Serve index.html for client-side routing
-    reply.type('text/html');
-    return reply.sendFile('index.html');
-  });
+    });
+  }
 
   return server;
 }

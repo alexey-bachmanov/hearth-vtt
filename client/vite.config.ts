@@ -1,8 +1,11 @@
 import { defineConfig } from 'vite';
 import { svelte } from '@sveltejs/vite-plugin-svelte';
+import { tmpdir } from 'os';
+import { join } from 'path';
 
 export default defineConfig({
   plugins: [svelte()],
+  cacheDir: join(tmpdir(), 'hearth-vtt-vite-cache'),
   build: {
     outDir: 'dist',
     emptyOutDir: true,
