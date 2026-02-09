@@ -73,5 +73,6 @@
     justify-content: flex-end;
     gap: var(--space-sm);
     pointer-events: all;
+    align-self: flex-start;
   }
 </style>

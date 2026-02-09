@@ -7,3 +7,4 @@
 export { default as MainCanvas } from './MainCanvas.svelte';
 export { default as ActorPill } from './ActorPill.svelte';
 export { default as ActorPills } from './ActorPills.svelte';
+export { default as QuickStatus } from './QuickStatus.svelte';

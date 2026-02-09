@@ -7,6 +7,7 @@
  */
 
 import type { GridType, Position } from './types';
+import { viewportState } from './viewport.svelte';
 
 // ============================================================================
 // Types
@@ -534,6 +535,17 @@ class CampaignState {
     ];
 
     console.log('[CampaignState] Mock data loaded');
+
+    // Sync viewport with active scene
+    const activeScene = this.getScene(this.activeSceneId!);
+    if (activeScene) {
+      viewportState.setMapName(activeScene.name);
+      viewportState.setGrid(
+        activeScene.gridType,
+        activeScene.gridSize,
+        activeScene.gridScale,
+      );
+    }
   }
 }
 

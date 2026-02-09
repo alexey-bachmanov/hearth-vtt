@@ -8,115 +8,6 @@ As work completes, check off tasks.
 
 # Current Projects
 
-## Client CSS Unification (Feb 2026)
-
-**Goal:** Consolidate scattered layout dimensions into `tokens.css`, extract repeated behavioral patterns into `components.css`, adopt full BEM naming, and eliminate duplicated/dead CSS. Includes admin components. Skips snackbar (slated for Phase 7 deletion).
-
-**Decisions locked in:**
-
-- **Naming:** Full BEM — modifiers use `--` (e.g. `.btn--primary`, `.drawer--closed`), state classes use `--modifier` form (e.g. `.initiative-entry--active` not `.initiative-entry.active`)
-- **Scope:** All client components including admin (fixes real bugs like undefined `--sidebar-left-width`)
-- **Snackbar:** Skip cleanup — entire directory deleted in Play UI Phase 7
-- **Drawer borders:** Restructure CSS to avoid nested compound selectors (e.g. no `.drawer--right.drawer--closed .drawer__control-bar`)
-- **Shadow aliases:** Remove `--shadow-medium` / `--shadow-large` in favor of `--shadow-md` / `--shadow-lg`
-
-**Verification criteria:**
-
-- `npm run build` passes in client after each chunk
-- `grep -r "drawer-content\|drawer-section\b" client/src/ui/toolbar/drawers/` returns 0 matches after Chunk 3
-- `grep -r "btn-primary\|btn-secondary\|btn-danger\|btn-sm" client/src/` returns 0 matches after Chunk 2
-- No hardcoded pixel widths matching token values remain in `.svelte` `<style>` blocks after Chunk 7
-- Visual smoke test: PlayLayout renders correctly (drawer open/close, sidebar expand/collapse), admin pages render correctly
-
-### Chunk 1: Token Consolidation (tokens.css) ✅
-
-- [x] Add missing layout tokens:
-  - [x] `--sidebar-left-width` (admin sidebar — currently referenced in AdminLayout but undefined)
-  - [x] `--admin-content-max-width: 1200px` (hardcoded in ServerSettings, CampaignDetail, SeatSettings)
-  - [x] `--card-max-width-sm: 450px`, `--card-max-width-md: 600px` (auth/admin card widths)
-  - [x] `--icon-size-sm: 16px`, `--icon-size-md: 24px`, `--icon-size-lg: 32px`
-  - [x] `--window-max-width: 600px`, `--window-max-height: 600px` (FloatingWindow)
-- [x] Wire existing unused tokens to their hardcoded equivalents:
-  - [x] `--window-min-width` / `--window-min-height` → FloatingWindow
-  - [x] `--notification-height` → SnackbarArea `min-height: 60px`
-- [x] Audit and prune dead tokens — `--quick-status-height`, `--window-default-width`/`--window-default-height`: wire to a consumer or delete
-- [x] Separate toolbar widths — add `--toolbar-right-width` so left toolbar and right sidebar control bar are independently tunable (currently both use `--toolbar-left-width`)
-- [x] Remove shadow aliases — delete `--shadow-medium` (alias of `--shadow-md`) and `--shadow-large` (alias of `--shadow-lg`), update all references to use short names
-
-### Chunk 2: BEM Naming Normalization (components.css + Svelte files) ✅
-
-- [x] Rename flat button modifiers to BEM in components.css:
-  - [x] `.btn-primary` → `.btn--primary`
-  - [x] `.btn-secondary` → `.btn--secondary`
-  - [x] `.btn-danger` → `.btn--danger`
-  - [x] `.btn-sm` → `.btn--sm`
-- [x] Update all Svelte consumers of renamed button classes
-- [x] Standardize state classes to BEM `--modifier` form (e.g. `.initiative-entry.active` → `.initiative-entry--active`, `.control-button.primary` → `.control-button--primary`, `.node-button.selected` → `.node-button--selected`)
-
-### Chunk 3: Drawer Section Dedup (components.css + 14 drawer files) ✅
-
-- [x] Extract drawer content layout classes to components.css (currently copy-pasted identically in all 14 drawer files, ~200 lines total):
-  - [x] `.drawer__section-list` (was `.drawer-content`) — flex column with `gap: var(--space-lg)`
-  - [x] `.drawer__section` (was `.drawer-section`) — flex column with `gap: var(--space-sm)`
-  - [x] `.drawer__section-title` (was `.drawer-section__title`) — section heading typography
-- [x] Update all 14 drawer component templates to use global classes, remove duplicated `<style>` rules
-- [x] Extract `.text--secondary` utility to components.css (duplicated in 5 drawers)
-
-### Chunk 4: Drawer Architecture Simplification (components.css + RightSidebar.svelte) ✅
-
-- [x] Restructure right drawer border logic — make `.drawer__control-bar` always use `border-left` (inside edge), remove `border-right`. Eliminate the nested `.drawer--right.drawer--closed .drawer__control-bar` selector
-- [x] Add `overflow: hidden` to `.drawer` base class (content clipping currently relies on parent `PlayLayoutOverlay` — fragile)
-
-### Chunk 5: Shared UI Patterns (components.css + Svelte files) ✅
-
-- [x] Consolidate banner classes — replace `.error-banner`, `.success-banner`, `.warning-banner`, `.info-banner` with `.banner` base + `.banner--error`, `.banner--success`, `.banner--warning`, `.banner--info` modifiers
-- [x] Extract `.empty-state` utility to components.css (duplicated in ChatLog, CampaignDetail, SeatSettings)
-- [x] Extract `.component-label` / `.component-description` to components.css (duplicated across CharacterSheet, DocumentReader, ItemInspector, InitiativeModal)
-- [x] Wire existing unused shared classes:
-  - [x] `.centered-page` — update AdminLogin, AdminSetup, JoinPage, NotLoggedInPage to use it instead of local duplicates
-  - [x] `.card` / `.card--elevated` (rename `.card-elevated`) — update auth/admin card containers
-
-### Chunk 6: Admin CSS Fixes ✅
-
-- [x] Fix AdminLayout — wire `--sidebar-left-width` token, remove duplicated `.spinner` + `@keyframes spin`
-- [x] Replace hardcoded admin page widths with `--admin-content-max-width` token (ServerSettings, CampaignDetail, SeatSettings)
-- [x] Fix hardcoded fallback color mismatches — `#48bb78` → `var(--color-success)` without incorrect fallbacks (SeatSettings, CampaignDetail). Replace `#ffd700` with `--color-warning` or a new `--color-gm-badge` token
-
-### Chunk 7: Hardcoded Value Sweep ✅
-
-- [x] Replace hardcoded `rgba` accent colors with token references (SceneDrawer, JoinPage, MainCanvas, ActorPill) — add `--color-*-faint` tokens if the pattern recurs
-- [x] Replace hardcoded transitions — AdminLayout `transition: all 0.2s ease` → `var(--transition-fast)`
-- [x] Replace hardcoded pixel dimensions with token references — FloatingWindow min/max sizes, admin card widths, icon sizes in AdminTree / SceneDrawer / TokenLibraryDrawer
-
-### Chunk 8: Dead Code Removal ✅
-
-- [x] Delete unused CSS classes from components.css — `.notification-toast` and variants (conflicts with local NotificationToast.svelte; snackbar deleted in Phase 7 anyway)
-- [x] Delete orphan CanvasOverlayBar.svelte (superseded by CanvasOverlayColumn per its own JSDoc), update canvas barrel export
-- [x] Remove any remaining dead classes after Chunks 5–7 wire up previously-unused shared classes
-
-**Sprint Complete!** ✅
-
-CSS size reduced from 55.33 KB → 48.12 KB (-7.21 KB / -13%)
-
-- Chunk 1: Token consolidation (+9 tokens, -3 dead tokens, shadow alias removal)
-- Chunk 2: BEM naming normalization (4 button modifiers + 7 state classes)
-- Chunk 3: Drawer deduplication (-200 lines, ~4.6 KB saved)
-- Chunk 4: Drawer architecture simplification (~100 bytes)
-- Chunk 5: Shared UI pattern extraction (banners, empty-state, component-label)
-- Chunk 6: Admin fixes (spinner dedup, token wiring, color fixes)
-- Chunk 7: Hardcoded value sweep (+4 color tokens, transition/dimension wiring)
-- Chunk 8: Dead code removal (notification-toast, legacy banners, card-elevated, CanvasOverlayBar.svelte)
-
-All verification criteria met:
-
-- ✅ `npm run build` passes
-- ✅ No hardcoded drawer-content/drawer-section references
-- ✅ No btn-primary/btn-secondary references
-- ✅ Hardcoded pixels replaced with tokens
-- ✅ Visual smoke test pending (no rendering changes expected)
-
----
-
 ## Play UI Overhaul (Feb 2026)
 
 **Goal:** Restructure the play interface from a 5-zone grid layout to a modern 3-zone layout with left icon toolbar, canvas overlays, bottom notification toasts, and tabbed floating windows. Admin UI is untouched.
@@ -222,10 +113,10 @@ All verification criteria met:
   - [x] Main button: actor name (truncated), click to center map on token
   - [x] Dropdown caret: flyout with quick stats (HP bar, AC, status indicators), center-on-token and open-character-sheet buttons
   - [x] Filtered by seat permissions via `$derived` from `campaignState`
-- [ ] Create `QuickStatus` — positioned top-left of canvas area
-  - [ ] Compact mode (default): low opacity, shows map name + zoom % + connection dot (green/red)
-  - [ ] Hover mode: opacity 1.0, expands downward with zoom slider, grid spacing, snap-to-grid toggle, connection status text
-  - [ ] Reads from `viewportState` and `connectionState`
+- [x] Create `QuickStatus` — positioned top-left of canvas area
+  - [x] Compact mode (default): low opacity, shows map name + zoom % + connection dot (green/red)
+  - [x] Hover mode: opacity 1.0, expands downward with zoom slider, grid spacing, snap-to-grid toggle, connection status text
+  - [x] Reads from `viewportState` and `connectionState`
 - [x] Update [canvas/index.ts](../client/src/ui/canvas/index.ts) barrel
 
 ### Phase 7: Bottom Notifications

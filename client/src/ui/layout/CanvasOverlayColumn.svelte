@@ -12,14 +12,13 @@
    * - Notification area (bottom, TODO: Phase 7)
    */
 
-  import { ActorPills } from '../canvas';
+  import { ActorPills, QuickStatus } from '../canvas';
 </script>
 
 <div class="canvas-overlay-column">
   <!-- Top bar: Quick status and actor pills -->
   <div class="canvas-top-bar">
-    <!-- TODO: Phase 6 - QuickStatus component -->
-    <div class="quick-status-placeholder">QuickStatus</div>
+    <QuickStatus />
     
     <ActorPills />
   </div>
@@ -71,17 +70,5 @@
 
   .canvas-notification-area > * {
     pointer-events: auto;
-  }
-
-  /* Placeholder styling */
-  .quick-status-placeholder {
-    align-self: flex-start;
-    padding: var(--space-sm) var(--space-md);
-    background-color: var(--color-bg-elevated);
-    border: 1px solid var(--color-border-default);
-    border-radius: var(--radius-md);
-    color: var(--color-text-secondary);
-    font-size: var(--font-size-sm);
-    box-shadow: var(--shadow-md);
   }
 </style>

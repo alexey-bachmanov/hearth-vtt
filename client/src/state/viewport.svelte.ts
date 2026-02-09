@@ -121,6 +121,13 @@ class ViewportState {
   }
 
   /**
+   * Update grid size (pixels per grid square).
+   */
+  setGridSize(size: number) {
+    this.gridSize = Math.max(10, Math.min(200, size));
+  }
+
+  /**
    * Toggle snap to grid.
    */
   toggleSnapToGrid() {
