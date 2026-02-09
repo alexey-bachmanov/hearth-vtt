@@ -30,6 +30,12 @@
   --color-accent-secondary: #6366f1; /* Indigo accent for secondary actions */
   --color-accent-hover: #6bb1ff;
   --color-accent-active: #3a8eef;
+  --color-accent-faint: rgba(
+    74,
+    158,
+    255,
+    0.1
+  ); /* 10% opacity accent for active item backgrounds */
 
   /* Status colors */
   --color-success: #4caf50;
@@ -37,13 +43,23 @@
   --color-error: #f44336;
   --color-error-dark: #d32f2f; /* Darker error for hover states */
   --color-danger: #ef4444; /* Alias for error in danger contexts */
+  --color-danger-faint: rgba(
+    244,
+    67,
+    54,
+    0.1
+  ); /* 10% opacity danger for error message backgrounds */
   --color-info: #2196f3;
+  --color-gm-badge: #ffd700; /* Gold badge for GM roles */
 
   /* Border colors */
   --color-border-subtle: #3a3a3a;
   --color-border-default: #4a4a4a;
   --color-border-strong: #606060;
   --color-border-hover: #5a5a5a; /* Border color on hover */
+
+  /* Overlay colors */
+  --color-overlay-dark: rgba(0, 0, 0, 0.7); /* Semi-transparent dark overlay */
 
   /* Hover and interactive colors */
   --color-bg-hover: #353535; /* Background color on hover */
@@ -111,23 +127,36 @@
      Layout Dimensions
      ======================================== */
 
-  /* Left toolbar and drawer */
-  --toolbar-left-width: 56px;
-  --drawer-width: 320px;
+  /* Toolbars */
+  --toolbar-left-width: 42px;
+  --toolbar-right-width: 42px;
 
-  /* Sidebar widths */
-  --sidebar-right-width: 320px;
+  /* Drawers and sidebars */
+  --drawer-width: 320px;
+  --sidebar-left-width: 280px; /* Admin sidebar */
+  --sidebar-right-width: 380px;
+
+  /* Admin layout */
+  --admin-content-max-width: 1200px;
+
+  /* Card containers */
+  --card-max-width-sm: 450px;
+  --card-max-width-md: 600px;
+
+  /* Icon sizes */
+  --icon-size-sm: 16px;
+  --icon-size-md: 24px;
+  --icon-size-lg: 32px;
 
   /* Canvas overlays */
   --notification-height: 64px;
   --pill-height: 36px;
-  --quick-status-height: 120px; /* Expanded height */
 
-  /* Floating window defaults */
+  /* Floating windows */
   --window-min-width: 320px;
   --window-min-height: 240px;
-  --window-default-width: 480px;
-  --window-default-height: 600px;
+  --window-max-width: 600px;
+  --window-max-height: 600px;
 
   /* ========================================
      Z-Index Layers
@@ -136,9 +165,10 @@
   /* Z-index hierarchy ensures proper stacking of UI elements */
   --z-canvas: 0;
   --z-canvas-overlay: 5; /* Actor pills, quick status */
+  --z-overlay: 5; /* Alias for z-canvas-overlay */
   --z-sidebar: 10;
-  --z-toolbar: 10;
-  --z-drawer: 20;
+  --z-toolbar: 20;
+  --z-drawer: 10;
   --z-notification: 50;
   --z-floating-window: 100;
   --z-modal: 300;
@@ -152,14 +182,11 @@
   --shadow-sm: 0 1px 2px 0 rgba(0, 0, 0, 0.3);
   --shadow-md:
     0 4px 6px -1px rgba(0, 0, 0, 0.4), 0 2px 4px -1px rgba(0, 0, 0, 0.3);
-  --shadow-medium:
-    0 4px 6px -1px rgba(0, 0, 0, 0.4), 0 2px 4px -1px rgba(0, 0, 0, 0.3); /* Alias for shadow-md */
   --shadow-lg:
     0 10px 15px -3px rgba(0, 0, 0, 0.5), 0 4px 6px -2px rgba(0, 0, 0, 0.4);
-  --shadow-large:
-    0 10px 15px -3px rgba(0, 0, 0, 0.5), 0 4px 6px -2px rgba(0, 0, 0, 0.4); /* Alias for shadow-lg */
   --shadow-xl:
     0 20px 25px -5px rgba(0, 0, 0, 0.6), 0 10px 10px -5px rgba(0, 0, 0, 0.5);
+  --shadow-text: 0 1px 2px rgba(0, 0, 0, 0.5); /* Text shadow for contrast */
 
   /* ========================================
      Transitions

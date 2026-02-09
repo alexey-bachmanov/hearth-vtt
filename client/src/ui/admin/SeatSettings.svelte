@@ -136,7 +136,7 @@ function isInviteActive(invite: Invite): boolean {
 <div class="seat-settings">
   <div class="page-header">
     <button class="back-button" onclick={onBack}>← Back</button>
-    <button class="btn btn-danger" onclick={handleDeleteSeat}>
+    <button class="btn btn--danger" onclick={handleDeleteSeat}>
       🗑️ Delete Seat
     </button>
   </div>
@@ -155,8 +155,8 @@ function isInviteActive(invite: Invite): boolean {
               bind:value={editedName}
               onkeydown={(e) => e.key === 'Enter' && handleSaveName()}
             />
-            <button class="btn btn-sm btn-primary" onclick={handleSaveName}>Save</button>
-            <button class="btn btn-sm btn-secondary" onclick={() => { isEditingName = false; editedName = displayName; }}>
+            <button class="btn btn--sm btn--primary" onclick={handleSaveName}>Save</button>
+            <button class="btn btn--sm btn--secondary" onclick={() => { isEditingName = false; editedName = displayName; }}>
               Cancel
             </button>
           </div>
@@ -179,8 +179,8 @@ function isInviteActive(invite: Invite): boolean {
               <option value="player">Player</option>
               <option value="spectator">Spectator</option>
             </select>
-            <button class="btn btn-sm btn-primary" onclick={handleSaveRole}>Save</button>
-            <button class="btn btn-sm btn-secondary" onclick={() => { isEditingRole = false; editedRole = role; }}>
+            <button class="btn btn--sm btn--primary" onclick={handleSaveRole}>Save</button>
+            <button class="btn btn--sm btn--secondary" onclick={() => { isEditingRole = false; editedRole = role; }}>
               Cancel
             </button>
           </div>
@@ -199,10 +199,10 @@ function isInviteActive(invite: Invite): boolean {
       <div class="detail-item">
         <span class="label">Status:</span>
         <div class="display-field">
-          <span class="status-badge" class:active={isActive}>
+          <span class="status-badge" class:status-badge--active={isActive}>
             {isActive ? '● Active' : '○ Inactive'}
           </span>
-          <button class="btn btn-sm btn-secondary" onclick={handleToggleActive}>
+          <button class="btn btn--sm btn--secondary" onclick={handleToggleActive}>
             {isActive ? 'Deactivate' : 'Activate'}
           </button>
         </div>
@@ -219,7 +219,7 @@ function isInviteActive(invite: Invite): boolean {
   <section class="settings-section">
     <div class="section-header">
       <h2>Invites</h2>
-      <button class="btn btn-primary" onclick={handleCreateInvite}>
+      <button class="btn btn--primary" onclick={handleCreateInvite}>
         ➕ Create Invite
       </button>
     </div>
@@ -231,7 +231,7 @@ function isInviteActive(invite: Invite): boolean {
         </div>
       {:else}
         {#each invites as invite}
-          <div class="invite-card" class:active={isInviteActive(invite)}>
+          <div class="invite-card" class:invite-card--active={isInviteActive(invite)}>
             <div class="invite-header">
               <div class="invite-status-indicator">
                 {#if invite.revokedAt}
@@ -244,7 +244,7 @@ function isInviteActive(invite: Invite): boolean {
                   <span class="status-dot used"></span>
                   <span>Used</span>
                 {:else}
-                  <span class="status-dot active"></span>
+                  <span class="status-dot status-dot--active"></span>
                   <span>Active</span>
                 {/if}
               </div>
@@ -252,13 +252,13 @@ function isInviteActive(invite: Invite): boolean {
               <div class="invite-actions">
                 {#if isInviteActive(invite)}
                   <button 
-                    class="btn btn-sm btn-secondary"
+                    class="btn btn--sm btn--secondary"
                     onclick={() => handleCopyInviteUrl(invite.inviteUrl)}
                   >
                     📋 Copy URL
                   </button>
                   <button 
-                    class="btn btn-sm btn-danger"
+                    class="btn btn--sm btn--danger"
                     onclick={() => handleRevokeInvite(invite)}
                   >
                     Revoke
@@ -288,7 +288,7 @@ function isInviteActive(invite: Invite): boolean {
 
 <style>
   .seat-settings {
-    max-width: 1200px;
+    max-width: var(--admin-content-max-width);
   }
 
   .page-header {
@@ -350,7 +350,7 @@ function isInviteActive(invite: Invite): boolean {
   }
 
   .role-badge.gm {
-    background-color: #ffd700;
+    background-color: var(--color-gm-badge);
     color: #000;
   }
 
@@ -359,8 +359,8 @@ function isInviteActive(invite: Invite): boolean {
     font-weight: var(--font-weight-medium);
   }
 
-  .status-badge.active {
-    color: var(--color-success, #48bb78);
+  .status-badge--active {
+    color: var(--color-success);
   }
 
   /* Invites section */
@@ -378,9 +378,9 @@ function isInviteActive(invite: Invite): boolean {
     opacity: 0.6;
   }
 
-  .invite-card.active {
+  .invite-card--active {
     opacity: 1;
-    border-color: var(--color-success, #48bb78);
+    border-color: var(--color-success);
   }
 
   .invite-header {
@@ -404,8 +404,8 @@ function isInviteActive(invite: Invite): boolean {
     border-radius: 50%;
   }
 
-  .status-dot.active {
-    background-color: var(--color-success, #48bb78);
+  .status-dot--active {
+    background-color: var(--color-success);
   }
 
   .status-dot.revoked,
@@ -442,12 +442,6 @@ function isInviteActive(invite: Invite): boolean {
     display: flex;
     gap: var(--space-lg);
     font-size: var(--font-size-xs);
-    color: var(--color-text-tertiary);
-  }
-
-  .empty-state {
-    padding: var(--space-2xl);
-    text-align: center;
     color: var(--color-text-tertiary);
   }
 </style>

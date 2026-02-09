@@ -6,8 +6,8 @@
  */
 </script>
 
-<div class="drawer-content">
-  <div class="drawer-section">
+<div class="drawer__section-list">
+  <div class="drawer__section">
     <input
       type="search"
       class="form-input"
@@ -16,8 +16,8 @@
     />
   </div>
 
-  <div class="drawer-section">
-    <h3 class="drawer-section__title">Categories</h3>
+  <div class="drawer__section">
+    <h3 class="drawer__section-title">Categories</h3>
     <div class="category-grid">
       <button class="category-card">
         <span class="category-card__icon">⚔️</span>
@@ -40,25 +40,6 @@
 </div>
 
 <style>
-  .drawer-content {
-    display: flex;
-    flex-direction: column;
-    gap: var(--space-lg);
-  }
-
-  .drawer-section {
-    display: flex;
-    flex-direction: column;
-    gap: var(--space-sm);
-  }
-
-  .drawer-section__title {
-    font-size: var(--font-size-md);
-    font-weight: var(--font-weight-semibold);
-    color: var(--color-text-primary);
-    margin: 0;
-  }
-
   .category-grid {
     display: grid;
     grid-template-columns: repeat(2, 1fr);

@@ -1,4 +1,4 @@
-# AGENTS.md — HearthVTT Agent Guide
+# copilot-instructions.md — HearthVTT Agent Guide
 
 This file is the **entry point** for coding agents working in this repository.  
 Read this first, then follow the linked design docs before making changes.
@@ -211,13 +211,13 @@ Portable artifacts:
 - **Architecture overview:** [`docs/architecture-overview.md`](../docs/architecture-overview.md)
 - **Shared types & terminology:** [`docs/shared-types.md`](../docs/shared-types.md) — **Read this for canonical type definitions and glossary**
 - **Code style guide:** [`docs/code-style-guide.md`](../docs/code-style-guide.md) — **Follow these patterns for documentation and code organization**
-- **To-do list:** [`docs/todo.md`](../docs/todo.md) — **Organized into Current Projects, Future Milestones, and Tech Debt. When tackling tech debt, promote items to Current Projects with comprehensive step-by-step plans.**
+- **To-do list:** [`docs/todo.md`](../docs/todo.md) — **Organized into Current Projects, Future Milestones, and Tech Debt. When tackling a problem, promote items to Current Projects with comprehensive step-by-step plans.**
 
 ### Component docs
 
 - **Server:** [`docs/components/server.md`](../docs/components/server.md)
-- **Client:** [`docs/components/client.md`](../docs/components/client.md) — ⚠️ TBD, do not implement
-- **Data model & file formats:** [`docs/components/data-model.md`](../docs/components/data-model.md) — ⚠️ TBD, do not implement
+- **Client:** [`docs/components/client.md`](../docs/components/client.md)
+- **Data model & file formats:** [`docs/components/data-model.md`](../docs/components/data-model.md)
 - **Ruleset engine:** [`docs/components/ruleset-engine.md`](../docs/components/ruleset-engine.md)
 
 ### Testing
@@ -243,7 +243,7 @@ All "locked" decisions should be captured as ADRs:
 
 Before changing anything non-trivial, the agent must:
 
-- Read `AGENTS.md` (this file)
+- Read `copilot-instructions.md` (this file)
 - Read [`docs/shared-types.md`](../docs/shared-types.md) for canonical type definitions and terminology
 - Read [`docs/code-style-guide.md`](../docs/code-style-guide.md) for documentation and code organization standards
 - Read the relevant component doc(s) under `docs/components/`
@@ -310,29 +310,5 @@ A change is “done” when:
 3. README/notes
 
 If code and docs disagree, update docs or create an ADR explaining the change.
-
----
-
-## First milestone (placeholder server + placeholder client)
-
-Agents implementing the initial scaffold should aim for:
-
-- Server serves a placeholder UI at `/`
-- `/healthz` endpoint
-- WebSocket endpoint (echo or minimal handshake)
-- Config via env/flags: `PORT`, `DATA_DIR`, `PUBLIC_BASE_URL`, `TRUST_PROXY`
-- Data directory created automatically
-- Dockerfile that runs the same server
-- (Optional) dev scripts for local run + docker run
-
-See: [`docs/components/server.md`](docs/components/server.md)
-
----
-
-## Notes for future work (non-goals for the scaffold phase)
-
-- No full ruleset engine implementation required in milestone 1
-- No full auth system required in milestone 1 beyond stub endpoints
-- No full fog/lighting required in milestone 1 (just reserve the architecture boundaries)
 
 ---

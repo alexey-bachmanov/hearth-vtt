@@ -70,7 +70,7 @@ onMount(() => {
     align-items: center;
     gap: var(--space-md);
     padding: var(--space-2xl);
-    background-color: rgba(0, 0, 0, 0.7);
+    background-color: var(--color-overlay-dark);
     border: 2px dashed var(--color-border-subtle);
     border-radius: var(--radius-lg);
     text-align: center;

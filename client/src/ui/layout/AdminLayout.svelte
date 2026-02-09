@@ -167,22 +167,6 @@ onMount(() => {
   color: var(--color-text-secondary);
 }
 
-.spinner {
-  width: 40px;
-  height: 40px;
-  margin-bottom: var(--space-md);
-  border: 3px solid var(--color-border-default);
-  border-top-color: var(--color-accent-primary);
-  border-radius: 50%;
-  animation: spin 1s linear infinite;
-}
-
-@keyframes spin {
-  to {
-    transform: rotate(360deg);
-  }
-}
-
 .loading-overlay p {
   margin: 0;
   font-size: var(--font-size-md);
@@ -223,7 +207,7 @@ onMount(() => {
   color: var(--color-text-secondary);
   font-size: var(--font-size-sm);
   cursor: pointer;
-  transition: all 0.2s ease;
+  transition: var(--transition-fast);
 }
 
 .logout-button:hover {

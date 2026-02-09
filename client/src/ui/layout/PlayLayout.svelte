@@ -1,65 +1,39 @@
 <script lang="ts">
 /**
  * PlayLayout - Main game interface layout.
- * 
- * Defines the 3-zone spatial layout for the game UI:
- * - LeftToolbar (left vertical icon bar, 56px)
- * - MainCanvas (center, with overlays for ActorPills, QuickStatus, Notifications)
- * - RightSidebar (right, chat/event log, 320px)
- * - ToolDrawer (slides out over canvas when tool active)
- * - FloatingWindowLayer (overlay for tabbed windows)
- * 
- * Uses CSS Grid for layout management.
+ *
+ * Composed of three layers:
+ * 1. Base layer: LeftToolbar + MainCanvas (visual background)
+ * 2. Overlay layer: ToolDrawer + CanvasOverlayColumn + RightSidebar (interactive UI)
+ * 3. Floating layer: Draggable windows
+ *
+ * The base and overlay layers use flexbox for natural reflow when drawers/sidebar
+ * open/close. This eliminates manual position calculations and provides better
+ * encapsulation between components.
  */
 
-import { RightSidebar } from '../sidebar';
-import { MainCanvas } from '../canvas';
-import { LeftToolbar, ToolDrawer } from '../toolbar';
+import PlayLayoutBase from './PlayLayoutBase.svelte';
+import PlayLayoutOverlay from './PlayLayoutOverlay.svelte';
 import { FloatingWindowLayer } from '../window';
 </script>
 
 <div class="play-layout">
-  <!-- Left: Vertical toolbar -->
-  <div class="toolbar-zone">
-    <LeftToolbar />
-  </div>
+  <!-- Layer 1: Base (toolbar + canvas background) -->
+  <PlayLayoutBase />
 
-  <!-- Center: Canvas with overlays -->
-  <div class="canvas-zone">
-    <MainCanvas />
-    <ToolDrawer />
-    <RightSidebar />
-    <!-- TODO: Phase 6 - ActorPills, QuickStatus -->
-    <!-- TODO: Phase 7 - NotificationArea -->
-  </div>
+  <!-- Layer 2: Overlay (drawer + canvas overlays + sidebar) -->
+  <PlayLayoutOverlay />
 
-  <!-- Overlay: Floating windows -->
+  <!-- Layer 3: Floating windows -->
   <FloatingWindowLayer />
 </div>
 
 <style>
   .play-layout {
-    display: grid;
+    position: relative;
     width: 100vw;
     height: 100vh;
     overflow: hidden;
     background-color: var(--color-bg-primary);
-    
-    /* 2-column grid: toolbar-left | canvas-area */
-    grid-template-columns: 
-      var(--toolbar-left-width) 
-      1fr;
-    grid-template-rows: 1fr;
-  }
-
-  .toolbar-zone {
-    z-index: var(--z-toolbar);
-    overflow: hidden;
-  }
-
-  .canvas-zone {
-    position: relative; /* Anchor for absolute-positioned overlays */
-    z-index: var(--z-canvas);
-    overflow: hidden;
   }
 </style>

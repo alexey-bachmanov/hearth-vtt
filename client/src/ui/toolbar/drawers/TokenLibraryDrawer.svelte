@@ -13,8 +13,8 @@ const npcActors = $derived(actors.filter((a) => a.type === 'npc'));
 const monsterActors = $derived(actors.filter((a) => a.type === 'monster'));
 </script>
 
-<div class="drawer-content">
-  <div class="drawer-section">
+<div class="drawer__section-list">
+  <div class="drawer__section">
     <input
       type="search"
       class="form-input"
@@ -23,8 +23,8 @@ const monsterActors = $derived(actors.filter((a) => a.type === 'monster'));
     />
   </div>
 
-  <div class="drawer-section">
-    <h3 class="drawer-section__title">Player Characters ({playerActors.length})</h3>
+  <div class="drawer__section">
+    <h3 class="drawer__section-title">Player Characters ({playerActors.length})</h3>
     <div class="actor-list">
       {#each playerActors as actor}
         <button class="actor-item" draggable="true">
@@ -38,8 +38,8 @@ const monsterActors = $derived(actors.filter((a) => a.type === 'monster'));
     </div>
   </div>
 
-  <div class="drawer-section">
-    <h3 class="drawer-section__title">NPCs ({npcActors.length})</h3>
+  <div class="drawer__section">
+    <h3 class="drawer__section-title">NPCs ({npcActors.length})</h3>
     <div class="actor-list">
       {#each npcActors as actor}
         <button class="actor-item" draggable="true">
@@ -53,8 +53,8 @@ const monsterActors = $derived(actors.filter((a) => a.type === 'monster'));
     </div>
   </div>
 
-  <div class="drawer-section">
-    <h3 class="drawer-section__title">Monsters ({monsterActors.length})</h3>
+  <div class="drawer__section">
+    <h3 class="drawer__section-title">Monsters ({monsterActors.length})</h3>
     <div class="actor-list">
       {#each monsterActors as actor}
         <button class="actor-item" draggable="true">
@@ -68,31 +68,12 @@ const monsterActors = $derived(actors.filter((a) => a.type === 'monster'));
     </div>
   </div>
 
-  <div class="drawer-section">
-    <button class="btn btn-primary">New Actor</button>
+  <div class="drawer__section">
+    <button class="btn btn--primary">New Actor</button>
   </div>
 </div>
 
 <style>
-  .drawer-content {
-    display: flex;
-    flex-direction: column;
-    gap: var(--space-lg);
-  }
-
-  .drawer-section {
-    display: flex;
-    flex-direction: column;
-    gap: var(--space-sm);
-  }
-
-  .drawer-section__title {
-    font-size: var(--font-size-md);
-    font-weight: var(--font-weight-semibold);
-    color: var(--color-text-primary);
-    margin: 0;
-  }
-
   .actor-list {
     display: flex;
     flex-direction: column;

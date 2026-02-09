@@ -2,33 +2,35 @@
 /**
  * RightSidebar - Chat and event log overlay.
  * 
- * Slides in/out from the right edge, overlaying the canvas.
- * Toggle via vertical tab button on the left edge.
+ * Collapses to a narrow control bar on the right edge, or expands to show full chat log.
+ * Toggle via vertical bar with icon button on the inside edge.
  */
 
 import { Icon } from '../shared';
-import { MessageSquare, X } from 'lucide-svelte';
+import { MessageSquare, ChevronRight } from 'lucide-svelte';
+import { uiState } from '../../state/ui.svelte';
 import ChatLog from './ChatLog.svelte';
 
-let isOpen = $state(true);
-let showContent = $state(true);
+let showContent = $state(false);
 let sidebarEl: HTMLDivElement | null = $state(null);
 
 function toggleSidebar() {
-  if (isOpen) {
-    // Closing: hide content immediately, then slide out
+  if (uiState.rightSidebarOpen) {
+    // Closing: hide content immediately, then collapse
     showContent = false;
-    isOpen = false;
+    uiState.rightSidebarOpen = false;
   } else {
-    // Opening: start slide in, wait for it to complete before showing content
-    isOpen = true;
+    // Opening: start expansion, wait for it to complete before showing content
+    uiState.rightSidebarOpen = true;
     showContent = false;
   }
 }
 
 function handleTransitionEnd(event: TransitionEvent) {
-  // Only respond to transform transitions on the sidebar itself
-  if (event.propertyName === 'transform' && event.target === sidebarEl && isOpen) {
+  // Only respond to width/flex-basis transitions on the sidebar itself
+  if ((event.propertyName === 'flex-basis' || event.propertyName === 'width') && 
+      event.target === sidebarEl && 
+      uiState.rightSidebarOpen) {
     showContent = true;
   }
 }
@@ -36,64 +38,28 @@ function handleTransitionEnd(event: TransitionEvent) {
 
 <div
   bind:this={sidebarEl}
-  class="right-sidebar"
-  class:right-sidebar--closed={!isOpen}
+  class="drawer drawer--right"
+  class:drawer--closed={!uiState.rightSidebarOpen}
   ontransitionend={handleTransitionEnd}
 >
-  <!-- Vertical tab button on left edge -->
-  <button
-    class="sidebar-tab"
-    onclick={toggleSidebar}
-    aria-label={isOpen ? 'Close chat' : 'Open chat'}
-  >
-    <Icon icon={isOpen ? X : MessageSquare} label="" size={20} />
-  </button>
+  <!-- Control bar on inside (left) edge -->
+  <div class="drawer__control-bar">
+    <button
+      class="drawer__control-btn"
+      onclick={toggleSidebar}
+      aria-label={uiState.rightSidebarOpen ? 'Collapse chat' : 'Expand chat'}
+    >
+      <Icon 
+        icon={uiState.rightSidebarOpen ? ChevronRight : MessageSquare} 
+        label="" 
+        size={24} 
+      />
+    </button>
+  </div>
 
-  {#if showContent}
-    <ChatLog />
+  {#if showContent && uiState.rightSidebarOpen}
+    <div class="drawer__content">
+      <ChatLog />
+    </div>
   {/if}
 </div>
-
-<style>
-  .right-sidebar {
-    position: fixed;
-    top: 0;
-    right: 0;
-    height: 100vh;
-    width: var(--sidebar-right-width);
-    display: flex;
-    flex-direction: column;
-    background-color: var(--color-bg-secondary);
-    border-left: 1px solid var(--color-border-default);
-    box-shadow: var(--shadow-lg);
-    z-index: var(--z-sidebar);
-    transition: transform var(--transition-normal);
-  }
-
-  .right-sidebar--closed {
-    transform: translateX(100%);
-  }
-
-  /* Vertical tab button on left edge */
-  .sidebar-tab {
-    position: absolute;
-    top: var(--space-md);
-    left: -40px; /* Tab width */
-    width: 40px;
-    height: 80px;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    background-color: var(--color-bg-secondary);
-    border: 1px solid var(--color-border-default);
-    border-right: none;
-    border-radius: var(--radius-sm) 0 0 var(--radius-sm);
-    cursor: pointer;
-    transition: all var(--transition-fast);
-  }
-
-  .sidebar-tab:hover {
-    background-color: var(--color-bg-hover);
-    border-color: var(--color-border-hover);
-  }
-</style>

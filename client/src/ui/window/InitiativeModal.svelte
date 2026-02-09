@@ -24,7 +24,7 @@ const initiativeOrder = [
   
   <div class="initiative-list">
     {#each initiativeOrder as combatant (combatant.id)}
-      <div class="initiative-entry" class:active={combatant.isActive}>
+      <div class="initiative-entry" class:initiative-entry--active={combatant.isActive}>
         <span class="initiative-score">{combatant.initiative}</span>
         <span class="combatant-name">{combatant.name}</span>
         {#if combatant.isActive}
@@ -36,8 +36,8 @@ const initiativeOrder = [
   
   <div class="initiative-controls">
     <button class="control-button">⏮️ Previous</button>
-    <button class="control-button primary">Next Turn ⏭️</button>
-    <button class="control-button danger">End Combat</button>
+    <button class="control-button control-button--primary">Next Turn ⏭️</button>
+    <button class="control-button control-button--danger">End Combat</button>
   </div>
 </div>
 
@@ -47,17 +47,6 @@ const initiativeOrder = [
     flex-direction: column;
     gap: var(--space-md);
     min-width: 400px;
-  }
-
-  .component-label strong {
-    color: var(--color-text-primary);
-    font-size: var(--font-size-md);
-  }
-
-  .component-description {
-    margin: 0;
-    font-size: var(--font-size-sm);
-    color: var(--color-text-tertiary);
   }
 
   .initiative-list {
@@ -77,7 +66,7 @@ const initiativeOrder = [
     transition: all var(--transition-fast);
   }
 
-  .initiative-entry.active {
+  .initiative-entry--active {
     background-color: var(--color-accent-primary);
     border-color: var(--color-accent-primary);
   }
@@ -90,8 +79,8 @@ const initiativeOrder = [
     text-align: center;
   }
 
-  .initiative-entry.active .initiative-score,
-  .initiative-entry.active .combatant-name {
+  .initiative-entry--active .initiative-score,
+  .initiative-entry--active .combatant-name {
     color: white;
   }
 
@@ -133,23 +122,23 @@ const initiativeOrder = [
     color: var(--color-text-primary);
   }
 
-  .control-button.primary {
+  .control-button--primary {
     background-color: var(--color-accent-primary);
     border-color: var(--color-accent-primary);
     color: white;
   }
 
-  .control-button.primary:hover {
+  .control-button--primary:hover {
     background-color: var(--color-accent-hover);
   }
 
-  .control-button.danger {
+  .control-button--danger {
     background-color: var(--color-bg-tertiary);
     border-color: var(--color-danger);
     color: var(--color-danger);
   }
 
-  .control-button.danger:hover {
+  .control-button--danger:hover {
     background-color: var(--color-danger);
     color: white;
   }

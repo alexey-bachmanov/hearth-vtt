@@ -60,17 +60,6 @@ let { characterId }: Props = $props();
     gap: var(--space-md);
   }
 
-  .component-label strong {
-    color: var(--color-text-primary);
-    font-size: var(--font-size-md);
-  }
-
-  .component-description {
-    margin: 0;
-    font-size: var(--font-size-sm);
-    color: var(--color-text-tertiary);
-  }
-
   .character-sections {
     display: flex;
     flex-direction: column;

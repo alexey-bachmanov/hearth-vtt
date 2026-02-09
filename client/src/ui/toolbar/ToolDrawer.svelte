@@ -104,18 +104,18 @@ const isOpen = $derived(uiState.activeToolDrawer !== null);
 
 <div
   bind:this={drawerElement}
-  class="drawer-panel"
-  class:drawer-panel--closed={!isOpen}
+  class="drawer drawer--left"
+  class:drawer--closed={!isOpen}
   role="dialog"
   aria-hidden={!isOpen}
   aria-label={currentDrawer?.title || 'Tool Drawer'}
 >
   {#if currentDrawer}
     {@const DrawerComponent = currentDrawer.component}
-    <div class="drawer-panel__header">
-      <h2 class="drawer-panel__title">{currentDrawer.title}</h2>
+    <div class="drawer__header">
+      <h2 class="drawer__title">{currentDrawer.title}</h2>
       <button
-        class="drawer-panel__close"
+        class="drawer__close"
         onclick={handleClose}
         aria-label="Close drawer"
       >
@@ -123,7 +123,7 @@ const isOpen = $derived(uiState.activeToolDrawer !== null);
       </button>
     </div>
 
-    <div class="drawer-panel__content">
+    <div class="drawer__content">
       <DrawerComponent />
     </div>
   {/if}

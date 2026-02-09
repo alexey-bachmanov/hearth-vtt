@@ -6,8 +6,8 @@
  */
 </script>
 
-<div class="drawer-content">
-  <div class="drawer-section">
+<div class="drawer__section-list">
+  <div class="drawer__section">
     <input
       type="search"
       class="form-input"
@@ -16,8 +16,8 @@
     />
   </div>
 
-  <div class="drawer-section">
-    <h3 class="drawer-section__title">Recent Entries</h3>
+  <div class="drawer__section">
+    <h3 class="drawer__section-title">Recent Entries</h3>
     <div class="journal-list">
       <button class="journal-item">
         <span class="journal-item__icon">📄</span>
@@ -34,31 +34,12 @@
     </div>
   </div>
 
-  <div class="drawer-section">
-    <button class="btn btn-primary">New Entry</button>
+  <div class="drawer__section">
+    <button class="btn btn--primary">New Entry</button>
   </div>
 </div>
 
 <style>
-  .drawer-content {
-    display: flex;
-    flex-direction: column;
-    gap: var(--space-lg);
-  }
-
-  .drawer-section {
-    display: flex;
-    flex-direction: column;
-    gap: var(--space-sm);
-  }
-
-  .drawer-section__title {
-    font-size: var(--font-size-md);
-    font-weight: var(--font-weight-semibold);
-    color: var(--color-text-primary);
-    margin: 0;
-  }
-
   .journal-list {
     display: flex;
     flex-direction: column;

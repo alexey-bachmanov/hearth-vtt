@@ -108,10 +108,10 @@ function handleImportData() {
     <div class="section-header">
       <h2>Campaign Details</h2>
       <div class="section-actions">
-        <button class="btn btn-secondary" onclick={handleImportData}>
+        <button class="btn btn--secondary" onclick={handleImportData}>
           📥 Import Data
         </button>
-        <button class="btn btn-secondary" onclick={handleExportCampaign}>
+        <button class="btn btn--secondary" onclick={handleExportCampaign}>
           📤 Export Campaign
         </button>
       </div>
@@ -127,8 +127,8 @@ function handleImportData() {
               bind:value={editedName}
               onkeydown={(e) => e.key === 'Enter' && handleSaveName()}
             />
-            <button class="btn btn-sm btn-primary" onclick={handleSaveName}>Save</button>
-            <button class="btn btn-sm btn-secondary" onclick={() => { isEditingName = false; editedName = campaignName; }}>
+            <button class="btn btn--sm btn--primary" onclick={handleSaveName}>Save</button>
+            <button class="btn btn--sm btn--secondary" onclick={() => { isEditingName = false; editedName = campaignName; }}>
               Cancel
             </button>
           </div>
@@ -179,7 +179,7 @@ function handleImportData() {
   <section class="detail-section">
     <div class="section-header">
       <h2>Seats</h2>
-      <button class="btn btn-primary" onclick={handleCreateSeat}>
+      <button class="btn btn--primary" onclick={handleCreateSeat}>
         ➕ Create Seat
       </button>
     </div>
@@ -203,7 +203,7 @@ function handleImportData() {
             </div>
             <div class="seat-meta">
               <span class="seat-role">{seat.role.toUpperCase()}</span>
-              <span class="seat-status" class:active={seat.isActive}>
+              <span class="seat-status" class:seat-status--active={seat.isActive}>
                 {seat.isActive ? '● Active' : '○ Inactive'}
               </span>
             </div>
@@ -217,7 +217,7 @@ function handleImportData() {
 
 <style>
   .campaign-detail {
-    max-width: 1200px;
+    max-width: var(--admin-content-max-width);
   }
 
   .page-header {
@@ -366,14 +366,11 @@ function handleImportData() {
     color: var(--color-text-tertiary);
   }
 
-  .seat-status.active {
-    color: var(--color-success, #48bb78);
+  .seat-status--active {
+    color: var(--color-success);
   }
 
-  .empty-state {
+  .seats-grid .empty-state {
     grid-column: 1 / -1;
-    padding: var(--space-2xl);
-    text-align: center;
-    color: var(--color-text-tertiary);
   }
 </style>

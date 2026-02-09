@@ -82,7 +82,7 @@ async function handleSubmit(event: Event) {
 }
 </script>
 
-<div class="join-page">
+<div class="centered-page">
   <div class="join-card">
     <div class="card-header">
       <h1>Join HearthVTT</h1>
@@ -144,15 +144,6 @@ async function handleSubmit(event: Event) {
 
 
 <style>
-  .join-page {
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    min-height: 100vh;
-    padding: var(--space-xl);
-    background-color: var(--color-bg-primary);
-  }
-
   .join-card {
     width: 100%;
     max-width: 500px;
@@ -160,7 +151,7 @@ async function handleSubmit(event: Event) {
     background-color: var(--color-bg-secondary);
     border: 1px solid var(--color-border-default);
     border-radius: var(--radius-lg);
-    box-shadow: var(--shadow-large);
+    box-shadow: var(--shadow-lg);
   }
 
   .card-header {
@@ -226,7 +217,7 @@ async function handleSubmit(event: Event) {
 
   .error-message {
     padding: var(--space-md);
-    background-color: rgba(244, 67, 54, 0.1);
+    background-color: var(--color-danger-faint);
     border: 1px solid var(--color-danger);
     border-radius: var(--radius-sm);
     color: var(--color-danger);

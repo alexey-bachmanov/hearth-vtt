@@ -11,9 +11,9 @@ const scenes = $derived(Array.from(campaignState.scenes.values()));
 const activeSceneId = $derived(campaignState.activeSceneId);
 </script>
 
-<div class="drawer-content">
-  <div class="drawer-section">
-    <h3 class="drawer-section__title">Active Scene</h3>
+<div class="drawer__section-list">
+  <div class="drawer__section">
+    <h3 class="drawer__section-title">Active Scene</h3>
     {#if activeSceneId}
       <div class="active-scene-card">
         <span class="active-scene-card__name">
@@ -22,12 +22,12 @@ const activeSceneId = $derived(campaignState.activeSceneId);
         <span class="badge badge--success">Active</span>
       </div>
     {:else}
-      <p class="text-secondary">No active scene</p>
+      <p class="text--secondary">No active scene</p>
     {/if}
   </div>
 
-  <div class="drawer-section">
-    <h3 class="drawer-section__title">Available Scenes</h3>
+  <div class="drawer__section">
+    <h3 class="drawer__section-title">Available Scenes</h3>
     <div class="scene-list">
       {#each scenes as scene}
         <button class="scene-item" class:scene-item--active={scene.id === activeSceneId}>
@@ -43,31 +43,12 @@ const activeSceneId = $derived(campaignState.activeSceneId);
     </div>
   </div>
 
-  <div class="drawer-section">
-    <button class="btn btn-primary">New Scene</button>
+  <div class="drawer__section">
+    <button class="btn btn--primary">New Scene</button>
   </div>
 </div>
 
 <style>
-  .drawer-content {
-    display: flex;
-    flex-direction: column;
-    gap: var(--space-lg);
-  }
-
-  .drawer-section {
-    display: flex;
-    flex-direction: column;
-    gap: var(--space-sm);
-  }
-
-  .drawer-section__title {
-    font-size: var(--font-size-md);
-    font-weight: var(--font-weight-semibold);
-    color: var(--color-text-primary);
-    margin: 0;
-  }
-
   .active-scene-card {
     display: flex;
     justify-content: space-between;
@@ -120,7 +101,7 @@ const activeSceneId = $derived(campaignState.activeSceneId);
 
   .scene-item--active {
     border-color: var(--color-accent-primary);
-    background-color: rgba(74, 158, 255, 0.1);
+    background-color: var(--color-accent-faint);
   }
 
   .scene-item__preview {
@@ -152,10 +133,5 @@ const activeSceneId = $derived(campaignState.activeSceneId);
   .scene-item__meta {
     font-size: var(--font-size-sm);
     color: var(--color-text-secondary);
-  }
-
-  .text-secondary {
-    color: var(--color-text-secondary);
-    font-size: var(--font-size-sm);
   }
 </style>

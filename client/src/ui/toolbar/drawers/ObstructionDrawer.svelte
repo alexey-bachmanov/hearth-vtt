@@ -6,18 +6,18 @@
  */
 </script>
 
-<div class="drawer-content">
-  <div class="drawer-section">
-    <h3 class="drawer-section__title">Obstruction Type</h3>
+<div class="drawer__section-list">
+  <div class="drawer__section">
+    <h3 class="drawer__section-title">Obstruction Type</h3>
     <div class="btn-group">
-      <button class="btn btn-sm btn-primary">Wall</button>
-      <button class="btn btn-sm">Door</button>
-      <button class="btn btn-sm">Window</button>
+      <button class="btn btn--sm btn--primary">Wall</button>
+      <button class="btn btn--sm">Door</button>
+      <button class="btn btn--sm">Window</button>
     </div>
   </div>
 
-  <div class="drawer-section">
-    <h3 class="drawer-section__title">Properties</h3>
+  <div class="drawer__section">
+    <h3 class="drawer__section-title">Properties</h3>
     <label class="setting-label checkbox-label">
       <input type="checkbox" checked />
       <span>Blocks movement</span>
@@ -32,38 +32,19 @@
     </label>
   </div>
 
-  <div class="drawer-section">
+  <div class="drawer__section">
     <p class="help-text">
       Click to place wall segments. Double-click to finish. Right-click existing
       walls to edit or delete.
     </p>
   </div>
 
-  <div class="drawer-section">
-    <button class="btn btn-danger">Clear All Walls</button>
+  <div class="drawer__section">
+    <button class="btn btn--danger">Clear All Walls</button>
   </div>
 </div>
 
 <style>
-  .drawer-content {
-    display: flex;
-    flex-direction: column;
-    gap: var(--space-lg);
-  }
-
-  .drawer-section {
-    display: flex;
-    flex-direction: column;
-    gap: var(--space-sm);
-  }
-
-  .drawer-section__title {
-    font-size: var(--font-size-md);
-    font-weight: var(--font-weight-semibold);
-    color: var(--color-text-primary);
-    margin: 0;
-  }
-
   .btn-group {
     display: flex;
     flex-wrap: wrap;

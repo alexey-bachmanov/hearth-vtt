@@ -95,7 +95,7 @@ function getNodeIcon(type: 'server' | 'campaign' | 'seat'): string {
   <div class="tree-node" style="--depth: {depth}">
     <button 
       class="node-button"
-      class:selected={node.id === selectedNodeId}
+      class:node-button--selected={node.id === selectedNodeId}
       onclick={() => onSelect(node)}
     >
       {#if node.children && node.children.length > 0}
@@ -185,15 +185,15 @@ function getNodeIcon(type: 'server' | 'campaign' | 'seat'): string {
     color: var(--color-text-primary);
   }
 
-  .node-button.selected {
+  .node-button--selected {
     background-color: var(--color-accent-primary);
     border-color: var(--color-accent-primary);
     color: white;
   }
 
   .expand-icon {
-    width: 16px;
-    height: 16px;
+    width: var(--icon-size-sm);
+    height: var(--icon-size-sm);
     display: flex;
     align-items: center;
     justify-content: center;
@@ -203,7 +203,7 @@ function getNodeIcon(type: 'server' | 'campaign' | 'seat'): string {
   }
 
   .expand-spacer {
-    width: 16px;
+    width: var(--icon-size-sm);
     margin-right: var(--space-xs);
   }
 

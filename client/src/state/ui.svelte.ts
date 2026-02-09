@@ -78,7 +78,7 @@ class UIState {
   activeToolDrawer = $state<ToolDrawerId | null>(null);
 
   // Right sidebar visibility
-  rightSidebarCollapsed = $state<boolean>(false);
+  rightSidebarOpen = $state<boolean>(true);
 
   // Open windows (mapped by unique window ID)
   openWindows = $state<Map<string, WindowMeta>>(new Map());

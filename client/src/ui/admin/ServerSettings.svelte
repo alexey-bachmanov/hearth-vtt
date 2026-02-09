@@ -128,10 +128,10 @@ function handleChangePassword() {
     <div class="section-header">
       <h2>Campaigns</h2>
       <div class="section-actions">
-        <button class="btn btn-secondary" onclick={handleImportCampaign}>
+        <button class="btn btn--secondary" onclick={handleImportCampaign}>
           📥 Import
         </button>
-        <button class="btn btn-primary" onclick={handleCreateCampaign}>
+        <button class="btn btn--primary" onclick={handleCreateCampaign}>
           ➕ Create Campaign
         </button>
       </div>
@@ -157,13 +157,13 @@ function handleChangePassword() {
             </div>
             <div class="campaign-actions">
               <button 
-                class="btn btn-sm btn-secondary"
+                class="btn btn--sm btn--secondary"
                 onclick={() => handleExportCampaign(campaign)}
               >
                 📤 Export
               </button>
               <button 
-                class="btn btn-sm btn-danger"
+                class="btn btn--sm btn--danger"
                 onclick={() => handleDeleteCampaign(campaign)}
               >
                 🗑️ Delete
@@ -181,7 +181,7 @@ function handleChangePassword() {
     
     {#if !passwordForm.showForm}
       <button 
-        class="btn btn-secondary"
+        class="btn btn--secondary"
         onclick={() => passwordForm.showForm = true}
       >
         🔒 Change Password
@@ -223,12 +223,12 @@ function handleChangePassword() {
         </div>
         
         <div class="form-actions">
-          <button type="submit" class="btn btn-primary">
+          <button type="submit" class="btn btn--primary">
             Update Password
           </button>
           <button 
             type="button" 
-            class="btn btn-secondary"
+            class="btn btn--secondary"
             onclick={() => {
               passwordForm.showForm = false;
               passwordForm.currentPassword = '';
@@ -247,7 +247,7 @@ function handleChangePassword() {
 
 <style>
   .server-settings {
-    max-width: 1200px;
+    max-width: var(--admin-content-max-width);
   }
 
   .settings-header {

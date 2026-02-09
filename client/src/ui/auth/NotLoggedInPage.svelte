@@ -7,7 +7,7 @@
  */
 </script>
 
-<div class="not-logged-in-page">
+<div class="centered-page">
   <div class="content-card">
     <div class="icon">🔒</div>
     
@@ -45,15 +45,6 @@
 </div>
 
 <style>
-  .not-logged-in-page {
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    min-height: 100vh;
-    padding: var(--space-xl);
-    background-color: var(--color-bg-primary);
-  }
-
   .content-card {
     width: 100%;
     max-width: 600px;
@@ -61,7 +52,7 @@
     background-color: var(--color-bg-secondary);
     border: 1px solid var(--color-border-default);
     border-radius: var(--radius-lg);
-    box-shadow: var(--shadow-large);
+    box-shadow: var(--shadow-lg);
     text-align: center;
   }
 

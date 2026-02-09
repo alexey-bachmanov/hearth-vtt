@@ -63,12 +63,12 @@ function handleMouseUp() {
 <style>
   .floating-window {
     position: absolute;
-    min-width: 320px;
-    max-width: 600px;
+    min-width: var(--window-min-width);
+    max-width: var(--window-max-width);
     background-color: var(--color-bg-elevated);
     border: 1px solid var(--color-border-default);
     border-radius: var(--radius-md);
-    box-shadow: var(--shadow-large);
+    box-shadow: var(--shadow-lg);
     display: flex;
     flex-direction: column;
     pointer-events: auto;
@@ -121,6 +121,6 @@ function handleMouseUp() {
   .window-body {
     padding: var(--space-md);
     overflow-y: auto;
-    max-height: 600px;
+    max-height: var(--window-max-height);
   }
 </style>

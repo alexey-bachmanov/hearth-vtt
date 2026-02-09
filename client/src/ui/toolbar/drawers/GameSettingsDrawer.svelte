@@ -6,9 +6,9 @@
  */
 </script>
 
-<div class="drawer-content">
-  <div class="drawer-section">
-    <h3 class="drawer-section__title">Game Rules</h3>
+<div class="drawer__section-list">
+  <div class="drawer__section">
+    <h3 class="drawer__section-title">Game Rules</h3>
     <label class="setting-label">
       <span>Game System</span>
       <select class="form-select">
@@ -20,8 +20,8 @@
     </label>
   </div>
 
-  <div class="drawer-section">
-    <h3 class="drawer-section__title">House Rules</h3>
+  <div class="drawer__section">
+    <h3 class="drawer__section-title">House Rules</h3>
     <label class="setting-label checkbox-label">
       <input type="checkbox" />
       <span>Critical hit house rules</span>
@@ -36,8 +36,8 @@
     </label>
   </div>
 
-  <div class="drawer-section">
-    <h3 class="drawer-section__title">Difficulty</h3>
+  <div class="drawer__section">
+    <h3 class="drawer__section-title">Difficulty</h3>
     <label class="setting-label">
       <span>Encounter Difficulty Multiplier</span>
       <input type="range" min="50" max="200" value="100" class="slider" />
@@ -45,31 +45,12 @@
     </label>
   </div>
 
-  <div class="drawer-section">
-    <button class="btn btn-primary">Save Settings</button>
+  <div class="drawer__section">
+    <button class="btn btn--primary">Save Settings</button>
   </div>
 </div>
 
 <style>
-  .drawer-content {
-    display: flex;
-    flex-direction: column;
-    gap: var(--space-lg);
-  }
-
-  .drawer-section {
-    display: flex;
-    flex-direction: column;
-    gap: var(--space-md);
-  }
-
-  .drawer-section__title {
-    font-size: var(--font-size-md);
-    font-weight: var(--font-weight-semibold);
-    color: var(--color-text-primary);
-    margin: 0;
-  }
-
   .setting-label {
     display: flex;
     flex-direction: column;

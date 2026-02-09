@@ -49,7 +49,7 @@ let openWindows = $state<Array<{id: string, type: string, zIndex: number}>>([]);
     background-color: var(--color-bg-elevated);
     border: 1px solid var(--color-border-default);
     border-radius: var(--radius-md);
-    box-shadow: var(--shadow-large);
+    box-shadow: var(--shadow-lg);
     padding: var(--space-md);
   }
 </style>

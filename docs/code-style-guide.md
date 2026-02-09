@@ -823,6 +823,153 @@ export class MyBackend implements StorageBackend {
 
 ---
 
+## CSS & Styling Standards
+
+HearthVTT uses a three-tier CSS architecture. Every style rule belongs in exactly one of these tiers.
+
+### Tier 1: Design Tokens (`tokens.css`)
+
+CSS custom properties that define the visual language. All layout dimensions, colors, spacing, typography, z-index layers, shadows, and transitions live here as `--token-name` variables.
+
+**Rules:**
+
+- Every reusable dimension, color, or timing value must be a token — no hardcoded `px`, `#hex`, or `ms` values in components
+- Tokens are the **only** place to tune the application's appearance (e.g., changing `--toolbar-left-width` resizes the left toolbar everywhere)
+- Use semantic names: `--sidebar-right-width`, not `--width-380`
+- When two things should be independently tunable, they get separate tokens even if their current values are identical (e.g., `--toolbar-left-width` and `--toolbar-right-width`)
+- Alpha variants of colors use a `-faint` suffix: `--color-accent-primary-faint`
+- No aliases — one canonical name per value. Don't define `--shadow-medium` as an alias for `--shadow-md`
+
+**Example:**
+
+```css
+:root {
+  --toolbar-left-width: 42px;
+  --toolbar-right-width: 42px;
+  --drawer-width: 320px;
+  --sidebar-right-width: 380px;
+  --icon-size-sm: 16px;
+  --icon-size-md: 24px;
+  --icon-size-lg: 32px;
+}
+```
+
+### Tier 2: Shared Component Classes (`components.css`)
+
+Reusable CSS classes for UI patterns that appear in 2+ components. These define **behavioral structure** — layout, transitions, interaction states — not one-off visual tweaks.
+
+**Rules:**
+
+- If a CSS block is duplicated in 2+ Svelte `<style>` sections, extract it here
+- Classes reference tokens for all values — no hardcoded dimensions or colors
+- Use BEM naming (see below)
+- Classes should be self-contained: a component should work by adding the class without needing to know about parent selectors
+- Avoid nested compound selectors like `.parent--state .child` — restructure so the child can style itself or inherit naturally. If state-dependent styling is needed, apply a modifier class directly to the element that changes
+
+**What belongs here:**
+
+- Drawer system (`.drawer`, `.drawer--left`, `.drawer--right`, `.drawer--closed`)
+- Buttons (`.btn`, `.btn--primary`, `.btn--danger`, `.btn--sm`)
+- Banners (`.banner`, `.banner--error`, `.banner--success`)
+- Form layout (`.form-group`, `.form-section`)
+- Cards (`.card`, `.card--elevated`)
+- Utility classes (`.text--secondary`, `.empty-state`, `.centered-page`)
+- Drawer content structure (`.drawer__section-list`, `.drawer__section`, `.drawer__section-title`)
+
+**What does NOT belong here:**
+
+- One-off layouts specific to a single component (put in Svelte `<style>`)
+- Overrides for a specific context (put in Svelte `<style>`)
+
+### Tier 3: Component-Scoped Styles (Svelte `<style>` blocks)
+
+Styles that are truly local to a single component. Svelte scopes these automatically.
+
+**Rules:**
+
+- Only put styles here that apply to exactly one component and aren't reused anywhere
+- Still use tokens for all values — `var(--space-md)`, not `16px`
+- If you find yourself copying a `<style>` block to a second component, extract it to `components.css` instead
+- Keep `<style>` blocks small — if a component has more than ~40 lines of scoped CSS, look for patterns to extract
+
+**Example — good local override:**
+
+```svelte
+<style>
+  /* Scene preview thumbnail — only used in SceneDrawer */
+  .scene-preview {
+    width: var(--icon-size-lg);
+    height: var(--icon-size-lg);
+    border-radius: var(--radius-sm);
+    object-fit: cover;
+  }
+</style>
+```
+
+### BEM Naming Convention
+
+All CSS classes follow the **Block Element Modifier** convention:
+
+```
+.block                    /* Top-level component */
+.block__element            /* Child part of the block */
+.block--modifier           /* Variant or state of the block */
+.block__element--modifier  /* Variant or state of an element */
+```
+
+**Rules:**
+
+- **Blocks** are standalone components: `.drawer`, `.btn`, `.banner`, `.actor-pill`
+- **Elements** are parts of a block: `.drawer__header`, `.drawer__content`, `.btn__icon`
+- **Modifiers** are variants or states: `.drawer--closed`, `.btn--primary`, `.banner--error`
+- State modifiers use `--`: `.initiative-entry--active`, not `.initiative-entry.active`
+- Multi-word blocks use single hyphens: `.actor-pill`, `.toolbar-icon-btn`
+- Never nest BEM selectors to express parent state on children. Instead, either:
+  - Apply a modifier class directly to the child from the Svelte template
+  - Restructure so the child's default styles work in both parent states
+
+**Bad — nested compound selector:**
+
+```css
+.drawer--right.drawer--closed .drawer__control-bar {
+  border-right: none;
+  border-left: 1px solid var(--color-border-default);
+}
+```
+
+**Good — restructured to avoid nesting:**
+
+```css
+/* Control bar always uses border-left (its inside edge) */
+.drawer__control-bar {
+  border-left: 1px solid var(--color-border-default);
+}
+```
+
+### Svelte Class Directives
+
+Use Svelte's `class:` directive for state-based class toggling:
+
+```svelte
+<div
+  class="drawer drawer--right"
+  class:drawer--closed={!isOpen}
+>
+```
+
+This keeps state logic in the template and avoids JavaScript-constructed class strings.
+
+### Checklist for New CSS
+
+- [ ] All dimensions, colors, and timings reference tokens — no hardcoded values
+- [ ] If the pattern exists in 2+ components, it's in `components.css`
+- [ ] Class names follow BEM convention
+- [ ] No nested compound selectors for parent-state-dependent child styling
+- [ ] Svelte `<style>` block is ≤40 lines (or has a good reason to be longer)
+- [ ] No duplicate `@keyframes` or utility classes — check `components.css` first
+
+---
+
 ## Summary Checklist
 
 Before submitting code, verify:
@@ -836,3 +983,6 @@ Before submitting code, verify:
 - [ ] No "TODO" or "FIXME" comments without associated tickets
 - [ ] Error cases are handled explicitly
 - [ ] Tests exist for new functionality (if applicable)
+- [ ] CSS follows the three-tier architecture (tokens → components → scoped)
+- [ ] No hardcoded dimensions, colors, or timings in component styles
+- [ ] CSS class names follow BEM naming convention

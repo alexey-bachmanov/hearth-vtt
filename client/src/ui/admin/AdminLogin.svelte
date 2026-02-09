@@ -130,7 +130,7 @@ onMount(() => {
 });
 </script>
 
-<div class="login-page">
+<div class="centered-page">
   {#if status === 'checking'}
     <div class="loading-state">
       <div class="spinner"></div>
@@ -159,15 +159,15 @@ onMount(() => {
         </div>
 
         {#if errorMessage}
-          <div class="error-banner">
-            <span class="error-icon">⚠️</span>
+          <div class="banner banner--error">
+            <span>⚠️</span>
             <span>{errorMessage}</span>
           </div>
         {/if}
 
         <button
           type="submit"
-          class="btn btn-primary"
+          class="btn btn--primary"
           disabled={isSubmitting}
         >
           {isSubmitting ? 'Logging in...' : 'Login'}
@@ -185,16 +185,6 @@ onMount(() => {
 </div>
 
 <style>
-  /* Page-specific wrapper with gradient background */
-  .login-page {
-    min-height: 100vh;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    padding: var(--space-xl);
-    background: linear-gradient(135deg, var(--color-bg-primary) 0%, var(--color-bg-secondary) 100%);
-  }
-
   /* Card-specific adjustments (extends .card from components.css) */
   .login-card {
     max-width: 450px;
@@ -203,7 +193,7 @@ onMount(() => {
     background-color: var(--color-bg-secondary);
     border: 1px solid var(--color-border-default);
     border-radius: var(--radius-lg);
-    box-shadow: var(--shadow-large);
+    box-shadow: var(--shadow-lg);
   }
 
   /* Login header section */

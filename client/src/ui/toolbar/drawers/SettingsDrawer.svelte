@@ -6,9 +6,9 @@
  */
 </script>
 
-<div class="drawer-content">
-  <div class="drawer-section">
-    <h3 class="drawer-section__title">Audio</h3>
+<div class="drawer__section-list">
+  <div class="drawer__section">
+    <h3 class="drawer__section-title">Audio</h3>
     <label class="setting-label">
       <span>Master Volume</span>
       <input type="range" min="0" max="100" value="80" class="slider" />
@@ -19,8 +19,8 @@
     </label>
   </div>
 
-  <div class="drawer-section">
-    <h3 class="drawer-section__title">Display</h3>
+  <div class="drawer__section">
+    <h3 class="drawer__section-title">Display</h3>
     <label class="setting-label checkbox-label">
       <input type="checkbox" checked />
       <span>Show grid</span>
@@ -35,8 +35,8 @@
     </label>
   </div>
 
-  <div class="drawer-section">
-    <h3 class="drawer-section__title">Accessibility</h3>
+  <div class="drawer__section">
+    <h3 class="drawer__section-title">Accessibility</h3>
     <label class="setting-label checkbox-label">
       <input type="checkbox" />
       <span>High contrast mode</span>
@@ -49,25 +49,6 @@
 </div>
 
 <style>
-  .drawer-content {
-    display: flex;
-    flex-direction: column;
-    gap: var(--space-lg);
-  }
-
-  .drawer-section {
-    display: flex;
-    flex-direction: column;
-    gap: var(--space-md);
-  }
-
-  .drawer-section__title {
-    font-size: var(--font-size-md);
-    font-weight: var(--font-weight-semibold);
-    color: var(--color-text-primary);
-    margin: 0;
-  }
-
   .setting-label {
     display: flex;
     flex-direction: column;
