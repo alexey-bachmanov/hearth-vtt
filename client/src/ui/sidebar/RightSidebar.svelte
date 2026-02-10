@@ -11,7 +11,7 @@ import { MessageSquare, ChevronRight } from 'lucide-svelte';
 import { uiState } from '../../state/ui.svelte';
 import ChatLog from './ChatLog.svelte';
 
-let showContent = $state(false);
+let showContent = $state(true);
 let sidebarEl: HTMLDivElement | null = $state(null);
 
 function toggleSidebar() {
@@ -58,7 +58,7 @@ function handleTransitionEnd(event: TransitionEvent) {
   </div>
 
   {#if showContent && uiState.rightSidebarOpen}
-    <div class="drawer__content">
+    <div class="sidebar__content">
       <ChatLog />
     </div>
   {/if}

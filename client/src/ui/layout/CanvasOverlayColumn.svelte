@@ -52,10 +52,6 @@
     pointer-events: none; /* Children will enable pointer-events */
   }
 
-  .canvas-top-bar > * {
-    pointer-events: auto; /* Re-enable for actual content */
-  }
-
   /* Middle spacer (empty, allows canvas interaction) */
   .canvas-middle {
     flex: 1;
@@ -66,9 +62,5 @@
     flex: 0 0 auto;
     padding: var(--space-md);
     pointer-events: none; /* Children will enable pointer-events */
-  }
-
-  .canvas-notification-area > * {
-    pointer-events: auto;
   }
 </style>

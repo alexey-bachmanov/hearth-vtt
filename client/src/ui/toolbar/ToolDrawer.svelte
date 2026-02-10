@@ -54,6 +54,25 @@ const drawerConfig: Record<
 };
 
 let drawerElement: HTMLDivElement | null = $state(null);
+let showContent = $state(false);
+let previousDrawerId: ToolDrawerId | null = $state(null);
+
+$effect(() => {
+  const currentDrawerId = uiState.activeToolDrawer;
+  
+  if (currentDrawerId && !previousDrawerId) {
+    // Opening drawer for first time
+    showContent = false;
+  } else if (!currentDrawerId && previousDrawerId) {
+    // Closing drawer
+    showContent = false;
+  } else if (currentDrawerId && previousDrawerId && currentDrawerId !== previousDrawerId) {
+    // Switching between drawers - keep content visible for smooth transition
+    showContent = true;
+  }
+  
+  previousDrawerId = currentDrawerId;
+});
 
 $effect(() => {
   // Handle Escape key to close drawer
@@ -91,6 +110,15 @@ function handleClose() {
   uiState.closeToolDrawer();
 }
 
+function handleTransitionEnd(event: TransitionEvent) {
+  // Only respond to width/flex-basis transitions on the drawer itself
+  if ((event.propertyName === 'flex-basis' || event.propertyName === 'width') && 
+      event.target === drawerElement && 
+      uiState.activeToolDrawer) {
+    showContent = true;
+  }
+}
+
 // Get current drawer config
 $effect.pre(() => {
   // This effect ensures reactivity to activeToolDrawer changes
@@ -109,8 +137,9 @@ const isOpen = $derived(uiState.activeToolDrawer !== null);
   role="dialog"
   aria-hidden={!isOpen}
   aria-label={currentDrawer?.title || 'Tool Drawer'}
+  ontransitionend={handleTransitionEnd}
 >
-  {#if currentDrawer}
+  {#if currentDrawer && showContent}
     {@const DrawerComponent = currentDrawer.component}
     <div class="drawer__header">
       <h2 class="drawer__title">{currentDrawer.title}</h2>
@@ -128,3 +157,4 @@ const isOpen = $derived(uiState.activeToolDrawer !== null);
     </div>
   {/if}
 </div>
+

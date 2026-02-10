@@ -105,8 +105,8 @@
    ======================================== */
 
 .toolbar-icon-btn {
-  width: calc(var(--toolbar-left-width) - 2 * var(--space-xs));
-  height: calc(var(--toolbar-left-width) * 1.5);
+  width: var(--toolbar-button-width);
+  height: var(--toolbar-button-height);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -137,8 +137,8 @@
   left: 0;
   top: 50%;
   transform: translateY(-50%);
-  width: 3px;
-  height: 32px;
+  width: var(--toolbar-button-bar-width);
+  height: var(--toolbar-button-bar-height);
   background-color: var(--color-accent-primary);
   border-radius: 0 var(--radius-xs) var(--radius-xs) 0;
 }
@@ -247,6 +247,13 @@
   min-width: 0; /* Allow flex child to shrink */
 }
 
+.sidebar__content {
+  /* Slightly different padding for right sidebar */
+  flex: 1;
+  overflow-y: hidden; /* Right sidebar manages its own scroll internally */
+  min-width: 0; /* Allow flex child to shrink */
+}
+
 /* Right sidebar control bar */
 .drawer__control-bar {
   flex: 0 0 var(--toolbar-left-width);
@@ -294,6 +301,7 @@
 }
 
 .actor-pill__main {
+  height: 100%;
   padding: 0 var(--space-md);
   display: flex;
   align-items: center;
@@ -336,6 +344,7 @@
 }
 
 .actor-pill__dropdown {
+  height: 100%;
   padding: 0 var(--space-sm);
   display: flex;
   align-items: center;

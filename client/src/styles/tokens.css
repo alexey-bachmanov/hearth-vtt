@@ -159,6 +159,17 @@
   --window-max-height: 600px;
 
   /* ========================================
+     Details and Misc
+     ======================================== */
+
+  --toolbar-button-width: calc(var(--toolbar-left-width) - var(--space-xs) * 2);
+  --toolbar-button-height: calc(var(--toolbar-button-width) * 1.5);
+  --toolbar-button-bar-width: 3px;
+  --toolbar-button-bar-height: calc(
+    var(--toolbar-button-height) - var(--radius-sm) * 2
+  );
+
+  /* ========================================
      Z-Index Layers
      ======================================== */
 
