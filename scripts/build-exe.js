@@ -19,7 +19,7 @@
  *   - better-sqlite3 is a native module and must be distributed alongside
  */
 
-import { execSync, spawnSync } from 'child_process';
+import { execSync } from 'child_process';
 import * as esbuild from 'esbuild';
 import {
   copyFileSync,
@@ -127,7 +127,7 @@ async function bundleServer() {
     entryPoints: [join(serverRoot, 'src/index.ts')],
     bundle: true,
     platform: 'node',
-    target: 'node20',
+    target: 'node24',
     format: 'cjs', // SEA requires CommonJS
     outfile: join(serverRoot, 'dist/bundle.cjs'),
     sourcemap: false,
@@ -230,8 +230,9 @@ bundleFunction(
 async function injectBlob(exePath) {
   const blobPath = join(serverRoot, 'dist/sea-prep.blob');
 
-  // Remove code signature on macOS
+  // Remove code signature
   if (targetPlatform === 'darwin') {
+    // macOS: Use codesign
     try {
       execSync(`codesign --remove-signature "${exePath}"`, {
         stdio: 'inherit',
@@ -241,30 +242,27 @@ async function injectBlob(exePath) {
         'Warning: Could not remove code signature (may not be needed)',
       );
     }
+  } else if (targetPlatform === 'win32') {
+    // Windows: The signature warning is expected and harmless
+    // The executable will still run correctly
+    // If you have signtool.exe, you could remove it with:
+    // execSync(`signtool remove /s "${exePath}"`, { stdio: 'inherit' });
+    console.log('   Note: Windows signature warning is expected and harmless');
   }
 
   // Inject the blob using postject
-  const postjectArgs = [
-    'npx',
-    'postject',
-    exePath,
-    'NODE_SEA_BLOB',
-    blobPath,
-    '--sentinel-fuse',
-    'NODE_SEA_FUSE_fce680ab2cc467b6e072b8b5df1996b2',
-  ];
+  let postjectCmd = `npx postject "${exePath}" NODE_SEA_BLOB "${blobPath}" --sentinel-fuse NODE_SEA_FUSE_fce680ab2cc467b6e072b8b5df1996b2`;
 
   if (targetPlatform === 'darwin') {
-    postjectArgs.push('--macho-segment-name', 'NODE_SEA');
+    postjectCmd += ' --macho-segment-name NODE_SEA';
   }
 
-  const result = spawnSync(postjectArgs[0], postjectArgs.slice(1), {
-    cwd: projectRoot,
-    stdio: 'inherit',
-    shell: true,
-  });
-
-  if (result.status !== 0) {
+  try {
+    execSync(postjectCmd, {
+      cwd: projectRoot,
+      stdio: 'inherit',
+    });
+  } catch (error) {
     console.error(
       'Failed to inject SEA blob. Make sure postject is installed:',
     );
