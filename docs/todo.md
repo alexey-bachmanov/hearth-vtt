@@ -452,5 +452,5 @@ Known issues organized by area. Items here can be promoted to "Current Projects"
 
 ## Build pipeline
 
-- [ ] Docker build fails
-- [ ] exe build fails
+- [x] Docker build fails
+- [x] exe build fails

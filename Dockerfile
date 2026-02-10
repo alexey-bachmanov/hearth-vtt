@@ -1,5 +1,5 @@
 # Build stage for client
-FROM node:20-alpine AS client-builder
+FROM node:22-alpine AS client-builder
 
 WORKDIR /app
 # Copy all package.json files for workspace resolution
@@ -12,7 +12,7 @@ COPY client/ ./client/
 RUN npm run build --workspace=client
 
 # Build stage for server
-FROM node:20-alpine AS server-builder
+FROM node:22-alpine AS server-builder
 
 WORKDIR /app
 # Copy all package.json files for workspace resolution
@@ -25,7 +25,7 @@ COPY server/ ./server/
 RUN npm run build --workspace=server
 
 # Native module builder stage (for better-sqlite3)
-FROM node:20-alpine AS native-builder
+FROM node:22-alpine AS native-builder
 
 # Install build tools for native compilation
 RUN apk add --no-cache python3 make g++
@@ -40,7 +40,7 @@ COPY server/package*.json ./server/
 RUN npm ci --workspace=server --omit=dev
 
 # Production stage
-FROM node:20-alpine AS production
+FROM node:22-alpine AS production
 
 WORKDIR /app
 
@@ -50,8 +50,8 @@ COPY client/package*.json ./client/
 COPY server/package*.json ./server/
 
 # Copy production node_modules with compiled native modules from builder
+# Note: npm workspaces hoist dependencies to root node_modules
 COPY --from=native-builder /app/node_modules ./node_modules
-COPY --from=native-builder /app/server/node_modules ./server/node_modules
 
 # Copy built artifacts
 COPY --from=client-builder /app/client/dist ./client/dist
