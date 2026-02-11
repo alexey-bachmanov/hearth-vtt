@@ -1,6 +1,6 @@
 # Todo List Strategy
 
-**Workflow:** Items in "Tech Debt" and "Bugs" represent known issues organized by category. When we decide to tackle a category, we **promote it to "Current Projects"** with a comprehensive, step-by-step plan. This prevents plans from rolling out of context during implementation.
+**Workflow:** Items in "Tech Debt" and "Bugs" represent known issues organized by category. Long-term objectives are detailed in [docs/implementaion-strategy.md](../docs/implementation-strategy.md). When we decide to tackle a category, we **promote it to "Current Projects"** with a comprehensive, step-by-step plan. This prevents plans from rolling out of context during implementation.
 
 As work completes, check off tasks.
 
@@ -76,7 +76,7 @@ As work completes, check off tasks.
 - [x] Create `ToolDrawer` wrapper — 320px slide-out panel overlaying canvas
   - [x] Smooth CSS transition (`transform: translateX`) for open/close
   - [x] Click-outside or Escape to close
-  - [ ] Header with drawer title + close button, scrollable content area
+  - [x] Header with drawer title + close button, scrollable content area
   - [x] Renders correct drawer content based on `uiState.activeToolDrawer`
 - [x] Create drawer content components in `ui/toolbar/drawers/`:
   - [x] `DiceRollerDrawer` — preset dice buttons (simple mode), and custom formula editor (advanced mode)
@@ -121,16 +121,16 @@ As work completes, check off tasks.
 
 ### Phase 7: Bottom Notifications
 
-- [ ] Create `NotificationArea` — fixed bottom-left, horizontal flexbox row
-  - [ ] Renders notifications from `notificationState`
-  - [ ] Compact leftward on dismiss with CSS transition
-  - [ ] Z-index between toolbar and floating window layers
-- [ ] Create `NotificationCard` — individual card styled by kind:
-  - [ ] **Ephemeral**: subtle bg, auto-fade, slide-up entrance
-  - [ ] **Blocking**: accent border, action buttons, no auto-dismiss
-  - [ ] **Persistent**: warning border, explicit dismiss button required
-- [ ] Delete old snackbar components and `ui/snackbar/` directory entirely
-- [ ] Create [notifications/index.ts](../client/src/ui/notifications/index.ts) barrel
+- [x] Create `NotificationArea` — fixed bottom-left, horizontal flexbox row
+  - [x] Renders notifications from `notificationState`
+  - [x] Compact leftward on dismiss with CSS transition
+  - [x] Z-index between toolbar and floating window layers
+- [x] Create `NotificationCard` — individual card styled by kind:
+  - [x] **Ephemeral**: subtle bg, auto-fade, slide-up entrance
+  - [x] **Blocking**: accent border, action buttons, no auto-dismiss
+  - [x] **Persistent**: warning border, explicit dismiss button required
+- [x] Delete old snackbar components and `ui/snackbar/` directory entirely
+- [x] Create [notifications/index.ts](../client/src/ui/notifications/index.ts) barrel
 
 ### Phase 8: Tabbed Floating Windows
 
@@ -176,94 +176,6 @@ As work completes, check off tasks.
 - **Radial menu** — custom SVG/CSS radial on token click; needs renderer + token system first
 - **Pop-out windows** — open floating window in separate browser window for multi-monitor
 - **Drag-and-drop from drawers** — drag Compendium items to sheets, drag actors to map
-
----
-
-# Future Milestones
-
-These are planned features and improvements not currently in active development.
-
-## Campaign Import/Export
-
-- [ ] `.campaign` file format implementation
-  - [ ] Zip unpack into working dir + SQLite + assets
-  - [ ] Export packages SQLite + assets into `.campaign` zip
-- [ ] Import validation and sanitization
-- [ ] Export asset optimization
-
-## Game Engine & Ruleset System
-
-- [ ] Define stub types (see shared-types.md)
-  - [ ] `RollModifier` — modifiers applied to dice rolls from effects
-  - [ ] `StatModifier` — modifiers applied to derived stats from effects
-  - [ ] `SyncBundle` — initial state bundle sent to clients on connect
-  - [ ] `RealtimeHub` — interface for broadcasting to connected clients
-  - [ ] `Logger` — structured logging interface
-- [ ] Tome/Ruleset integration
-  - [ ] Define template lookup API — how Tome entries reference Ruleset resolver templates
-  - [ ] Define Compendium loading — how Tomes are indexed at session start
-- [ ] Action engine + ruleset loading
-- [ ] State delta broadcasting and prompt delivery
-
-## Player Authentication System
-
-- [ ] Replace stub auth.ts with real implementation
-  - [ ] PIN validation against stored invites
-  - [ ] Session creation and token management
-  - [ ] Refresh token rotation
-- [ ] Wire auth.ts to real storage layer
-- [ ] Replace stub sessions.ts with authenticated session management
-- [ ] Implement WebSocket authentication
-  - [ ] Cookie-based auth on WS upgrade
-  - [ ] Session validation per connection
-
-## Seat & Invite Management
-
-- [ ] Wire [seats.ts](../server/src/routes/seats.ts) to storage (currently uses mock data)
-- [ ] Wire [invites.ts](../server/src/routes/invites.ts) to storage (currently uses mock data)
-- [ ] Add authentication guards to campaign GET endpoints
-- [ ] Replace `Math.random()` with crypto.randomBytes() for invite token generation
-
-## Admin Session Improvements
-
-- [ ] Reduce admin session duration from 30 days to 1 hour
-- [ ] Implement sliding window session extension (extend on activity)
-- [ ] Update `requireAdminAuth` middleware to extend sessions
-- [ ] Use `updateAdminSession()` method on activity (method exists but unused)
-- [ ] Test redirect behavior on session expiration
-
-## Hosted Mode & Production Readiness
-
-- [ ] `TRUST_PROXY` configuration support
-- [ ] `PUBLIC_BASE_URL` configuration support
-- [ ] Persistent volume configuration for Docker
-- [ ] Audit logging for admin actions
-- [ ] Multi-admin support with roles/permissions
-- [ ] Two-factor authentication option
-- [ ] Password reset via secure channel
-
-## Services Layer Extraction
-
-**Note:** Currently deferred until player auth and real seat management are implemented to avoid churn on stub code.
-
-- [ ] Create `server/src/services/` directory
-- [ ] Extract business logic from route handlers
-- [ ] Create service interfaces for:
-  - [ ] Campaign management
-  - [ ] Seat/invite management
-  - [ ] Session management
-  - [ ] Authentication workflows
-- [ ] Refactor routes to use services (thin delivery layer)
-- [ ] Create `server/src/domain/` for business rules/invariants
-
-## Shared Types Package
-
-**Note:** Deferred until there are actual shared types to extract.
-
-- [ ] Create `packages/shared/` directory
-- [ ] Extract protocol message types
-- [ ] Move shared schemas and IDs
-- [ ] Set up workspace references
 
 ---
 
@@ -420,11 +332,11 @@ Known issues organized by area. Items here can be promoted to "Current Projects"
 ## Testing
 
 - [ ] Zero test files exist
-- [ ] `vitest` installed but unconfigured
+- [x] `vitest` installed but unconfigured
 - [ ] `testing.md` entirely aspirational
 - [ ] No `InMemoryBackend` for testing
 - [ ] No test-specific mocks (MockResolveContext, TestRngProvider, TestClock)
-- [ ] Create `vitest.config.ts` in server workspace
+- [x] Create `vitest.config.ts` in server workspace
 - [ ] Implement `InMemoryBackend` implementing `StorageBackend` interface
 - [ ] Write first test suite: Storage CRUD operations
   - [ ] Campaign create/read/update/delete
@@ -443,7 +355,6 @@ Known issues organized by area. Items here can be promoted to "Current Projects"
 
 ## UI
 
-- [x] Left sidebar tooltips should appear on hover, but don't.
 - [ ] Admin setup page extends past the bottom of the screen and isn't scrollable.
 
 ## Backend
@@ -451,6 +362,3 @@ Known issues organized by area. Items here can be promoted to "Current Projects"
 ## GameEngine and RulesetRuntime
 
 ## Build pipeline
-
-- [x] Docker build fails
-- [x] exe build fails

@@ -13,6 +13,7 @@
    */
 
   import { ActorPills, QuickStatus } from '../canvas';
+import NotificationArea from '../notifications/NotificationArea.svelte';
 </script>
 
 <div class="canvas-overlay-column">
@@ -27,9 +28,7 @@
   <div class="canvas-middle"></div>
 
   <!-- Bottom: Notification area -->
-  <div class="canvas-notification-area">
-    <!-- TODO: Phase 7 - NotificationArea component -->
-  </div>
+  <NotificationArea />
 </div>
 
 <style>
@@ -55,12 +54,5 @@
   /* Middle spacer (empty, allows canvas interaction) */
   .canvas-middle {
     flex: 1;
-  }
-
-  /* Bottom notification area */
-  .canvas-notification-area {
-    flex: 0 0 auto;
-    padding: var(--space-md);
-    pointer-events: none; /* Children will enable pointer-events */
   }
 </style>

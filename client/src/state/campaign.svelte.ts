@@ -8,6 +8,7 @@
 
 import type { GridType, Position } from './types';
 import { viewportState } from './viewport.svelte';
+import { notificationState } from './notifications.svelte';
 
 // ============================================================================
 // Types
@@ -557,3 +558,4 @@ export const campaignState = new CampaignState();
 // Load mock data on module initialization (development only)
 // TODO: Remove this when server sync is implemented
 campaignState.loadMockData();
+notificationState.loadMockNotifications();

@@ -676,3 +676,169 @@ textarea:disabled {
     var(--color-bg-secondary) 100%
   );
 }
+/* ========================================
+   Notification System
+   ======================================== */
+
+/**
+ * NotificationArea - Bottom-left notification container
+ * 
+ * Displays notifications in a horizontal row starting from the bottom-left,
+ * stacking to the right and wrapping upward when running out of horizontal space.
+ */
+.notification-area {
+  display: flex;
+  flex-direction: row;
+  flex-wrap: wrap-reverse; /* Stack upward when wrapping */
+  align-items: flex-end;
+  gap: var(--space-md);
+  z-index: var(--z-notification);
+  pointer-events: none; /* Allow clicks to pass through gaps */
+  padding: var(--space-md);
+}
+
+.notification-area > * {
+  pointer-events: auto; /* Re-enable pointer events on children */
+}
+
+/**
+ * NotificationCard - Individual notification toast
+ * 
+ * Styled by notification kind (semantic: info, success, warning, error; colors: yellow, purple, pink, etc.).
+ * Supports ephemeral (auto-dismiss) and persistent (action-required) types.
+ * Layout: text | divider | action | divider | action
+ */
+.notification-card {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  /* gap: var(--space-sm); */
+  min-width: var(--notification-min-width);
+  max-width: var(--notification-max-width);
+  height: var(--notification-height);
+  overflow: hidden;
+  /* padding: var(--space-md); */
+  background-color: var(--color-bg-elevated);
+  border-left: 4px solid transparent;
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-lg);
+  animation: notification-slide-up var(--transition-normal) ease-out;
+  transition:
+    opacity var(--transition-normal) ease-out,
+    transform var(--transition-normal) ease-out;
+}
+
+@keyframes notification-slide-up {
+  from {
+    opacity: 0;
+    transform: translateY(16px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.notification-card--dismissing {
+  opacity: 0;
+  transform: translateY(8px);
+}
+
+/* Semantic notification kind variants */
+.notification-card--info {
+  background-color: var(--color-notification-info-bg);
+  border-left-color: var(--color-notification-info-border);
+}
+
+.notification-card--success {
+  background-color: var(--color-notification-success-bg);
+  border-left-color: var(--color-notification-success-border);
+}
+
+.notification-card--warning {
+  background-color: var(--color-notification-warning-bg);
+  border-left-color: var(--color-notification-warning-border);
+}
+
+.notification-card--error {
+  background-color: var(--color-notification-error-bg);
+  border-left-color: var(--color-notification-error-border);
+}
+
+/* Color notification kind variants (for custom prompts/ruleset-defined) */
+.notification-card--yellow {
+  background-color: rgba(234, 179, 8, 0.1);
+  border-left-color: rgb(234, 179, 8);
+}
+
+.notification-card--purple {
+  background-color: rgba(168, 85, 247, 0.1);
+  border-left-color: rgb(168, 85, 247);
+}
+
+.notification-card--pink {
+  background-color: rgba(236, 72, 153, 0.1);
+  border-left-color: rgb(236, 72, 153);
+}
+
+.notification-card--blue {
+  background-color: rgba(59, 130, 246, 0.1);
+  border-left-color: rgb(59, 130, 246);
+}
+
+.notification-card--green {
+  background-color: rgba(34, 197, 94, 0.1);
+  border-left-color: rgb(34, 197, 94);
+}
+
+.notification-card--red {
+  background-color: rgba(239, 68, 68, 0.1);
+  border-left-color: rgb(239, 68, 68);
+}
+
+.notification-card--orange {
+  background-color: rgba(249, 115, 22, 0.1);
+  border-left-color: rgb(249, 115, 22);
+}
+
+/* Notification message */
+.notification-card__message {
+  flex: 1;
+  padding: var(--space-sm) var(--space-md);
+  font-size: var(--font-size-md);
+  color: var(--color-text-primary);
+  line-height: 1.5;
+  word-wrap: break-word;
+}
+
+/* Divider between message and actions */
+.notification-card__divider {
+  width: 1px;
+  height: 60%;
+  background-color: var(--color-border-default);
+  flex-shrink: 0;
+}
+
+/* Notification actions */
+.notification-card__action {
+  flex-shrink: 0;
+  padding: var(--space-sm);
+  background-color: transparent;
+  border: none;
+  height: 100%;
+  color: var(--color-text-secondary);
+  font-size: var(--font-size-sm);
+  font-weight: var(--font-weight-semibold);
+  cursor: pointer;
+  transition: all var(--transition-fast);
+  white-space: nowrap;
+}
+
+.notification-card__action:hover {
+  backdrop-filter: brightness(200%) saturate(150%);
+  color: var(--color-text-primary);
+}
+
+.notification-card__action--dismiss {
+  padding: var(--space-sm);
+}

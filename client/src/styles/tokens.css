@@ -52,6 +52,18 @@
   --color-info: #2196f3;
   --color-gm-badge: #ffd700; /* Gold badge for GM roles */
 
+  /* Notification background colors */
+  --color-notification-info-bg: rgba(33, 150, 243, 0.1);
+  --color-notification-success-bg: rgba(76, 175, 80, 0.1);
+  --color-notification-warning-bg: rgba(255, 152, 0, 0.1);
+  --color-notification-error-bg: rgba(244, 67, 54, 0.1);
+
+  /* Notification border colors */
+  --color-notification-info-border: #2196f3;
+  --color-notification-success-border: #4caf50;
+  --color-notification-warning-border: #ff9800;
+  --color-notification-error-border: #f44336;
+
   /* Border colors */
   --color-border-subtle: #3a3a3a;
   --color-border-default: #4a4a4a;
@@ -157,6 +169,11 @@
   --window-min-height: 240px;
   --window-max-width: 600px;
   --window-max-height: 600px;
+
+  /* Notifications */
+  --notification-max-width: 400px;
+  --notification-min-width: 280px;
+  --notification-height: 72px;
 
   /* ========================================
      Details and Misc
