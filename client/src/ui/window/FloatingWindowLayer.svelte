@@ -1,55 +1,37 @@
 <script lang="ts">
 /**
- * FloatingWindowLayer - Overlay container for modal windows.
- * 
- * Manages z-index and rendering of all floating windows.
+ * FloatingWindowLayer - Overlay container for all tabbed floating windows.
+ *
+ * Iterates uiState.windowGroups and renders a TabbedWindow for each group,
+ * sorted by ascending zIndex so higher-zIndex groups render on top.
+ *
+ * The layer itself is pointer-events: none so clicks fall through to the
+ * canvas when no window is under the cursor. Each TabbedWindow re-enables
+ * pointer events for its own area via the CSS class.
  */
 
-// Mock window state - TODO: Wire to uiState
-let openWindows = $state<Array<{id: string, type: string, zIndex: number}>>([]);
+import { uiState } from '../../state/ui.svelte';
+import TabbedWindow from './TabbedWindow.svelte';
 
-// Example: openWindows could contain:
-// { id: 'char-1', type: 'character', zIndex: 200 }
-// { id: 'doc-1', type: 'document', zIndex: 201 }
+// Sort groups by z-index so DOM order matches stacking order.
+// Groups with higher zIndex appear later in the list (rendered on top).
+let sortedGroups = $derived(
+  [...uiState.windowGroups.values()].sort((a, b) => a.zIndex - b.zIndex),
+);
 </script>
 
 <div class="floating-window-layer">
-  {#if openWindows.length === 0}
-    <div class="no-windows">
-      <!-- No floating windows open -->
-    </div>
-  {:else}
-    {#each openWindows as window (window.id)}
-      <div class="window-placeholder" style="z-index: {window.zIndex}">
-        <!-- FloatingWindow component would render here -->
-        [Window: {window.type}]
-      </div>
-    {/each}
-  {/if}
+  {#each sortedGroups as group (group.id)}
+    <TabbedWindow groupId={group.id} />
+  {/each}
 </div>
 
 <style>
   .floating-window-layer {
     position: fixed;
-    top: 0;
-    left: 0;
-    right: 0;
-    bottom: 0;
+    inset: 0;
     pointer-events: none;
-    z-index: var(--z-modal);
-  }
-
-  .no-windows {
-    display: none;
-  }
-
-  .window-placeholder {
-    position: absolute;
-    pointer-events: auto;
-    background-color: var(--color-bg-elevated);
-    border: 1px solid var(--color-border-default);
-    border-radius: var(--radius-md);
-    box-shadow: var(--shadow-lg);
-    padding: var(--space-md);
+    z-index: var(--z-floating-window);
   }
 </style>
+

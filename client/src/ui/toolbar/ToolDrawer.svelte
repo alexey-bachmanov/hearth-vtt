@@ -15,6 +15,7 @@
 import { uiState, type ToolDrawerId } from '../../state/ui.svelte';
 import { Icon } from '../shared';
 import { X } from 'lucide-svelte';
+import type { Component } from 'svelte';
 
 // Import all drawer content components
 import DiceRollerDrawer from './drawers/DiceRollerDrawer.svelte';
@@ -35,7 +36,8 @@ import GameSettingsDrawer from './drawers/GameSettingsDrawer.svelte';
 // Drawer configuration
 const drawerConfig: Record<
   ToolDrawerId,
-  { title: string; component: any }
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  { title: string; component: Component<any> }
 > = {
   dice: { title: 'Dice Roller', component: DiceRollerDrawer },
   annotation: { title: 'Annotations', component: AnnotationDrawer },

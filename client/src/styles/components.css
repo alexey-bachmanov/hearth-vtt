@@ -842,3 +842,252 @@ textarea:disabled {
 .notification-card__action--dismiss {
   padding: var(--space-sm);
 }
+
+/* ========================================
+   Tabbed Floating Windows
+   ======================================== */
+
+/**
+ * TabbedWindow - Draggable floating window shell.
+ *
+ * Single-tab: header is a plain title bar with a close button.
+ * Multi-tab:  header is a scrollable tab strip; each tab has its own close ×.
+ *
+ * Block:     .tabbed-window
+ * Elements:  __header, __title-bar, __title, __close,
+ *            __tab-bar, __tab, __tab-label, __tab-close,
+ *            __body, __empty,
+ *            __context-menu, __context-menu-item, __context-menu-separator
+ * Modifiers: .tabbed-window--dragging, .tabbed-window__tab--active,
+ *            .tabbed-window__context-menu-item--disabled
+ */
+
+.tabbed-window {
+  position: absolute;
+  min-width: var(--window-min-width);
+  min-height: var(--window-min-height);
+  background-color: var(--color-bg-elevated);
+  border: 1px solid var(--color-border-default);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-lg);
+  display: flex;
+  flex-direction: column;
+  pointer-events: auto;
+  overflow: hidden;
+}
+
+.tabbed-window--dragging {
+  cursor: move;
+  user-select: none;
+  opacity: 0.92;
+}
+
+.tabbed-window--drop-target {
+  outline: 2px solid var(--color-accent-primary);
+  outline-offset: -2px;
+}
+
+/* ---- Header (drag region, houses tab bar or title bar) ---- */
+
+.tabbed-window__header {
+  display: flex;
+  align-items: stretch;
+  background-color: var(--color-bg-tertiary);
+  border-bottom: 1px solid var(--color-border-default);
+  border-radius: var(--radius-md) var(--radius-md) 0 0;
+  cursor: move;
+  flex-shrink: 0;
+  user-select: none;
+  min-height: var(--window-tab-height);
+  overflow: hidden;
+}
+
+/* ---- Single-tab title bar ---- */
+
+.tabbed-window__title-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex: 1;
+  padding: 0 0 0 var(--space-md);
+  gap: var(--space-sm);
+  min-width: 0;
+}
+
+.tabbed-window__title {
+  margin: 0;
+  font-size: var(--font-size-sm);
+  font-weight: var(--font-weight-semibold);
+  color: var(--color-text-primary);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  flex: 1;
+  min-width: 0;
+}
+
+.tabbed-window__close {
+  flex-shrink: 0;
+  width: var(--window-tab-height);
+  height: var(--window-tab-height);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: none;
+  border: none;
+  border-left: 1px solid var(--color-border-default);
+  border-radius: 0 var(--radius-md) 0 0;
+  color: var(--color-text-secondary);
+  font-size: var(--font-size-sm);
+  cursor: pointer;
+  transition:
+    background-color var(--transition-fast),
+    color var(--transition-fast);
+}
+
+.tabbed-window__close:hover {
+  background-color: var(--color-danger);
+  color: white;
+}
+
+/* ---- Multi-tab tab strip ---- */
+
+.tabbed-window__tab-bar {
+  display: flex;
+  align-items: stretch;
+  flex: 1;
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+
+.tabbed-window__tab-bar::-webkit-scrollbar {
+  display: none;
+}
+
+.tabbed-window__tab {
+  display: flex;
+  align-items: center;
+  gap: var(--space-xs);
+  padding: 0 var(--space-xs) 0 var(--space-sm);
+  height: var(--window-tab-height);
+  max-width: 180px;
+  background: none;
+  border: none;
+  border-right: 1px solid var(--color-border-default);
+  color: var(--color-text-secondary);
+  font-size: var(--font-size-sm);
+  cursor: pointer;
+  white-space: nowrap;
+  transition:
+    background-color var(--transition-fast),
+    color var(--transition-fast);
+}
+
+.tabbed-window__tab:hover {
+  background-color: var(--color-bg-elevated);
+  color: var(--color-text-primary);
+}
+
+.tabbed-window__tab--active {
+  background-color: var(--color-bg-elevated);
+  color: var(--color-text-primary);
+}
+
+.tabbed-window__tab-label {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  min-width: 0;
+  flex: 1;
+}
+
+.tabbed-window__tab-close {
+  flex-shrink: 0;
+  width: 16px;
+  height: 16px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: var(--radius-sm);
+  color: var(--color-text-secondary);
+  font-size: 10px;
+  line-height: 1;
+  background: none;
+  border: none;
+  cursor: pointer;
+  transition:
+    background-color var(--transition-fast),
+    color var(--transition-fast);
+  padding: 0;
+}
+
+.tabbed-window__tab-close:hover {
+  background-color: var(--color-danger);
+  color: white;
+}
+
+/* ---- Content area ---- */
+
+.tabbed-window__body {
+  flex: 1;
+  overflow: auto;
+  padding: var(--space-md);
+  min-height: 0; /* Prevent flex child from overflowing the window */
+}
+
+.tabbed-window__empty {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 100%;
+  color: var(--color-text-secondary);
+  font-size: var(--font-size-sm);
+  text-align: center;
+}
+
+/* ---- Context menu ---- */
+
+.tabbed-window__context-menu {
+  position: fixed;
+  min-width: 200px;
+  background-color: var(--color-bg-elevated);
+  border: 1px solid var(--color-border-default);
+  border-radius: var(--radius-sm);
+  box-shadow: var(--shadow-lg);
+  z-index: var(--z-dropdown);
+  overflow: hidden;
+  padding: var(--space-xs) 0;
+}
+
+.tabbed-window__context-menu-item {
+  display: block;
+  width: 100%;
+  padding: var(--space-sm) var(--space-md);
+  background: none;
+  border: none;
+  color: var(--color-text-primary);
+  font-size: var(--font-size-sm);
+  text-align: left;
+  cursor: pointer;
+  transition: background-color var(--transition-fast);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.tabbed-window__context-menu-item:hover:not(
+    .tabbed-window__context-menu-item--disabled
+  ) {
+  background-color: var(--color-bg-tertiary);
+}
+
+.tabbed-window__context-menu-item--disabled {
+  color: var(--color-text-secondary);
+  cursor: default;
+  pointer-events: none;
+}
+
+.tabbed-window__context-menu-separator {
+  height: 1px;
+  background-color: var(--color-border-default);
+  margin: var(--space-xs) 0;
+}

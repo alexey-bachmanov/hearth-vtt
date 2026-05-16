@@ -167,8 +167,11 @@
   /* Floating windows */
   --window-min-width: 320px;
   --window-min-height: 240px;
+  --window-default-width: 480px;
+  --window-default-height: 400px;
   --window-max-width: 600px;
   --window-max-height: 600px;
+  --window-tab-height: 32px;
 
   /* Notifications */
   --notification-max-width: 400px;

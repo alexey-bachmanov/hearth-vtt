@@ -134,20 +134,20 @@ As work completes, check off tasks.
 
 ### Phase 8: Tabbed Floating Windows
 
-- [ ] Redesign window state model in `uiState`:
-  - [ ] Replace `openWindows` Map with `windowGroups: Map<groupId, { tabs, activeTabId, position, size, zIndex }>`
-  - [ ] Methods: `openWindow()`, `closeTab()`, `mergeWindow()`, `detachTab()`, `bringToFront()`
-- [ ] Create `TabbedWindow` component:
-  - [ ] Tab bar below title bar when group has >1 tab
-  - [ ] Click tab to switch, context menu to detach tab
-  - [ ] Single-tab groups look identical to current windows (tab bar hidden)
-  - [ ] Active tab content rendered via dynamic component dispatch
-- [ ] Add tab merge UI: context menu on window title bar with "Merge into..." option listing other open windows
-- [ ] Rewrite `FloatingWindowLayer` — iterate `uiState.windowGroups`
-- [ ] Update `FloatingWindow` — refactor as shell inside `TabbedWindow`
-- [ ] Update [window/index.ts](../client/src/ui/window/index.ts) barrel
-- [ ] Implement drag-to-combine: drag window title bar onto another window's tab bar to merge
-- [ ] Implement drag-to-detach: drag tab out of tab bar to create new window group
+- [x] Redesign window state model in `uiState`:
+  - [x] Replace `openWindows` Map with `windowGroups: Map<groupId, { tabs, activeTabId, position, size, zIndex }>`
+  - [x] Methods: `openWindow()`, `closeTab()`, `mergeGroups()`, `detachTab()`, `bringGroupToFront()`
+- [x] Create `TabbedWindow` component:
+  - [x] Tab bar below title bar when group has >1 tab
+  - [x] Click tab to switch, context menu to detach tab
+  - [x] Single-tab groups look identical to current windows (tab bar hidden)
+  - [x] Active tab content rendered via dynamic component dispatch
+- [x] Add tab merge UI: context menu on window title bar with "Merge into..." option listing other open windows
+- [x] Rewrite `FloatingWindowLayer` — iterate `uiState.windowGroups`
+- [x] Replace `FloatingWindow` with `TabbedWindow` shell; delete old component
+- [x] Update [window/index.ts](../client/src/ui/window/index.ts) barrel
+- [x] Implement drag-to-combine: drag window title bar onto another window's tab bar to merge
+- [x] Implement drag-to-detach: drag tab out of tab bar to create new window group
 
 ### Phase 9: Canvas Input & Viewport
 
@@ -239,7 +239,7 @@ Known issues organized by area. Items here can be promoted to "Current Projects"
 
 ### State Management
 
-- [ ] `FloatingWindowLayer` maintains separate `$state` disconnected from `uiState.openWindows` — **addressed in Play UI Overhaul Phase 8**
+- [x] `FloatingWindowLayer` maintains separate `$state` disconnected from `uiState.openWindows` — **addressed in Play UI Overhaul Phase 8**
 - [ ] `RightSidebar` maintains own `activeDrawer` instead of using `uiState` — **addressed in Play UI Overhaul Phase 5**
 
 ### API Layer
@@ -263,7 +263,7 @@ Known issues organized by area. Items here can be promoted to "Current Projects"
 
 - [ ] AdminTree missing ARIA tree roles [AdminTree.svelte](../client/src/ui/admin/AdminTree.svelte#L81)
 - [ ] ChatLog input has no label [ChatLog.svelte](../client/src/ui/sidebar/ChatLog.svelte#L36)
-- [ ] FloatingWindow drag has no keyboard navigation [FloatingWindow.svelte](../client/src/ui/window/FloatingWindow.svelte#L55)
+  - [x] FloatingWindow drag has no keyboard navigation [FloatingWindow.svelte](../client/src/ui/window/FloatingWindow.svelte#L55)
 - [ ] No focus trap in floating windows or modals
 - [ ] Emoji-only buttons lack `aria-label` throughout admin UI
 - [ ] No skip navigation or landmark roles in PlayLayout

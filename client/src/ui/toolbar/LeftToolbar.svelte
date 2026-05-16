@@ -12,6 +12,7 @@
 
 import { uiState, type ToolDrawerId } from '../../state/ui.svelte';
 import { Icon, Tooltip } from '../shared';
+import type { Component } from 'svelte';
 import {
   Dice6,
   Pencil,
@@ -31,7 +32,8 @@ import {
 
 interface ToolConfig {
   id: ToolDrawerId;
-  icon: any;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  icon: Component<any>;
   label: string;
   gmOnly?: boolean;
 }
@@ -74,7 +76,7 @@ function isActive(toolId: ToolDrawerId): boolean {
 <div class="left-toolbar">
   <!-- Quick Tools Section -->
   <div class="toolbar-section">
-    {#each quickTools as tool}
+    {#each quickTools as tool (tool.id)}
       <Tooltip text={tool.label} position="right">
         <button
           class="toolbar-icon-btn"
@@ -93,7 +95,7 @@ function isActive(toolId: ToolDrawerId): boolean {
 
   <!-- Big Tools Section -->
   <div class="toolbar-section">
-    {#each bigTools as tool}
+    {#each bigTools as tool (tool.id)}
       <Tooltip text={tool.label} position="right">
         <button
           class="toolbar-icon-btn"
@@ -113,7 +115,7 @@ function isActive(toolId: ToolDrawerId): boolean {
   <!-- GM Tools Section -->
   {#if uiState.canAccessGMTools}
     <div class="toolbar-section toolbar-section--gm">
-      {#each gmTools as tool}
+      {#each gmTools as tool (tool.id)}
         <Tooltip text={tool.label} position="right">
           <button
             class="toolbar-icon-btn"
