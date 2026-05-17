@@ -130,7 +130,7 @@
                 >Concentrating</span
               >
             {/if}
-            {#each actor.conditions || [] as condition}
+            {#each actor.conditions || [] as condition (condition)}
               <span class="status-tag">{condition}</span>
             {/each}
           </div>

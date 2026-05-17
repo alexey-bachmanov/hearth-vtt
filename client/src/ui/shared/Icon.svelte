@@ -9,7 +9,7 @@
  * <Icon icon={Dice6} label="Roll dice" size={20} />
  */
 
-import type { Component } from 'svelte';
+import type { ComponentType } from 'svelte';
 
 interface Props {
   /**
@@ -17,7 +17,7 @@ interface Props {
    * Pass any Lucide icon component (e.g., Dice6, Menu, X, etc.)
    */
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  icon: Component<any>;
+  icon: ComponentType<any>;
 
   /**
    * Accessible label for screen readers.

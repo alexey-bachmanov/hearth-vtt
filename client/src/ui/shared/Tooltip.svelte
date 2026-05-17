@@ -1,4 +1,6 @@
 <script lang="ts">
+import type { Snippet } from 'svelte';
+
 /**
  * Tooltip component.
  *
@@ -35,7 +37,7 @@ let {
   position = 'top',
   delay = 500,
   children,
-}: Props & { children: any } = $props();
+}: Props & { children: Snippet } = $props();
 
 let visible = $state(false);
 let timeoutId: number | null = null;

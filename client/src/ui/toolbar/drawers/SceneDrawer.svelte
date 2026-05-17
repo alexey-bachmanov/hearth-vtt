@@ -29,7 +29,7 @@ const activeSceneId = $derived(campaignState.activeSceneId);
   <div class="drawer__section">
     <h3 class="drawer__section-title">Available Scenes</h3>
     <div class="scene-list">
-      {#each scenes as scene}
+      {#each scenes as scene (scene.id)}
         <button class="scene-item" class:scene-item--active={scene.id === activeSceneId}>
           <div class="scene-item__preview">
             <span class="scene-item__icon">🗺️</span>

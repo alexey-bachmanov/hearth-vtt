@@ -167,7 +167,7 @@ function handleImportData() {
       <div class="info-item">
         <span class="label">Attached Tomes:</span>
         <ul class="tome-list">
-          {#each ruleset.tomes as tome}
+          {#each ruleset.tomes as tome (tome)}
             <li>{tome}</li>
           {/each}
         </ul>
@@ -190,7 +190,7 @@ function handleImportData() {
           <p>No seats yet. Create a seat to allow players to join this campaign.</p>
         </div>
       {:else}
-        {#each seats as seat}
+        {#each seats as seat (seat.id)}
           <button 
             class="seat-card"
             onclick={() => onSelectSeat(seat.id)}

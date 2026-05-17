@@ -55,7 +55,7 @@ async function checkSetupStatus() {
       // Setup needed, show form
       status = 'needs-setup';
     }
-  } catch (error) {
+  } catch {
     errorMessage = 'Failed to connect to server. Please ensure the server is running.';
     status = 'needs-setup'; // Allow retry
   }
@@ -127,7 +127,7 @@ async function handleSubmit() {
       adminAuth.setCsrfToken(data.csrfToken);
     }
     navigate('/admin');
-  } catch (error) {
+  } catch {
     errorMessage = 'Failed to connect to server. Please ensure the server is running.';
     isSubmitting = false;
   }

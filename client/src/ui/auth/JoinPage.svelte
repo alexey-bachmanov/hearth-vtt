@@ -72,7 +72,7 @@ async function handleSubmit(event: Event) {
     setTimeout(() => {
       window.location.href = '/play';
     }, 2000);
-  } catch (err) {
+  } catch {
     // Network error or parse error
     error = 'Failed to connect to server. Please try again.';
     isLoading = false;

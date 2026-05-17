@@ -230,7 +230,7 @@ function isInviteActive(invite: Invite): boolean {
           <p>No invites yet. Create an invite to allow someone to claim this seat.</p>
         </div>
       {:else}
-        {#each invites as invite}
+        {#each invites as invite (invite.id)}
           <div class="invite-card" class:invite-card--active={isInviteActive(invite)}>
             <div class="invite-header">
               <div class="invite-status-indicator">

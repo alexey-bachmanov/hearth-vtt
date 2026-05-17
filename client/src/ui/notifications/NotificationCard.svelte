@@ -63,7 +63,7 @@ function handleAction(action: () => void) {
   </div>
 
   {#if hasActions}
-    {#each notification.actions as action}
+    {#each notification.actions as action (action.label)}
       <div class="notification-card__divider"></div>
       <button
         class="notification-card__action"

@@ -61,7 +61,7 @@ async function checkAuthStatus() {
 
     // Not authenticated, show login form
     status = 'needs-login';
-  } catch (error) {
+  } catch {
     // Network error or server down
     errorMessage = 'Failed to connect to server. Please ensure the server is running.';
     status = 'needs-login';
@@ -119,7 +119,7 @@ async function handleSubmit() {
       adminAuth.setCsrfToken(data.csrfToken);
     }
     navigate('/admin');
-  } catch (error) {
+  } catch {
     errorMessage = 'Failed to connect to server. Please ensure the server is running.';
     isSubmitting = false;
   }

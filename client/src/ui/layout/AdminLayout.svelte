@@ -60,7 +60,7 @@ async function checkAuth() {
 
     // User is authenticated, show admin UI
     isAuthenticated = true;
-  } catch (error) {
+  } catch {
     // Network error - redirect to error page
     navigate('/admin/error');
   } finally {

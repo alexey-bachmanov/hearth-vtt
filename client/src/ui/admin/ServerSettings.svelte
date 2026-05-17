@@ -143,7 +143,7 @@ function handleChangePassword() {
           <p>No campaigns yet. Create your first campaign to get started.</p>
         </div>
       {:else}
-        {#each campaigns as campaign}
+        {#each campaigns as campaign (campaign.id)}
           <div class="campaign-card">
             <button 
               class="campaign-name"

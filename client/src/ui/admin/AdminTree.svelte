@@ -119,7 +119,7 @@ function getNodeIcon(type: 'server' | 'campaign' | 'seat'): string {
     
     {#if node.expanded && node.children}
       <div class="node-children">
-        {#each node.children as child}
+        {#each node.children as child (child.id)}
           {@render TreeNodeView( 
             child, 
             selectedNodeId, 

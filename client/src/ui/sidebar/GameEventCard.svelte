@@ -30,9 +30,10 @@ const content = $derived(() => {
     case 'chat.message':
       return `${event.actorName || 'Unknown'}: ${event.message || ''}`;
     
-    case 'roll.result':
+    case 'roll.result': {
       const dice = event.dice?.map(d => `d${d.sides}:${d.result}`).join(', ') || '';
       return `${event.actorName || 'Unknown'} rolled ${event.formula || ''}: ${event.total || 0}${dice ? ` (${dice})` : ''}`;
+    }
     
     case 'damage.applied':
       return `${event.actorName || 'Unknown'} dealt ${event.damage || 0} ${event.damageType || 'damage'} to ${event.target || 'target'}`;

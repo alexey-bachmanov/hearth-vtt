@@ -26,7 +26,7 @@ const monsterActors = $derived(actors.filter((a) => a.type === 'monster'));
   <div class="drawer__section">
     <h3 class="drawer__section-title">Player Characters ({playerActors.length})</h3>
     <div class="actor-list">
-      {#each playerActors as actor}
+      {#each playerActors as actor (actor.id)}
         <button class="actor-item" draggable="true">
           <span class="actor-item__icon">🧙</span>
           <div class="actor-item__info">
@@ -41,7 +41,7 @@ const monsterActors = $derived(actors.filter((a) => a.type === 'monster'));
   <div class="drawer__section">
     <h3 class="drawer__section-title">NPCs ({npcActors.length})</h3>
     <div class="actor-list">
-      {#each npcActors as actor}
+      {#each npcActors as actor (actor.id)}
         <button class="actor-item" draggable="true">
           <span class="actor-item__icon">👤</span>
           <div class="actor-item__info">
@@ -56,7 +56,7 @@ const monsterActors = $derived(actors.filter((a) => a.type === 'monster'));
   <div class="drawer__section">
     <h3 class="drawer__section-title">Monsters ({monsterActors.length})</h3>
     <div class="actor-list">
-      {#each monsterActors as actor}
+      {#each monsterActors as actor (actor.id)}
         <button class="actor-item" draggable="true">
           <span class="actor-item__icon">👹</span>
           <div class="actor-item__info">
