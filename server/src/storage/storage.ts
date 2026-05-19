@@ -287,8 +287,14 @@ export interface StorageBackend {
 export class Storage {
   private backend: StorageBackend;
 
-  constructor(dataDir: string) {
-    this.backend = new SqliteStorage({ dataDir: dataDir });
+  constructor(dataDir: string);
+  constructor(backend: StorageBackend);
+  constructor(dataDirOrBackend: string | StorageBackend) {
+    if (typeof dataDirOrBackend === 'string') {
+      this.backend = new SqliteStorage({ dataDir: dataDirOrBackend });
+    } else {
+      this.backend = dataDirOrBackend;
+    }
   }
 
   /**

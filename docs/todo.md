@@ -201,9 +201,9 @@ As work completes, check off tasks.
 
 ### Phase 0: Infrastructure Fixes (prerequisite — unblocks all testing)
 
-- [ ] Refactor `Storage` constructor to accept `StorageBackend` directly — or add `createStorage(backend)` factory while keeping backward compat. See [storage.ts](../server/src/storage/storage.ts)
-- [ ] Implement `InMemoryBackend implements StorageBackend` using Maps — location: `server/src/storage/in-memory-storage.ts`
-- [ ] Export `InMemoryBackend` via [server/src/storage/index.ts](../server/src/storage/index.ts)
+- [x] Refactor `Storage` constructor to accept `StorageBackend` directly (overloaded — string path keeps backward compat). See [storage.ts](../server/src/storage/storage.ts)
+- [x] Implement `InMemoryBackend implements StorageBackend` using Maps — [server/src/storage/in-memory-storage.ts](../server/src/storage/in-memory-storage.ts)
+- [x] Export `InMemoryBackend` (and all storage types) via [server/src/storage/index.ts](../server/src/storage/index.ts)
 - [x] Add `@testing-library/svelte@^5` to `client/devDependencies` (also added `@testing-library/jest-dom` and `@testing-library/user-event`)
 - [x] Configure `@sveltejs/vite-plugin-svelte` in [client/vitest.config.ts](../client/vitest.config.ts) for `.svelte` file transforms during tests
 - [x] Create `client/src/test-setup.ts` — imports `@testing-library/jest-dom/vitest` to extend `expect` with DOM matchers
@@ -403,23 +403,10 @@ Known issues organized by area. Items here can be promoted to "Current Projects"
 
 ## Testing
 
-- [ ] Zero test files exist
-- [x] `vitest` installed but unconfigured
-- [ ] `testing.md` entirely aspirational
-- [ ] No `InMemoryBackend` for testing
-- [ ] No test-specific mocks (MockResolveContext, TestRngProvider, TestClock)
-- [x] Create `vitest.config.ts` in server workspace
-- [ ] Implement `InMemoryBackend` implementing `StorageBackend` interface
-- [ ] Write first test suite: Storage CRUD operations
-  - [ ] Campaign create/read/update/delete
-  - [ ] Seat create/list/update/delete
-  - [ ] Invite create/claim/revoke
-  - [ ] Admin session lifecycle
-- [ ] Verify admin auth flows:
-  - [ ] Test campaign creation with new schema
-  - [ ] Test seat/invite/session CRUD operations
-  - [ ] Test session expiration and cleanup
-  - [ ] Test routing: setup → login → dashboard flows
+- [x] Vitest configured in both workspaces — see Testing Infrastructure Sprint in Current Projects
+- [x] `InMemoryBackend` implemented
+- [x] `@testing-library/svelte` + `@testing-library/jest-dom` + `@testing-library/user-event` installed
+- [ ] No test-specific mocks (MockResolveContext, TestRngProvider, TestClock) — deferred until ruleset engine
 
 ---
 

@@ -1,8 +1,20 @@
-// Public API - Storage facade and types
-export { Storage, type Campaign, type Entity, type Event } from './storage.js';
+// Public API — Storage facade, types, and test helpers
+export {
+  Storage,
+  type StorageBackend,
+  type Campaign,
+  type Entity,
+  type Event,
+  type ServerAdmin,
+  type AdminSession,
+  type Seat,
+  type Invite,
+  type AuthSession,
+} from './storage.js';
 
-// Internal backend implementations (for initialization only)
+// Backend implementations
 export { SqliteStorage } from './sqlite-storage.js';
+export { InMemoryBackend } from './in-memory-storage.js';
 
 // Utilities
 export * from './ensure-dirs.js';
