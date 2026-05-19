@@ -179,6 +179,77 @@ As work completes, check off tasks.
 
 ---
 
+## Testing Infrastructure Sprint (May 2026)
+
+**Goal:** Establish a three-tier testing foundation (unit → integration → deferred E2E) that supports a spec-first agentic development workflow. See [docs/testing.md](../docs/testing.md) for full strategy and rationale.
+
+**Decisions locked in:**
+
+- **Test runner:** Vitest in both workspaces (already configured)
+- **Client DOM:** happy-dom (already configured)
+- **Component testing:** @testing-library/svelte v5 (Svelte 5 runes support)
+- **E2E:** Playwright — deferred until WS game loop is non-stub
+- **Storage injection:** `Storage` must accept `StorageBackend` before server unit tests are possible
+
+**Verification criteria:**
+
+- `npm test` passes across all workspaces after each phase
+- Server unit tests run with no SQLite file on disk (InMemoryBackend only)
+- Client state store tests reset singleton state cleanly between runs (no order-dependence)
+- Component tests render and interact with Svelte components in happy-dom
+- Coverage floors met: storage 80%, routes 60%, state stores 70%
+
+### Phase 0: Infrastructure Fixes (prerequisite — unblocks all testing)
+
+- [ ] Refactor `Storage` constructor to accept `StorageBackend` directly — or add `createStorage(backend)` factory while keeping backward compat. See [storage.ts](../server/src/storage/storage.ts)
+- [ ] Implement `InMemoryBackend implements StorageBackend` using Maps — location: `server/src/storage/in-memory-storage.ts`
+- [ ] Export `InMemoryBackend` via [server/src/storage/index.ts](../server/src/storage/index.ts)
+- [ ] Add `@testing-library/svelte@^5` to `client/devDependencies`
+- [ ] Configure `@sveltejs/vite-plugin-svelte` in [client/vitest.config.ts](../client/vitest.config.ts) for `.svelte` file transforms during tests
+
+### Phase 1: Server Unit Tests (parallel agents, after Phase 0)
+
+Pure functions and route handlers with injected `InMemoryBackend`. Each item is an independent test file — can be written in parallel.
+
+- [ ] `server/src/server.ts` — `parseTrustProxy` (all input cases: bool string, number string, array string, `"false"`, invalid)
+- [ ] `server/src/routes/admin-auth.ts` — password hashing/verification, session/CSRF token generation, `checkRateLimit` logic
+- [ ] `server/src/routes/admin-auth.ts` — HTTP flows: setup, login, logout, CSRF enforcement, change password, rate limit triggering
+- [ ] `server/src/routes/campaigns.ts` — CRUD with auth guards (unauthenticated, authenticated, missing campaign)
+- [ ] `server/src/routes/seats.ts` + `invites.ts` — create/list/revoke, auth guards, input validation
+
+### Phase 2: Client Unit Tests (parallel agents, after Phase 0)
+
+State stores are plain TypeScript classes — instantiate directly, no DOM required. Each item is an independent test file.
+
+- [ ] `client/src/app/routes.ts` — `parseRoute` (all 6 route types, trailing slashes, unknown paths, token extraction)
+- [ ] `client/src/state/viewport.svelte.ts` — zoom clamping (0.1–5.0), pan math, grid/snap toggles, `reset()`
+- [ ] `client/src/state/campaign.svelte.ts` — actor/token/scene accessors, `getPartyActors()`, `appendEvent()`, `loadMockData()`, `clear()`
+- [ ] `client/src/state/notifications.svelte.ts` — `push()`, `dismiss()`, ephemeral vs persistent, `info()`/`error()` helpers
+- [ ] `client/src/state/connection.svelte.ts` — status transitions, `handleWelcome()`, `incrementReconnectAttempts()`, `reset()`
+- [ ] `client/src/state/ui.svelte.ts` — `openWindow()`, `closeTab()`, `bringGroupToFront()`, `mergeGroups()`, `detachTab()`, tool drawer toggle
+
+### Phase 3: Server Integration Tests (after Phase 0)
+
+- [ ] `SqliteStorage` with `:memory:` — campaign CRUD lifecycle, entity CRUD, event sequencing (monotonic seq), transaction rollback
+- [ ] `SqliteStorage` admin sessions — create, validate hash, revoke, cleanup expired
+- [ ] `SqliteStorage` invites — create, decrement uses, revoke, per-seat listing
+- [ ] Full HTTP cycle tests — `buildServer()` with `InMemoryBackend`: complete admin setup → login → CSRF → protected endpoint chain
+
+### Phase 4: Client Component Tests (after Phase 0, @testing-library/svelte)
+
+- [ ] `AdminLogin.svelte` — renders form, submit success (mock fetch 200), submit error (mock fetch 401), loading state
+- [ ] `AdminSetup.svelte` — PIN + password form, confirm-password mismatch, submit flow
+- [ ] `JoinPage.svelte` — PIN entry, submit loading/success/error states
+- [ ] `ActorPill.svelte` — renders actor name/HP, dropdown open/close, `getHpPercentage` + `getHpColor` edge cases (0 HP, max HP, no maxHp)
+- [ ] `NotificationCard.svelte` — renders by kind, dismiss button, action buttons
+- [ ] `NotificationArea.svelte` — renders multiple notifications, dismiss removes from list
+
+### Deferred (Phase 5 — Post Game Loop)
+
+- **E2E with Playwright** — install at root workspace, `e2e/` directory, 5–10 critical journeys: admin setup, login, campaign create, invite, join game. Not worth investing in until WS message handlers and renderer are non-stub.
+
+---
+
 # Tech Debt
 
 Known issues organized by area. Items here can be promoted to "Current Projects" when prioritized.
