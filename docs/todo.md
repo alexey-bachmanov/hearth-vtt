@@ -204,8 +204,9 @@ As work completes, check off tasks.
 - [ ] Refactor `Storage` constructor to accept `StorageBackend` directly — or add `createStorage(backend)` factory while keeping backward compat. See [storage.ts](../server/src/storage/storage.ts)
 - [ ] Implement `InMemoryBackend implements StorageBackend` using Maps — location: `server/src/storage/in-memory-storage.ts`
 - [ ] Export `InMemoryBackend` via [server/src/storage/index.ts](../server/src/storage/index.ts)
-- [ ] Add `@testing-library/svelte@^5` to `client/devDependencies`
-- [ ] Configure `@sveltejs/vite-plugin-svelte` in [client/vitest.config.ts](../client/vitest.config.ts) for `.svelte` file transforms during tests
+- [x] Add `@testing-library/svelte@^5` to `client/devDependencies` (also added `@testing-library/jest-dom` and `@testing-library/user-event`)
+- [x] Configure `@sveltejs/vite-plugin-svelte` in [client/vitest.config.ts](../client/vitest.config.ts) for `.svelte` file transforms during tests
+- [x] Create `client/src/test-setup.ts` — imports `@testing-library/jest-dom/vitest` to extend `expect` with DOM matchers
 
 ### Phase 1: Server Unit Tests (parallel agents, after Phase 0)
 

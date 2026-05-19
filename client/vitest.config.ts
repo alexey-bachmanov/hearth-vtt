@@ -1,38 +1,47 @@
+import { mergeConfig } from 'vite';
 import { defineConfig } from 'vitest/config';
+import viteConfig from './vite.config';
 
 /**
  * Vitest configuration for client tests.
  *
- * For testing pure TypeScript/JavaScript logic without Svelte components.
- * When you need to test Svelte components, we'll add @testing-library/svelte
- * or similar testing utilities.
+ * Merges the existing vite.config.ts (which already includes the Svelte plugin)
+ * with vitest-specific settings. This avoids vite version type conflicts that
+ * occur when importing @sveltejs/vite-plugin-svelte directly here.
  *
  * @see https://vitest.dev/config/
  */
-export default defineConfig({
-  test: {
-    // Use happy-dom for browser-like environment (lighter and faster than jsdom)
-    environment: 'happy-dom',
+export default mergeConfig(
+  viteConfig,
+  defineConfig({
+    test: {
+      // Use happy-dom for browser-like environment (lighter and faster than jsdom)
+      environment: 'happy-dom',
 
-    // Test file patterns
-    include: ['src/**/*.test.ts'],
+      // Test file patterns
+      include: ['src/**/*.test.ts'],
 
-    // Coverage configuration (optional, can be enabled later)
-    coverage: {
-      provider: 'v8',
-      reporter: ['text', 'json', 'html'],
-      include: ['src/**/*.ts', 'src/**/*.svelte'],
-      exclude: [
-        'src/**/*.test.ts',
-        'src/**/*.d.ts',
-        'src/main.ts', // Client entry point
-      ],
+      // Runs before each test file — extends expect with @testing-library/jest-dom matchers
+      setupFiles: ['src/test-setup.ts'],
+
+      // Coverage configuration
+      coverage: {
+        provider: 'v8',
+        reporter: ['text', 'json', 'html'],
+        include: ['src/**/*.ts', 'src/**/*.svelte'],
+        exclude: [
+          'src/**/*.test.ts',
+          'src/**/*.d.ts',
+          'src/main.ts', // Client entry point
+          'src/test-setup.ts',
+        ],
+      },
+
+      // Test timeout (can be overridden per test)
+      testTimeout: 10000,
+
+      // Globals disabled — import { describe, it, expect } from 'vitest' explicitly
+      globals: false,
     },
-
-    // Test timeout (can be overridden per test)
-    testTimeout: 10000,
-
-    // Globals (optional - enables `describe`, `it`, etc. without imports)
-    globals: false,
-  },
-});
+  }),
+);
