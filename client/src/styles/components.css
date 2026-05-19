@@ -858,7 +858,10 @@ textarea:disabled {
  *            __tab-bar, __tab, __tab-label, __tab-close,
  *            __body, __empty,
  *            __context-menu, __context-menu-item, __context-menu-separator
- * Modifiers: .tabbed-window--dragging, .tabbed-window__tab--active,
+ *            __resize-n, __resize-ne, __resize-e, __resize-se,
+ *            __resize-s, __resize-sw, __resize-w, __resize-nw
+ * Modifiers: .tabbed-window--dragging, .tabbed-window--resizing,
+ *            .tabbed-window__tab--active,
  *            .tabbed-window__context-menu-item--disabled
  */
 
@@ -873,13 +876,17 @@ textarea:disabled {
   display: flex;
   flex-direction: column;
   pointer-events: auto;
-  overflow: hidden;
+  /* overflow moved to __body so resize handles are not clipped */
 }
 
 .tabbed-window--dragging {
   cursor: move;
   user-select: none;
   opacity: 0.92;
+}
+
+.tabbed-window--resizing {
+  user-select: none;
 }
 
 .tabbed-window--drop-target {
@@ -1032,6 +1039,33 @@ textarea:disabled {
   overflow: auto;
   padding: var(--space-md);
   min-height: 0; /* Prevent flex child from overflowing the window */
+
+  /* Firefox */
+  scrollbar-width: thin;
+  scrollbar-color: var(--color-border-strong) transparent;
+}
+
+/* Webkit scrollbar — transparent track lets the window's border-radius show through */
+.tabbed-window__body::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+.tabbed-window__body::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.tabbed-window__body::-webkit-scrollbar-thumb {
+  background: var(--color-bg-elevated);
+  border-radius: var(--radius-full);
+}
+
+.tabbed-window__body::-webkit-scrollbar-thumb:hover {
+  background: var(--color-border-strong);
+}
+
+.tabbed-window__body::-webkit-scrollbar-corner {
+  background: transparent;
 }
 
 .tabbed-window__empty {
@@ -1042,6 +1076,90 @@ textarea:disabled {
   color: var(--color-text-secondary);
   font-size: var(--font-size-sm);
   text-align: center;
+}
+
+/* ---- Resize handles ---- */
+/*
+ * All handles are transparent hit areas; the cursor change is the affordance.
+ * Each handle is centered on the window border: half outside, half inside.
+ * Edges are 8 px thick (4 px out / 4 px in).
+ * Corners are 16×16 px (8 px out / 8 px in), z-index: 1 to win over edges.
+ */
+
+.tabbed-window__resize-n {
+  position: absolute;
+  top: -4px;
+  left: 0;
+  right: 0;
+  height: 8px;
+  cursor: ns-resize;
+}
+
+.tabbed-window__resize-e {
+  position: absolute;
+  top: 0;
+  right: -4px;
+  bottom: 0;
+  width: 8px;
+  cursor: ew-resize;
+}
+
+.tabbed-window__resize-s {
+  position: absolute;
+  bottom: -4px;
+  left: 0;
+  right: 0;
+  height: 8px;
+  cursor: ns-resize;
+}
+
+.tabbed-window__resize-w {
+  position: absolute;
+  top: 0;
+  left: -4px;
+  bottom: 0;
+  width: 8px;
+  cursor: ew-resize;
+}
+
+.tabbed-window__resize-nw {
+  position: absolute;
+  top: -8px;
+  left: -8px;
+  width: 16px;
+  height: 16px;
+  cursor: nwse-resize;
+  z-index: 1;
+}
+
+.tabbed-window__resize-ne {
+  position: absolute;
+  top: -8px;
+  right: -8px;
+  width: 16px;
+  height: 16px;
+  cursor: nesw-resize;
+  z-index: 1;
+}
+
+.tabbed-window__resize-se {
+  position: absolute;
+  bottom: -8px;
+  right: -8px;
+  width: 16px;
+  height: 16px;
+  cursor: nwse-resize;
+  z-index: 1;
+}
+
+.tabbed-window__resize-sw {
+  position: absolute;
+  bottom: -8px;
+  left: -8px;
+  width: 16px;
+  height: 16px;
+  cursor: nesw-resize;
+  z-index: 1;
 }
 
 /* ---- Context menu ---- */

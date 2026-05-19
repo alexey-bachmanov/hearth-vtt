@@ -54,7 +54,7 @@
  *   'settings'      → no required context keys
  */
 
-import { uiState, type WindowId } from '../../state/ui.svelte';
+import { uiState, type WindowId, WINDOW_MIN_WIDTH, WINDOW_MIN_HEIGHT, WINDOW_DEFAULT_WIDTH, WINDOW_DEFAULT_HEIGHT } from '../../state/ui.svelte';
 import type { Component } from 'svelte';
 import CharacterSheet from './CharacterSheet.svelte';
 import DocumentReader from './DocumentReader.svelte';
@@ -135,9 +135,39 @@ let isDragging = $state(false);
 let localX = $state(0);
 let localY = $state(0);
 
-// Rendered position: local state during drag, group state otherwise.
-let renderX = $derived(isDragging ? localX : (group?.x ?? 0));
-let renderY = $derived(isDragging ? localY : (group?.y ?? 0));
+// ============================================================================
+// Resize state
+//
+// Plain lets for non-reactive anchors; $state only for values that drive
+// template rendering during the gesture.
+// ============================================================================
+
+/** One of the 8 compass directions, set when a resize gesture is active. */
+type ResizeDir = 'n' | 'ne' | 'e' | 'se' | 's' | 'sw' | 'w' | 'nw';
+
+let isResizing = $state(false);
+let localWidth = $state(0);
+let localHeight = $state(0);
+/** Position may shift during n/w/nw/ne/sw resizes (opposite edge stays fixed). */
+let localResizeX = $state(0);
+let localResizeY = $state(0);
+
+// Non-reactive resize anchors (read only on mouseup / in mousemove math).
+let resizeDir: ResizeDir = 'se';
+let resizeAnchorX = 0;
+let resizeAnchorY = 0;
+let resizeBaseX = 0;
+let resizeBaseY = 0;
+let resizeBaseWidth = 0;
+let resizeBaseHeight = 0;
+
+// Rendered position: local state during drag or resize, group state otherwise.
+let renderX = $derived(isDragging ? localX : isResizing ? localResizeX : (group?.x ?? 0));
+let renderY = $derived(isDragging ? localY : isResizing ? localResizeY : (group?.y ?? 0));
+
+// Rendered size: local state during resize, group state otherwise.
+let renderWidth = $derived(isResizing ? localWidth : (group?.width ?? WINDOW_DEFAULT_WIDTH));
+let renderHeight = $derived(isResizing ? localHeight : (group?.height ?? WINDOW_DEFAULT_HEIGHT));
 
 // Whether this group is the current drop target of another window's drag.
 let isDropTarget = $derived(uiState.dropTargetGroupId === groupId);
@@ -247,6 +277,32 @@ function handleTabMouseDown(event: MouseEvent, windowId: string) {
 }
 
 function handleWindowMouseMove(event: MouseEvent) {
+  // Resize gesture: compute new size (and position for n/w edges).
+  if (isResizing) {
+    const dx = event.clientX - resizeAnchorX;
+    const dy = event.clientY - resizeAnchorY;
+
+    if (resizeDir.includes('e')) {
+      localWidth = Math.max(resizeBaseWidth + dx, WINDOW_MIN_WIDTH);
+    }
+    if (resizeDir.includes('w')) {
+      const clamped = Math.max(resizeBaseWidth - dx, WINDOW_MIN_WIDTH);
+      localWidth = clamped;
+      // Shift x so the right edge stays anchored.
+      localResizeX = resizeBaseX + (resizeBaseWidth - clamped);
+    }
+    if (resizeDir.includes('s')) {
+      localHeight = Math.max(resizeBaseHeight + dy, WINDOW_MIN_HEIGHT);
+    }
+    if (resizeDir.includes('n')) {
+      const clamped = Math.max(resizeBaseHeight - dy, WINDOW_MIN_HEIGHT);
+      localHeight = clamped;
+      // Shift y so the bottom edge stays anchored.
+      localResizeY = resizeBaseY + (resizeBaseHeight - clamped);
+    }
+    return;
+  }
+
   // Tab drag: check whether the cursor has exceeded the detach threshold.
   if (tabDragWindowId !== null && !isDragging) {
     const dx = event.clientX - tabDragStartX;
@@ -285,6 +341,13 @@ function handleWindowMouseUp() {
   // Always clear tab drag tracking on mouseup (covers click-without-drag).
   tabDragWindowId = null;
 
+  // Commit resize gesture.
+  if (isResizing) {
+    isResizing = false;
+    uiState.updateGroupSize(groupId, localWidth, localHeight, localResizeX, localResizeY);
+    return;
+  }
+
   if (!isDragging) return;
   isDragging = false;
 
@@ -298,6 +361,38 @@ function handleWindowMouseUp() {
     // Normal drop → commit position.
     uiState.updateGroupPosition(groupId, localX, localY);
   }
+}
+
+// ============================================================================
+// Resize handle
+// ============================================================================
+
+/**
+ * Begin a resize gesture from one of the 8 handles.
+ *
+ * stopPropagation prevents handleWindowMouseDown from co-firing (which would
+ * call bringGroupToFront redundantly) and prevents handleHeaderMouseDown from
+ * starting a drag when the n/nw/ne handles overlap the header edge.
+ */
+function handleResizeMouseDown(event: MouseEvent, dir: ResizeDir) {
+  if (event.button !== 0) return;
+  event.preventDefault();
+  event.stopPropagation();
+
+  isResizing = true;
+  resizeDir = dir;
+  resizeAnchorX = event.clientX;
+  resizeAnchorY = event.clientY;
+  resizeBaseX = group?.x ?? 0;
+  resizeBaseY = group?.y ?? 0;
+  resizeBaseWidth = group?.width ?? WINDOW_DEFAULT_WIDTH;
+  resizeBaseHeight = group?.height ?? WINDOW_DEFAULT_HEIGHT;
+  localWidth = resizeBaseWidth;
+  localHeight = resizeBaseHeight;
+  localResizeX = resizeBaseX;
+  localResizeY = resizeBaseY;
+
+  uiState.bringGroupToFront(groupId);
 }
 
 // ============================================================================
@@ -378,6 +473,14 @@ function handleGlobalKeydown(event: KeyboardEvent) {
   if (event.key === 'Escape') {
     contextMenu = null;
     tabDragWindowId = null;
+    // Cancel an active resize gesture.
+    if (isResizing) {
+      isResizing = false;
+      localWidth = group?.width ?? WINDOW_DEFAULT_WIDTH;
+      localHeight = group?.height ?? WINDOW_DEFAULT_HEIGHT;
+      localResizeX = group?.x ?? 0;
+      localResizeY = group?.y ?? 0;
+    }
     // If we were dragging, cancel it cleanly.
     if (isDragging) {
       isDragging = false;
@@ -398,8 +501,9 @@ function handleGlobalKeydown(event: KeyboardEvent) {
   <div
     class="tabbed-window"
     class:tabbed-window--dragging={isDragging}
+    class:tabbed-window--resizing={isResizing}
     class:tabbed-window--drop-target={isDropTarget}
-    style="left: {renderX}px; top: {renderY}px; width: {group.width}px; height: {group.height}px; z-index: {group.zIndex};"
+    style="left: {renderX}px; top: {renderY}px; width: {renderWidth}px; height: {renderHeight}px; z-index: {group.zIndex};"
     onmousedown={handleWindowMouseDown}
     role="dialog"
     aria-label={activeTab?.title ?? 'Window'}
@@ -465,6 +569,22 @@ function handleGlobalKeydown(event: KeyboardEvent) {
         </div>
       {/if}
     </div>
+
+    <!-- ================================================================
+         Resize handles (8 directions)
+         Transparent hit areas — cursor change signals the affordance.
+         n/nw/ne sit at the top edge and intentionally overlap the header
+         by 8 px; stopPropagation in handleResizeMouseDown isolates them
+         from the header drag handler.
+         ================================================================ -->
+    <div class="tabbed-window__resize-n"  onmousedown={(e) => handleResizeMouseDown(e, 'n')}  role="presentation"></div>
+    <div class="tabbed-window__resize-ne" onmousedown={(e) => handleResizeMouseDown(e, 'ne')} role="presentation"></div>
+    <div class="tabbed-window__resize-e"  onmousedown={(e) => handleResizeMouseDown(e, 'e')}  role="presentation"></div>
+    <div class="tabbed-window__resize-se" onmousedown={(e) => handleResizeMouseDown(e, 'se')} role="presentation"></div>
+    <div class="tabbed-window__resize-s"  onmousedown={(e) => handleResizeMouseDown(e, 's')}  role="presentation"></div>
+    <div class="tabbed-window__resize-sw" onmousedown={(e) => handleResizeMouseDown(e, 'sw')} role="presentation"></div>
+    <div class="tabbed-window__resize-w"  onmousedown={(e) => handleResizeMouseDown(e, 'w')}  role="presentation"></div>
+    <div class="tabbed-window__resize-nw" onmousedown={(e) => handleResizeMouseDown(e, 'nw')} role="presentation"></div>
   </div>
 
   <!-- ================================================================

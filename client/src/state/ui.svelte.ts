@@ -16,16 +16,16 @@ import type { SeatRole } from './types';
 // ============================================================================
 
 /** Minimum allowed width (px). Matches --window-min-width token. */
-const WINDOW_MIN_WIDTH = 320;
+export const WINDOW_MIN_WIDTH = 320;
 
 /** Minimum allowed height (px). Matches --window-min-height token. */
-const WINDOW_MIN_HEIGHT = 240;
+export const WINDOW_MIN_HEIGHT = 240;
 
 /** Default width (px) for newly opened windows. Matches --window-default-width token. */
-const WINDOW_DEFAULT_WIDTH = 480;
+export const WINDOW_DEFAULT_WIDTH = 480;
 
 /** Default height (px) for newly opened windows. Matches --window-default-height token. */
-const WINDOW_DEFAULT_HEIGHT = 400;
+export const WINDOW_DEFAULT_HEIGHT = 400;
 
 /**
  * Cascade offset applied per open group when no explicit position is given.
@@ -375,18 +375,36 @@ class UIState {
   }
 
   /**
-   * Update the size of a window group.
-   * Reserved for future drag-resize support; min dimensions are enforced here.
+   * Update the size of a window group, optionally also updating position.
+   *
+   * Position params are used when resizing from the top or left edge, where
+   * the opposite edge must stay anchored (x/y shift to compensate).
+   * Min dimensions are enforced; position is adjusted to match when clamped.
    *
    * @param groupId - The group to resize.
    * @param width - New width in viewport pixels.
    * @param height - New height in viewport pixels.
+   * @param x - New left edge in viewport pixels (omit to keep current).
+   * @param y - New top edge in viewport pixels (omit to keep current).
    */
-  updateGroupSize(groupId: string, width: number, height: number) {
+  updateGroupSize(
+    groupId: string,
+    width: number,
+    height: number,
+    x?: number,
+    y?: number,
+  ) {
     const group = this.windowGroups.get(groupId);
     if (!group) return;
-    group.width = Math.max(width, WINDOW_MIN_WIDTH);
-    group.height = Math.max(height, WINDOW_MIN_HEIGHT);
+    // Spread to new object so the changed reference propagates through
+    // $derived dependency chains (same reference = no propagation).
+    this.windowGroups.set(groupId, {
+      ...group,
+      width: Math.max(width, WINDOW_MIN_WIDTH),
+      height: Math.max(height, WINDOW_MIN_HEIGHT),
+      x: x ?? group.x,
+      y: y ?? group.y,
+    });
   }
 
   // ============================================================================
