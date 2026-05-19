@@ -7,6 +7,7 @@
  */
 
 import { connectionState } from './connection.svelte';
+import { SvelteMap } from 'svelte/reactivity';
 import type { SeatRole } from './types';
 
 // ============================================================================
@@ -174,13 +175,13 @@ class UIState {
    * All open window tabs, keyed by window ID.
    * Used to look up metadata (title, type, context) when rendering tab labels.
    */
-  openWindows = $state<Map<string, WindowMeta>>(new Map());
+  openWindows = $state<SvelteMap<string, WindowMeta>>(new SvelteMap());
 
   /**
    * All window groups (draggable frames), keyed by group ID.
    * This is the primary collection iterated by FloatingWindowLayer.
    */
-  windowGroups = $state<Map<string, WindowGroup>>(new Map());
+  windowGroups = $state<SvelteMap<string, WindowGroup>>(new SvelteMap());
 
   /**
    * The group ID currently highlighted as a drag-to-combine drop target.
@@ -353,7 +354,10 @@ class UIState {
   bringGroupToFront(groupId: string) {
     const group = this.windowGroups.get(groupId);
     if (!group) return;
-    group.zIndex = this.getMaxZIndex() + 1;
+    this.windowGroups.set(groupId, {
+      ...group,
+      zIndex: this.getMaxZIndex() + 1,
+    });
   }
 
   /**
@@ -398,7 +402,9 @@ class UIState {
   setActiveTab(groupId: string, windowId: string) {
     const group = this.windowGroups.get(groupId);
     if (group && group.tabs.includes(windowId)) {
-      group.activeTabId = windowId;
+      // Spread to new object so the changed reference propagates through
+      // $derived dependency chains (same reference = no propagation).
+      this.windowGroups.set(groupId, { ...group, activeTabId: windowId });
     }
   }
 
@@ -418,12 +424,16 @@ class UIState {
     const target = this.windowGroups.get(targetGroupId);
     if (!source || !target) return;
 
+    // Build new tabs array — avoids relying on .push() being tracked.
+    target.tabs = [...target.tabs, ...source.tabs];
     for (const windowId of source.tabs) {
-      target.tabs.push(windowId);
       this.windowGroupMap.set(windowId, targetGroupId);
     }
 
     this.windowGroups.delete(sourceGroupId);
+    // Spread to new object so the changed reference propagates through
+    // $derived dependency chains (same reference = no propagation).
+    this.windowGroups.set(targetGroupId, { ...target });
   }
 
   /**
@@ -447,9 +457,15 @@ class UIState {
     sourceGroup.tabs = sourceGroup.tabs.filter((id) => id !== windowId);
     if (sourceGroup.tabs.length === 0) {
       this.windowGroups.delete(sourceGroupId);
-    } else if (sourceGroup.activeTabId === windowId) {
-      const newIndex = Math.min(tabIndex, sourceGroup.tabs.length - 1);
-      sourceGroup.activeTabId = sourceGroup.tabs[newIndex];
+    } else {
+      const updatedSource = { ...sourceGroup };
+      if (updatedSource.activeTabId === windowId) {
+        const newIndex = Math.min(tabIndex, updatedSource.tabs.length - 1);
+        updatedSource.activeTabId = updatedSource.tabs[newIndex];
+      }
+      // Spread to new object so the changed reference propagates through
+      // $derived dependency chains (same reference = no propagation).
+      this.windowGroups.set(sourceGroupId, updatedSource);
     }
 
     // Create a new single-tab group at the requested position.
