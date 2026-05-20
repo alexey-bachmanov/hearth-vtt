@@ -14,6 +14,12 @@ import viteConfig from './vite.config';
 export default mergeConfig(
   viteConfig,
   defineConfig({
+    // Force Vite to use browser-condition exports when resolving packages.
+    // Without this, the `svelte` package resolves to index-server.js (SSR),
+    // which throws `mount(...) is not available on the server` in component tests.
+    resolve: {
+      conditions: ['browser'],
+    },
     test: {
       // Use happy-dom for browser-like environment (lighter and faster than jsdom)
       environment: 'happy-dom',
