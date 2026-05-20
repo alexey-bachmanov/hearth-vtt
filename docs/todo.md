@@ -215,7 +215,7 @@ Pure functions and route handlers with injected `InMemoryBackend`. Each item is 
 - [ ] `server/src/server.ts` — `parseTrustProxy` (all input cases: bool string, number string, array string, `"false"`, invalid)
 - [ ] `server/src/routes/admin-auth.ts` — password hashing/verification, session/CSRF token generation, `checkRateLimit` logic
 - [ ] `server/src/routes/admin-auth.ts` — HTTP flows: setup, login, logout, CSRF enforcement, change password, rate limit triggering
-- [ ] `server/src/routes/campaigns.ts` — CRUD with auth guards (unauthenticated, authenticated, missing campaign)
+- [x] `server/src/routes/campaigns.ts` — CRUD with auth guards (unauthenticated, authenticated, missing campaign)
 - [ ] `server/src/routes/seats.ts` + `invites.ts` — create/list/revoke, auth guards, input validation
 
 ### Phase 2: Client Unit Tests (parallel agents, after Phase 0)
@@ -225,7 +225,7 @@ State stores are plain TypeScript classes — instantiate directly, no DOM requi
 - [ ] `client/src/app/routes.ts` — `parseRoute` (all 6 route types, trailing slashes, unknown paths, token extraction)
 - [ ] `client/src/state/viewport.svelte.ts` — zoom clamping (0.1–5.0), pan math, grid/snap toggles, `reset()`
 - [ ] `client/src/state/campaign.svelte.ts` — actor/token/scene accessors, `getPartyActors()`, `appendEvent()`, `loadMockData()`, `clear()`
-- [ ] `client/src/state/notifications.svelte.ts` — `push()`, `dismiss()`, ephemeral vs persistent, `info()`/`error()` helpers
+- [x] `client/src/state/notifications.svelte.ts` — `push()`, `dismiss()`, ephemeral vs persistent, `info()`/`error()` helpers
 - [ ] `client/src/state/connection.svelte.ts` — status transitions, `handleWelcome()`, `incrementReconnectAttempts()`, `reset()`
 - [ ] `client/src/state/ui.svelte.ts` — `openWindow()`, `closeTab()`, `bringGroupToFront()`, `mergeGroups()`, `detachTab()`, tool drawer toggle
 
