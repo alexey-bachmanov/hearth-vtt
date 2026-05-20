@@ -37,7 +37,7 @@ interface SeatRow {
   id: string;
   campaignId: string;
   displayName: string;
-  role: string;
+  role: Seat['role'];
   isActive: number;
   createdAt: number;
   updatedAt: number;
