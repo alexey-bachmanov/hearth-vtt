@@ -14,6 +14,35 @@ import type {
   AuthSession,
 } from './storage.js';
 
+/** Raw SQLite row shape for entity records */
+interface EntityRow {
+  id: string;
+  type: string;
+  data: string;
+  createdAt: number;
+  updatedAt: number;
+}
+
+/** Raw SQLite row shape for event records */
+interface EventRow {
+  id: string;
+  entityId: string;
+  type: string;
+  data: string;
+  timestamp: number;
+}
+
+/** Raw SQLite row shape for seat records */
+interface SeatRow {
+  id: string;
+  campaignId: string;
+  displayName: string;
+  role: string;
+  isActive: number;
+  createdAt: number;
+  updatedAt: number;
+}
+
 /**
  * SQLite-based storage implementation using per-campaign databases.
  *
@@ -290,7 +319,7 @@ export class SqliteStorage implements StorageBackend {
     this.closeMetadataDb();
 
     // Close all campaign databases
-    for (const [campaignId, db] of this.campaignDbs.entries()) {
+    for (const [_campaignId, db] of this.campaignDbs.entries()) {
       db.close();
     }
     this.campaignDbs.clear();
@@ -434,7 +463,7 @@ export class SqliteStorage implements StorageBackend {
       WHERE id = ?
     `);
 
-    const row = stmt.get(entityId) as any;
+    const row = stmt.get(entityId) as EntityRow | undefined;
     if (!row) return null;
 
     return {
@@ -485,7 +514,7 @@ export class SqliteStorage implements StorageBackend {
     const db = this.getOrCreateCampaignDb(campaignId);
 
     let stmt: Database.Statement;
-    let rows: any[];
+    let rows: EntityRow[];
 
     if (type) {
       stmt = db.prepare(`
@@ -494,14 +523,14 @@ export class SqliteStorage implements StorageBackend {
         WHERE type = ?
         ORDER BY created_at DESC
       `);
-      rows = stmt.all(type) as any[];
+      rows = stmt.all(type) as EntityRow[];
     } else {
       stmt = db.prepare(`
         SELECT id, type, data, created_at as createdAt, updated_at as updatedAt
         FROM entities
         ORDER BY created_at DESC
       `);
-      rows = stmt.all() as any[];
+      rows = stmt.all() as EntityRow[];
     }
 
     return rows.map((row) => ({
@@ -563,7 +592,7 @@ export class SqliteStorage implements StorageBackend {
       FROM events
       WHERE 1=1
     `;
-    const params: any[] = [];
+    const params: unknown[] = [];
 
     if (options?.afterTimestamp) {
       query += ` AND timestamp > ?`;
@@ -588,7 +617,7 @@ export class SqliteStorage implements StorageBackend {
     }
 
     const stmt = db.prepare(query);
-    const rows = stmt.all(...params) as any[];
+    const rows = stmt.all(...params) as EventRow[];
 
     return rows.map((row) => ({
       id: row.id,
@@ -603,15 +632,15 @@ export class SqliteStorage implements StorageBackend {
   /**
    * Transaction support - TODO: Implement
    */
-  async beginTransaction(campaignId: string): Promise<void> {
+  async beginTransaction(_campaignId: string): Promise<void> {
     throw new Error('Transactions not yet implemented');
   }
 
-  async commitTransaction(campaignId: string): Promise<void> {
+  async commitTransaction(_campaignId: string): Promise<void> {
     throw new Error('Transactions not yet implemented');
   }
 
-  async rollbackTransaction(campaignId: string): Promise<void> {
+  async rollbackTransaction(_campaignId: string): Promise<void> {
     throw new Error('Transactions not yet implemented');
   }
 
@@ -704,7 +733,7 @@ export class SqliteStorage implements StorageBackend {
     }
 
     const updates: string[] = [];
-    const values: any[] = [];
+    const values: unknown[] = [];
 
     if (data.pinHash !== undefined) {
       updates.push('pin_hash = ?');
@@ -954,7 +983,7 @@ export class SqliteStorage implements StorageBackend {
       WHERE id = ?
     `);
 
-    const row = stmt.get(seatId) as any;
+    const row = stmt.get(seatId) as SeatRow | undefined;
     if (!row) return null;
 
     return {
@@ -983,7 +1012,7 @@ export class SqliteStorage implements StorageBackend {
       ORDER BY created_at DESC
     `);
 
-    const rows = stmt.all(campaignId) as any[];
+    const rows = stmt.all(campaignId) as SeatRow[];
     return rows.map((row) => ({
       ...row,
       isActive: row.isActive === 1,
@@ -1005,7 +1034,7 @@ export class SqliteStorage implements StorageBackend {
     const db = this.getOrCreateCampaignDb(campaignId);
 
     const updates: string[] = [];
-    const values: any[] = [];
+    const values: unknown[] = [];
 
     if (data.displayName !== undefined) {
       updates.push('display_name = ?');
@@ -1387,7 +1416,7 @@ export class SqliteStorage implements StorageBackend {
     const campaignDb = this.getOrCreateCampaignDb(campaignId);
 
     const updates: string[] = [];
-    const values: any[] = [];
+    const values: unknown[] = [];
 
     if (data.refreshTokenHash !== undefined) {
       updates.push('refresh_token_hash = ?');

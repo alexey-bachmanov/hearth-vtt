@@ -14,7 +14,7 @@ export async function wsRoutes(server: FastifyInstance) {
   /**
    * GET /ws - WebSocket endpoint
    */
-  server.get('/ws', { websocket: true }, (socket, req) => {
+  server.get('/ws', { websocket: true }, (socket, _req) => {
     server.log.info('WebSocket client connected');
 
     // Send welcome message
@@ -52,7 +52,7 @@ export async function wsRoutes(server: FastifyInstance) {
           server.log.info('Received action: %s', JSON.stringify(data.payload));
           // Stub: In a real implementation, dispatch to GameEngine
         }
-      } catch (err) {
+      } catch (_err) {
         server.log.warn('Invalid WebSocket message received');
       }
     });

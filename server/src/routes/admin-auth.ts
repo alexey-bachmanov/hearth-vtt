@@ -21,6 +21,13 @@ import { promisify } from 'util';
 import type { Storage } from '../storage/storage';
 import { deleteSetupPinFile } from '../auth/setup-pin.js';
 
+// Augment FastifyRequest to include adminId set by requireAdminAuth middleware
+declare module 'fastify' {
+  interface FastifyRequest {
+    adminId?: string;
+  }
+}
+
 const scryptAsync = promisify(scrypt);
 
 const COOKIE_NAME = 'hearth_admin_session';
@@ -79,11 +86,6 @@ export function startRateLimitCleanup(): NodeJS.Timeout {
   intervalId.unref();
 
   return intervalId;
-}
-
-interface CheckSetupResponse {
-  needsSetup: boolean;
-  setupPinExpired: boolean;
 }
 
 interface SetupBody {
@@ -784,7 +786,7 @@ export function requireAdminAuth(storage: Storage) {
     }
 
     // Attach admin ID to request for downstream handlers
-    (request as any).adminId = session.adminId;
+    request.adminId = session.adminId;
   };
 }
 

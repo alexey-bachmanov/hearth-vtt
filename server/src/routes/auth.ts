@@ -10,7 +10,7 @@
  * Full authentication will be implemented in future phases.
  */
 
-import type { FastifyInstance, FastifyReply } from 'fastify';
+import type { FastifyInstance } from 'fastify';
 
 interface ClaimInviteBody {
   inviteToken: string;
@@ -42,7 +42,7 @@ export async function authRoutes(server: FastifyInstance) {
   server.post<{ Body: ClaimInviteBody }>(
     '/api/auth/claim-invite',
     async (request, reply) => {
-      const { inviteToken, pin, deviceName } = request.body;
+      const { inviteToken, pin, deviceName: _deviceName } = request.body;
 
       // Validate request body
       if (!inviteToken || !pin) {

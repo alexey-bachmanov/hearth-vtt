@@ -115,8 +115,8 @@ export async function inviteRoutes(
       ],
     },
     async (request, reply) => {
-      const { seatId, rolesGranted, pin, expiresIn, maxClaims } = request.body;
-      const campaignId = request.params.id;
+      const { seatId, rolesGranted, pin, expiresIn, maxClaims: _maxClaims } = request.body;
+      const _campaignId = request.params.id;
 
       if (!seatId || !rolesGranted || !pin || !expiresIn) {
         reply.code(400);
