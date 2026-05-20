@@ -292,6 +292,12 @@ A change is “done” when:
 - Lint/format passes (if configured)
 - Docs updated if behavior/architecture changed
 
+### 7) Branch and PR conventions (agent workflow)
+
+- Branch names follow `{type}/{issue-number}-{kebab-description}` — e.g., `fix/12-server-lint-errors`, `test/34-campaigns-routes`
+- PR title should reference the issue: `Fix #12: server lint errors`
+- PRs opened by agents should target `main` and include "Closes #N" in the body
+
 ---
 
 ## Repo conventions (expected)
