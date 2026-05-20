@@ -22,7 +22,7 @@ export default defineConfig(
     },
   },
   {
-    ignores: ['dist/', 'build/', 'node_modules/', 'data/'],
+    ignores: ['dist/', 'build/', 'node_modules/', 'data/', 'coverage/'],
   },
   {
     rules: {
