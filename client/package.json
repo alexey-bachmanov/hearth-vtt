@@ -9,6 +9,7 @@
     "preview": "vite preview",
     "test": "vitest run",
     "test:watch": "vitest",
+    "test:coverage": "vitest run --coverage",
     "check": "svelte-check --tsconfig ./tsconfig.json",
     "lint": "eslint ."
   },
@@ -19,6 +20,7 @@
     "@testing-library/svelte": "^5.3.1",
     "@testing-library/user-event": "^14.6.1",
     "@tsconfig/svelte": "^5.0.4",
+    "@vitest/coverage-v8": "^4.1.7",
     "eslint": "^9.39.2",
     "eslint-plugin-svelte": "^3.14.0",
     "globals": "^14.0.0",
