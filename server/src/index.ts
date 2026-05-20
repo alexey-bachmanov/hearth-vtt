@@ -4,8 +4,6 @@ import { ensureDataDir } from './storage/ensure-dirs.js';
 import { Storage } from './storage/index.js';
 import { ensureServerAdminSetup } from './auth/setup-pin.js';
 import { startRateLimitCleanup } from './routes/admin-auth.js';
-import type { FastifyInstance } from 'fastify';
-
 // Load and validate environment configuration
 loadAndValidateEnv();
 

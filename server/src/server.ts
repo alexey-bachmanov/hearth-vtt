@@ -10,7 +10,7 @@ import type { Storage } from './storage/storage.js';
 import { healthRoutes } from './routes/health.js';
 import { campaignRoutes } from './routes/campaigns.js';
 import { authRoutes } from './routes/auth.js';
-import { adminAuthRoutes, requireAdminAuth } from './routes/admin-auth.js';
+import { adminAuthRoutes } from './routes/admin-auth.js';
 import { seatRoutes } from './routes/seats.js';
 import { inviteRoutes } from './routes/invites.js';
 import { sessionRoutes } from './routes/sessions.js';
@@ -131,7 +131,7 @@ export async function buildServer(
             callback(null, true);
             return;
           }
-        } catch (err) {
+        } catch (_err) {
           // Invalid PUBLIC_BASE_URL, ignore and continue
         }
       }
@@ -148,7 +148,7 @@ export async function buildServer(
             callback(null, true);
             return;
           }
-        } catch (err) {
+        } catch (_err) {
           // Invalid origin URL, reject below
         }
       }

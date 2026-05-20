@@ -104,9 +104,9 @@ export async function deleteSetupPinFile(dataDir: string): Promise<void> {
   
   try {
     await fs.unlink(filePath);
-  } catch (err: any) {
+  } catch (err: unknown) {
     // Ignore errors if file doesn't exist
-    if (err.code !== 'ENOENT') {
+    if ((err as NodeJS.ErrnoException).code !== 'ENOENT') {
       throw err;
     }
   }
