@@ -591,12 +591,13 @@ export async function adminAuthRoutes(
    * POST /api/admin/change-password
    *
    * Change admin password (requires current password or valid setup PIN).
-   * Requires authentication.
+   * Requires authentication and a valid CSRF token.
    *
    * Rate limit: 3 attempts per 10 minutes per IP
    */
   server.post<{ Body: ChangePasswordBody }>(
     '/api/admin/change-password',
+    { preHandler: requireCsrfToken(storage) },
     async (request, reply) => {
       // Rate limiting: 3 attempts per 10 minutes
       const clientIp = request.ip;

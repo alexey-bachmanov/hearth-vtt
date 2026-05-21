@@ -494,3 +494,214 @@ describe('rate limiting on POST /api/admin/login', () => {
     );
   });
 });
+
+// ============================================================================
+// Rate limiting — per-IP isolation
+// ============================================================================
+
+describe('rate limiting: per-IP isolation on POST /api/admin/login', () => {
+  let server: FastifyInstance;
+  let storage: Storage;
+
+  beforeAll(async () => {
+    ({ server, storage } = await createTestServer());
+    await seedAdmin(storage);
+    await setupViaApi(server, '10.20.0.0');
+  });
+
+  afterAll(async () => {
+    await server.close();
+    storage.close();
+  });
+
+  it('does not block a different IP after 5 failed attempts from one IP', async () => {
+    const blockedIp = '10.20.1.100';
+    const cleanIp = '10.20.2.100';
+
+    // Exhaust the 5-attempt window for blockedIp
+    for (let i = 0; i < 5; i++) {
+      await server.inject({
+        method: 'POST',
+        url: '/api/admin/login',
+        payload: { password: 'wrong' },
+        remoteAddress: blockedIp,
+      });
+    }
+
+    // Confirm blockedIp is now rate-limited
+    const blockedRes = await server.inject({
+      method: 'POST',
+      url: '/api/admin/login',
+      payload: { password: 'wrong' },
+      remoteAddress: blockedIp,
+    });
+    expect(blockedRes.statusCode).toBe(429);
+
+    // cleanIp has not used any attempts — wrong password yields 403, not 429
+    const cleanRes = await server.inject({
+      method: 'POST',
+      url: '/api/admin/login',
+      payload: { password: 'wrong' },
+      remoteAddress: cleanIp,
+    });
+    expect(cleanRes.statusCode).toBe(403);
+    expect(cleanRes.json<{ error: { code: string } }>().error.code).toBe(
+      'INVALID_PASSWORD',
+    );
+  });
+});
+
+// ============================================================================
+// POST /api/admin/change-password
+// ============================================================================
+
+describe('POST /api/admin/change-password', () => {
+  let server: FastifyInstance;
+  let storage: Storage;
+
+  beforeAll(async () => {
+    ({ server, storage } = await createTestServer());
+    await seedAdmin(storage);
+    // Set the admin password once; individual tests log in fresh as needed.
+    await setupViaApi(server, '10.21.0.0');
+  });
+
+  afterAll(async () => {
+    await server.close();
+    storage.close();
+  });
+
+  it('returns 403 CSRF_TOKEN_MISSING when X-CSRF-Token header is absent', async () => {
+    const { cookie } = await loginFresh(server, '10.21.0.1');
+
+    const res = await server.inject({
+      method: 'POST',
+      url: '/api/admin/change-password',
+      headers: { Cookie: cookie }, // intentionally omit X-CSRF-Token
+      payload: { currentPassword: TEST_PASSWORD, newPassword: 'new-password-123' },
+      remoteAddress: '10.21.0.2',
+    });
+
+    expect(res.statusCode).toBe(403);
+    expect(res.json<{ error: { code: string } }>().error.code).toBe(
+      'CSRF_TOKEN_MISSING',
+    );
+  });
+
+  it('returns 401 when not authenticated (CSRF header present but no session cookie)', async () => {
+    const res = await server.inject({
+      method: 'POST',
+      url: '/api/admin/change-password',
+      headers: { 'X-CSRF-Token': 'some-token' }, // no session cookie
+      payload: { currentPassword: TEST_PASSWORD, newPassword: 'new-password-123' },
+      remoteAddress: '10.21.0.3',
+    });
+
+    expect(res.statusCode).toBe(401);
+  });
+
+  it('returns 403 INVALID_PASSWORD on wrong currentPassword', async () => {
+    const { cookie, csrfToken } = await loginFresh(server, '10.21.0.4');
+
+    const res = await server.inject({
+      method: 'POST',
+      url: '/api/admin/change-password',
+      headers: { Cookie: cookie, 'X-CSRF-Token': csrfToken },
+      payload: { currentPassword: 'wrong-password', newPassword: 'new-password-123' },
+      remoteAddress: '10.21.0.5',
+    });
+
+    expect(res.statusCode).toBe(403);
+    expect(res.json<{ error: { code: string } }>().error.code).toBe(
+      'INVALID_PASSWORD',
+    );
+  });
+
+  it('returns 200 and allows login with the new password', async () => {
+    const { cookie, csrfToken } = await loginFresh(server, '10.21.0.6');
+    const newPassword = 'brand-new-password-789';
+
+    const changeRes = await server.inject({
+      method: 'POST',
+      url: '/api/admin/change-password',
+      headers: { Cookie: cookie, 'X-CSRF-Token': csrfToken },
+      payload: { currentPassword: TEST_PASSWORD, newPassword },
+      remoteAddress: '10.21.0.7',
+    });
+
+    expect(changeRes.statusCode).toBe(200);
+    expect(changeRes.json<{ success: boolean }>().success).toBe(true);
+
+    // Login with the new password must succeed
+    const loginRes = await server.inject({
+      method: 'POST',
+      url: '/api/admin/login',
+      payload: { password: newPassword },
+      remoteAddress: '10.21.0.8',
+    });
+
+    expect(loginRes.statusCode).toBe(200);
+    expect(typeof loginRes.json<{ csrfToken: string }>().csrfToken).toBe(
+      'string',
+    );
+    expect(loginRes.headers['set-cookie']).toBeDefined();
+  });
+});
+
+// ============================================================================
+// Password hashing: login after change-password
+// ============================================================================
+
+describe('password hashing: login after change-password', () => {
+  let server: FastifyInstance;
+  let storage: Storage;
+  const CHANGED_PASSWORD = 'replaced-password-abc123';
+
+  beforeAll(async () => {
+    ({ server, storage } = await createTestServer());
+    await seedAdmin(storage);
+    const { cookie, csrfToken } = await setupViaApi(server, '10.22.0.0');
+
+    // Change the password so the old hash is invalidated
+    const res = await server.inject({
+      method: 'POST',
+      url: '/api/admin/change-password',
+      headers: { Cookie: cookie, 'X-CSRF-Token': csrfToken },
+      payload: { currentPassword: TEST_PASSWORD, newPassword: CHANGED_PASSWORD },
+      remoteAddress: '10.22.0.1',
+    });
+    expect(res.statusCode).toBe(200);
+  });
+
+  afterAll(async () => {
+    await server.close();
+    storage.close();
+  });
+
+  it('rejects the old password after change-password (hash invalidated)', async () => {
+    const res = await server.inject({
+      method: 'POST',
+      url: '/api/admin/login',
+      payload: { password: TEST_PASSWORD },
+      remoteAddress: '10.22.0.2',
+    });
+
+    expect(res.statusCode).toBe(403);
+    expect(res.json<{ error: { code: string } }>().error.code).toBe(
+      'INVALID_PASSWORD',
+    );
+  });
+
+  it('accepts the new password after change-password', async () => {
+    const res = await server.inject({
+      method: 'POST',
+      url: '/api/admin/login',
+      payload: { password: CHANGED_PASSWORD },
+      remoteAddress: '10.22.0.3',
+    });
+
+    expect(res.statusCode).toBe(200);
+    expect(typeof res.json<{ csrfToken: string }>().csrfToken).toBe('string');
+    expect(res.headers['set-cookie']).toBeDefined();
+  });
+});
