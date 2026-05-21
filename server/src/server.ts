@@ -69,7 +69,7 @@ function findClientDist(): string | null {
  * @param value - TRUST_PROXY environment variable value
  * @returns Fastify trustProxy configuration
  */
-function parseTrustProxy(
+export function parseTrustProxy(
   value: string | undefined,
 ): boolean | number | string | string[] {
   if (!value || value === 'false') {
