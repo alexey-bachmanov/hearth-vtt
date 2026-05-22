@@ -20,7 +20,7 @@ import { campaignState } from '../../state/campaign.svelte';
 import { viewportState } from '../../state/viewport.svelte';
 
 let canvasElement: HTMLCanvasElement;
-let renderer: Renderer | null = null;
+let renderer: Renderer | null = $state(null);
 
 onMount(() => {
   let detach: (() => void) | null = null;

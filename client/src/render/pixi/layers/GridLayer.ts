@@ -14,6 +14,13 @@ const GRID_COLOR = 0x000000;
 const GRID_ALPHA = 0.2;
 const GRID_LINE_WIDTH = 1;
 
+// Fallback grid drawn when no scene is loaded, so pan/zoom are visually
+// verifiable without real map data.
+const FALLBACK_CELL = 50; // pixels per square
+const FALLBACK_EXTENT = 4000; // half-width/height of the drawn area
+const FALLBACK_COLOR = 0x6688aa;
+const FALLBACK_ALPHA = 0.25;
+
 export class GridLayer {
   readonly container: Container;
 
@@ -34,7 +41,12 @@ export class GridLayer {
   setScene(scene: Scene | undefined): void {
     this._graphics.clear();
 
-    if (!scene || scene.gridType === 'none') return;
+    if (!scene) {
+      this._drawFallbackGrid();
+      return;
+    }
+
+    if (scene.gridType === 'none') return;
 
     if (scene.gridType === 'square') {
       this._drawSquareGrid(scene);
@@ -50,6 +62,31 @@ export class GridLayer {
   }
 
   // ---- private helpers -------------------------------------------------------
+
+  /**
+   * Draw a faint infinite-ish grid centered at the world origin.
+   * Shown when no scene is loaded so pan and zoom are visually verifiable.
+   */
+  private _drawFallbackGrid(): void {
+    const g = this._graphics;
+    const e = FALLBACK_EXTENT;
+    const cell = FALLBACK_CELL;
+
+    g.setStrokeStyle({
+      width: GRID_LINE_WIDTH,
+      color: FALLBACK_COLOR,
+      alpha: FALLBACK_ALPHA,
+    });
+
+    for (let x = -e; x <= e; x += cell) {
+      g.moveTo(x, -e).lineTo(x, e);
+    }
+    for (let y = -e; y <= e; y += cell) {
+      g.moveTo(-e, y).lineTo(e, y);
+    }
+
+    g.stroke();
+  }
 
   private _drawSquareGrid(scene: Scene): void {
     const { width, height, gridSize } = scene;
