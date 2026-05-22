@@ -1,38 +1,65 @@
 <script lang="ts">
 /**
- * MainCanvas - WebGL rendering canvas wrapper.
- * 
- * Contains the <canvas> element that will be used by the WebGL renderer.
- * For now, displays a placeholder message. Future: bind to Renderer.
+ * MainCanvas — PixiJS canvas wrapper.
+ *
+ * Owns the <canvas> element and bridges reactive Svelte state → the imperative
+ * PixiJS renderer via $effect blocks. This is the only place in the codebase
+ * that couples Svelte runes to renderer calls.
+ *
+ * Rendering state flow:
+ *   campaignState / viewportState ($effect) → renderer.setScene / updateTokens / setViewport
+ *
+ * Input state flow:
+ *   canvas pointer/wheel events → CanvasInputController → viewportState / campaignState
  */
 
 import { onMount } from 'svelte';
-import { renderer } from '../../render';
+import { createRenderer, type Renderer } from '../../render';
+import { campaignState } from '../../state/campaign.svelte';
+import { viewportState } from '../../state/viewport.svelte';
 
 let canvasElement: HTMLCanvasElement;
+let renderer: Renderer | null = null;
 
 onMount(() => {
-  // Future: Initialize renderer with canvas
-  // renderer.init(canvasElement);
-  console.log('Canvas mounted', canvasElement, renderer);
-  
+  let detach: (() => void) | null = null;
+
+  (async () => {
+    renderer = await createRenderer();
+    await renderer.init(canvasElement);
+
+    // CanvasInputController wiring will be added in Phase C (canvas input sprint).
+  })();
+
   return () => {
-    // Future: Cleanup renderer
-    // renderer.dispose();
+    detach?.();
+    renderer?.dispose();
+    renderer = null;
   };
+});
+
+// ---- Reactive bridges (state → renderer) ------------------------------------
+// Each $effect re-runs whenever its reactive dependencies change.
+// The renderer queues calls internally if it isn't ready yet.
+
+$effect(() => {
+  renderer?.setScene(campaignState.getActiveScene());
+});
+
+$effect(() => {
+  renderer?.updateTokens(campaignState.getActiveSceneTokens());
+});
+
+$effect(() => {
+  renderer?.setViewport({
+    zoom: viewportState.zoom,
+    panOffset: viewportState.panOffset,
+  });
 });
 </script>
 
 <div class="main-canvas-container">
   <canvas bind:this={canvasElement} class="main-canvas"></canvas>
-  <div class="canvas-overlay">
-    <div class="canvas-placeholder">
-      <div class="canvas-icon">🗺️</div>
-      <h2>WebGL Canvas</h2>
-      <p>Not Initialized</p>
-      <p class="canvas-hint">Map, tokens, fog, and lighting will render here</p>
-    </div>
-  </div>
 </div>
 
 <style>
@@ -50,52 +77,6 @@ onMount(() => {
     left: 0;
     width: 100%;
     height: 100%;
-  }
-
-  .canvas-overlay {
-    position: absolute;
-    top: 0;
-    left: 0;
-    width: 100%;
-    height: 100%;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    pointer-events: none;
-  }
-
-  .canvas-placeholder {
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    gap: var(--space-md);
-    padding: var(--space-2xl);
-    background-color: var(--color-overlay-dark);
-    border: 2px dashed var(--color-border-subtle);
-    border-radius: var(--radius-lg);
-    text-align: center;
-  }
-
-  .canvas-icon {
-    font-size: 4rem;
-  }
-
-  .canvas-placeholder h2 {
-    margin: 0;
-    font-size: var(--font-size-2xl);
-    font-weight: var(--font-weight-bold);
-    color: var(--color-text-primary);
-  }
-
-  .canvas-placeholder p {
-    margin: 0;
-    font-size: var(--font-size-lg);
-    color: var(--color-text-secondary);
-  }
-
-  .canvas-hint {
-    font-size: var(--font-size-sm) !important;
-    color: var(--color-text-tertiary) !important;
-    max-width: 400px;
+    display: block;
   }
 </style>

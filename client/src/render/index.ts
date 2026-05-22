@@ -1,138 +1,113 @@
 /**
- * WebGL Renderer for HearthVTT.
- *
- * This module provides the WebGL rendering engine for the map, tokens,
- * fog of war, lighting, and visual effects.
+ * Renderer public interface and factory for HearthVTT.
  *
  * Architecture:
- * - Exposes stable public API defined in client.md
- * - UI components interact only through the Renderer interface
- * - All WebGL implementation details are internal
+ * - `Renderer` is the stable public interface. UI components (MainCanvas.svelte)
+ *   depend only on this interface; the PixiJS implementation is an internal detail.
+ * - `createRenderer()` returns the real PixiJS-backed implementation in the browser.
+ * - `StubRenderer` is a no-op implementation for tests and SSR safety.
+ * - Svelte $effect blocks in MainCanvas.svelte bridge reactive state → renderer calls.
+ *   The renderer itself never imports Svelte runes.
  *
- * Note: This is a stub implementation. Actual WebGL rendering will be
- * implemented in future phases.
+ * Active interface (Phase A/B):
+ *   init, dispose, setScene, updateTokens, setViewport,
+ *   setTokenDragPreview, clearTokenDragPreview, hitTestToken
+ *
+ * Deferred to later phases (fog, lighting, AoE, VFX, annotations, measurement):
+ *   updateVisibilityMask, updateLights, addAoEEffect, removeAoEEffect,
+ *   showTargetingReticle, hideTargetingReticle, triggerVFX,
+ *   addAnnotation, removeAnnotation, setMeasurementPreview
  */
+
+import type { Scene, Token } from '../state/campaign.svelte';
+import type { Position } from '../state/types';
+
+// ============================================================================
+// Public types
+// ============================================================================
+
+export interface ViewportParams {
+  zoom: number;
+  panOffset: Position;
+}
+
+// ============================================================================
+// Renderer interface
+// ============================================================================
 
 /**
- * Stub Renderer implementation.
+ * The stable public API for the canvas renderer.
  *
- * All methods are no-ops for now. Components can call these methods
- * without errors during UI development.
+ * Consumers should program against this interface, not the concrete class.
  */
-export class Renderer {
-  // Lifecycle
-  init(_canvas: HTMLCanvasElement): void {
-    console.log('[Renderer] init() called (stub)');
-  }
+export interface Renderer {
+  /** Asynchronously initialize the renderer against a canvas element. */
+  init(canvas: HTMLCanvasElement): Promise<void>;
 
-  dispose(): void {
-    console.log('[Renderer] dispose() called (stub)');
-  }
+  /** Tear down all PixiJS resources. */
+  dispose(): void;
 
-  // Scene management
-  setScene(scene: unknown): void {
-    console.log('[Renderer] setScene() called (stub)', scene);
-  }
+  /** Update the scene: background image, grid, and scene dimensions. */
+  setScene(scene: Scene | undefined): void;
 
-  setAnimatedMap(videoUrl: string): void {
-    console.log('[Renderer] setAnimatedMap() called (stub)', videoUrl);
-  }
+  /**
+   * Synchronize the full token list for the active scene.
+   * The renderer diffs against its current state — only changed sprites are updated.
+   */
+  updateTokens(tokens: Token[]): void;
 
-  // Token management
-  updateTokens(tokens: unknown[]): void {
-    console.log('[Renderer] updateTokens() called (stub)', tokens);
-  }
+  /** Apply zoom + pan to the world container. */
+  setViewport(params: ViewportParams): void;
 
-  setTokenDragPreview(tokenId: string, position: unknown): void {
-    console.log(
-      '[Renderer] setTokenDragPreview() called (stub)',
-      tokenId,
-      position,
-    );
-  }
+  /**
+   * Show a drag-preview ghost for a token being dragged.
+   * Overrides the token's rendered position without committing to state.
+   */
+  setTokenDragPreview(tokenId: string, worldPosition: Position): void;
 
-  clearTokenDragPreview(tokenId: string): void {
-    console.log('[Renderer] clearTokenDragPreview() called (stub)', tokenId);
-  }
+  /** Remove the drag-preview ghost and restore the token's committed position. */
+  clearTokenDragPreview(tokenId: string): void;
 
-  // Visibility and lighting
-  updateVisibilityMask(mask: unknown): void {
-    console.log('[Renderer] updateVisibilityMask() called (stub)', mask);
-  }
+  /**
+   * Return the id of the topmost token whose sprite contains (screenX, screenY),
+   * or null if the point hits no token.
+   */
+  hitTestToken(screenX: number, screenY: number): string | null;
+}
 
-  updateLights(lights: unknown[]): void {
-    console.log('[Renderer] updateLights() called (stub)', lights);
-  }
+// ============================================================================
+// StubRenderer — no-op implementation for tests and SSR
+// ============================================================================
 
-  // Effects and overlays
-  addAoEEffect(effect: unknown): void {
-    console.log('[Renderer] addAoEEffect() called (stub)', effect);
-  }
-
-  removeAoEEffect(effectId: string): void {
-    console.log('[Renderer] removeAoEEffect() called (stub)', effectId);
-  }
-
-  showTargetingReticle(spec: unknown): void {
-    console.log('[Renderer] showTargetingReticle() called (stub)', spec);
-  }
-
-  hideTargetingReticle(): void {
-    console.log('[Renderer] hideTargetingReticle() called (stub)');
-  }
-
-  triggerVFX(vfx: unknown): void {
-    console.log('[Renderer] triggerVFX() called (stub)', vfx);
-  }
-
-  // Annotations
-  addAnnotation(annotation: unknown): void {
-    console.log('[Renderer] addAnnotation() called (stub)', annotation);
-  }
-
-  removeAnnotation(annotationId: string): void {
-    console.log('[Renderer] removeAnnotation() called (stub)', annotationId);
-  }
-
-  setMeasurementPreview(measurement: unknown | null): void {
-    console.log(
-      '[Renderer] setMeasurementPreview() called (stub)',
-      measurement,
-    );
-  }
-
-  // Obstruction (for client-side collision)
-  getObstructions(): unknown {
-    console.log('[Renderer] getObstructions() called (stub)');
+/**
+ * No-op Renderer. Safe to instantiate in test environments where WebGL
+ * is unavailable. Methods log at debug level and return safe defaults.
+ */
+export class StubRenderer implements Renderer {
+  async init(_canvas: HTMLCanvasElement): Promise<void> {}
+  dispose(): void {}
+  setScene(_scene: Scene | undefined): void {}
+  updateTokens(_tokens: Token[]): void {}
+  setViewport(_params: ViewportParams): void {}
+  setTokenDragPreview(_tokenId: string, _worldPosition: Position): void {}
+  clearTokenDragPreview(_tokenId: string): void {}
+  hitTestToken(_screenX: number, _screenY: number): string | null {
     return null;
-  }
-
-  isPathValid(from: unknown, to: unknown, tokenSize: number): boolean {
-    console.log('[Renderer] isPathValid() called (stub)', from, to, tokenSize);
-    return true;
-  }
-
-  // Input handling
-  onTokenClick(_callback: (tokenId: string) => void): void {
-    console.log('[Renderer] onTokenClick() registered (stub)');
-  }
-
-  onMapClick(_callback: (position: unknown) => void): void {
-    console.log('[Renderer] onMapClick() registered (stub)');
-  }
-
-  onTokenDragStart(_callback: (tokenId: string) => void): void {
-    console.log('[Renderer] onTokenDragStart() registered (stub)');
-  }
-
-  onTokenDragEnd(
-    _callback: (tokenId: string, position: unknown) => void,
-  ): void {
-    console.log('[Renderer] onTokenDragEnd() registered (stub)');
   }
 }
 
+// ============================================================================
+// Factory
+// ============================================================================
+
 /**
- * Create and return a singleton renderer instance.
+ * Create a renderer instance.
+ *
+ * Returns a PixiRenderer in normal browser builds. The import is dynamic so
+ * that PixiJS is only bundled when actually needed (not in test/SSR builds
+ * that import this module without calling createRenderer).
  */
-export const renderer = new Renderer();
+export async function createRenderer(): Promise<Renderer> {
+  const { PixiRenderer } = await import('./pixi/PixiRenderer');
+  return new PixiRenderer();
+}
