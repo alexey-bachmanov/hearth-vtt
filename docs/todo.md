@@ -401,6 +401,10 @@ Known issues organized by area. Items here can be promoted to "Current Projects"
 - [ ] No Prettier config
 - [ ] No `@fastify/rate-limit` — hand-rolled solution with issues
 
+### Legal & Metadata
+
+- [ ] Add per-file `SPDX-License-Identifier: AGPL-3.0-or-later` headers to all source files (`.ts`, `.svelte`, `.js`, `.css`). Baseline is covered by repo-level [LICENSE](../LICENSE) and `license` field in each `package.json`; per-file headers are nice-to-have and tracked here so we don't forget. See [ADR 008](decisions/008-licensing-and-contributions.md).
+
 ## Testing
 
 - [x] Vitest configured in both workspaces — see Testing Infrastructure Sprint in Current Projects

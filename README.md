@@ -1,4 +1,11 @@
+<!--
+SPDX-License-Identifier: AGPL-3.0-or-later
+Copyright (C) 2025 HearthVTT contributors
+-->
+
 # HearthVTT
+
+[![License: AGPL v3](https://img.shields.io/badge/License-AGPL_v3-blue.svg)](LICENSE) [![DCO](https://img.shields.io/badge/contributions-DCO_1.1-green.svg)](DCO.md)
 
 > A homebrew-first, system-agnostic, self-hostable virtual tabletop.
 
@@ -148,11 +155,29 @@ Good first issues will be labeled in the issue tracker as the project stabilizes
 
 ## Legal Stuff
 
+The short version. The authoritative documents are linked from each section.
+
 ### License
+
+HearthVTT is licensed under the **GNU Affero General Public License v3.0 or later** (`AGPL-3.0-or-later`). Full text in [LICENSE](LICENSE).
+
+In plain terms: you can use it, run it, modify it, and host it. If you run a modified version as a network service, you have to share your modifications with your users under the same license. This is deliberate — the AGPL is the part of the contract that keeps HearthVTT from being quietly taken proprietary by anyone, including future me.
+
+A future hosted offering may exist as a separate, optional convenience layer. It will talk to HearthVTT only through the same public APIs anyone else uses. You will never need it to run HearthVTT, and HearthVTT will never be modified to push you toward it. See [ADR 008](docs/decisions/008-licensing-and-contributions.md) for the reasoning.
 
 ### Trademarks
 
+The HearthVTT **name, logo, and visual identity** are trademarks of the project and are not covered by the AGPL. The **code** is. Forking the code is welcome; forking the name is not. Pick your own name and branding if you ship a modified version. Details in [TRADEMARKS.md](TRADEMARKS.md).
+
 ### Contributions
+
+Contributions are accepted under the [Developer Certificate of Origin 1.1](DCO.md). Practically, that means signing off your commits:
+
+```bash
+git commit -s -m "Your message"
+```
+
+There is **no CLA**. By contributing, you keep your copyright; you just agree (via sign-off) that your contribution can be distributed under the project's AGPL-3.0-or-later license. The full contributor guide is in [CONTRIBUTING.md](CONTRIBUTING.md).
 
 ---
 

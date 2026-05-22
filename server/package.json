@@ -2,6 +2,7 @@
   "name": "@hearth-vtt/server",
   "version": "0.1.0",
   "description": "HearthVTT server",
+  "license": "AGPL-3.0-or-later",
   "type": "module",
   "main": "dist/index.js",
   "scripts": {
