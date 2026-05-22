@@ -91,7 +91,7 @@ export interface GameEvent {
  * until server sync is implemented. Components read from this store using
  * typed accessor methods.
  */
-class CampaignState {
+export class CampaignState {
   campaignId = $state<string | null>(null);
   campaignName = $state<string>('');
   activeSceneId = $state<string | null>(null);
@@ -167,6 +167,22 @@ class CampaignState {
     return Array.from(this.effects.values()).filter(
       (e) => e.targetActorId === actorId,
     );
+  }
+
+  // ============================================================================
+  // Token Mutation Methods
+  // ============================================================================
+
+  /**
+   * Update a token's position locally (client-optimistic).
+   *
+   * TODO (Phase 3): Replace direct mutation with a server action dispatch.
+   * The server will confirm the new position and broadcast a delta to all clients.
+   */
+  moveToken(tokenId: string, position: Position) {
+    const token = this.tokens.get(tokenId);
+    if (!token) return;
+    this.tokens.set(tokenId, { ...token, position });
   }
 
   // ============================================================================

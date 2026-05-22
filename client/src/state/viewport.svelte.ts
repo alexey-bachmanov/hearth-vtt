@@ -15,7 +15,7 @@ import type { GridType, Position } from './types';
  * Updated by canvas input handlers (scroll, drag, etc.).
  * Read by QuickStatus overlay and renderer.
  */
-class ViewportState {
+export class ViewportState {
   // Zoom level (1.0 = 100%, 0.5 = 50%, 2.0 = 200%)
   zoom = $state<number>(1.0);
 

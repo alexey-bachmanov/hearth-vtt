@@ -15,6 +15,7 @@
 
 import { onMount } from 'svelte';
 import { createRenderer, type Renderer } from '../../render';
+import { CanvasInputController } from '../../app/canvas-input-controller';
 import { campaignState } from '../../state/campaign.svelte';
 import { viewportState } from '../../state/viewport.svelte';
 
@@ -28,7 +29,12 @@ onMount(() => {
     renderer = await createRenderer();
     await renderer.init(canvasElement);
 
-    // CanvasInputController wiring will be added in Phase C (canvas input sprint).
+    const ctl = new CanvasInputController({
+      viewportState,
+      campaignState,
+      renderer,
+    });
+    detach = ctl.attach(canvasElement);
   })();
 
   return () => {
