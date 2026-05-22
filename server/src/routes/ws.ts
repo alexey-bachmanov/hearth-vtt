@@ -24,6 +24,7 @@ export async function wsRoutes(server: FastifyInstance) {
         protocolVersion: '1.0',
         serverVersion: '0.1.0',
         seatId: 'seat-mock-001',
+        seatRole: 'player',
         campaignId: 'campaign-mock-001',
       }),
     );

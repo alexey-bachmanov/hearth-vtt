@@ -176,6 +176,7 @@ As work completes, check off tasks.
 - **Radial menu** — custom SVG/CSS radial on token click; needs renderer + token system first
 - **Pop-out windows** — open floating window in separate browser window for multi-monitor
 - **Drag-and-drop from drawers** — drag Compendium items to sheets, drag actors to map
+- **`SeatRole` type duplication** — `SeatRole` (`'gm' | 'player' | 'spectator' | null`) is defined in `client/src/state/types.ts` and also inline in `server/src/storage/storage.ts`; WS message shapes (welcome, etc.) are typed independently on each side. Will be resolved when `packages/shared` is bootstrapped — planned for the game loop / WS auth sprint.
 
 ---
 

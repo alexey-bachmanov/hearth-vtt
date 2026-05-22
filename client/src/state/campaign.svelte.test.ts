@@ -16,7 +16,7 @@ function loadFixture() {
         id: 'a-1',
         name: 'Hero',
         type: 'pc',
-        ownerId: 'seat-1',
+        seatPermissions: { 'seat-1': 'control' },
         hp: { current: 10, max: 10 },
         ac: 15,
       },
@@ -24,7 +24,7 @@ function loadFixture() {
         id: 'a-2',
         name: 'Villain',
         type: 'npc',
-        ownerId: null,
+        seatPermissions: {},
         hp: { current: 20, max: 20 },
         ac: 12,
       },
@@ -118,11 +118,11 @@ describe('getPartyActors()', () => {
 });
 
 describe('getActorsForSeat()', () => {
-  it('returns actors owned by the given seat', () => {
+  it('returns actors with any permission for the given seat', () => {
     loadFixture();
     const actors = campaignState.getActorsForSeat('seat-1');
     expect(actors).toHaveLength(1);
-    expect(actors[0].ownerId).toBe('seat-1');
+    expect(actors[0].id).toBe('a-1');
   });
 
   it('returns an empty array for a seat with no actors', () => {

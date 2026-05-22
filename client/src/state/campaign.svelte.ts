@@ -19,7 +19,8 @@ export interface Actor {
   id: string;
   name: string;
   type: 'pc' | 'npc' | 'monster';
-  ownerId: string | null; // seatId for PCs, null for GM-controlled
+  /** Per-seat permission map. GM-role seats have implicit full access and are not listed here. */
+  seatPermissions: Record<string, 'control' | 'read'>;
   hp: { current: number; max: number };
   ac: number;
   level?: number;
@@ -145,10 +146,12 @@ export class CampaignState {
   }
 
   /**
-   * Get actors owned by a specific seat.
+   * Get actors visible to a specific seat (any permission level: control or read).
    */
   getActorsForSeat(seatId: string): Actor[] {
-    return Array.from(this.actors.values()).filter((a) => a.ownerId === seatId);
+    return Array.from(this.actors.values()).filter(
+      (a) => seatId in a.seatPermissions,
+    );
   }
 
   /**
@@ -321,11 +324,16 @@ export class CampaignState {
     this.activeSceneId = tavernScene.id;
 
     // Create party actors (PCs)
+    // Demonstrates all granular seat permission scenarios:
+    //   kael:    1 seat → 1 actor (simple 1:1 control)
+    //   lyra:    1 seat → 2 actors (lyra + pip her familiar)
+    //   thadric: seat-player-3 controls; seat-player-1 has read-only access
+    //   zara:    1 seat → 1 actor (simple 1:1 control)
     const kael: Actor = {
       id: 'actor-kael',
       name: 'Kael Sunblade',
       type: 'pc',
-      ownerId: 'seat-player-1',
+      seatPermissions: { 'seat-player-1': 'control' },
       hp: { current: 45, max: 58 },
       ac: 18,
       level: 7,
@@ -338,7 +346,7 @@ export class CampaignState {
       id: 'actor-lyra',
       name: 'Lyra Whisperwind',
       type: 'pc',
-      ownerId: 'seat-player-2',
+      seatPermissions: { 'seat-player-2': 'control' },
       hp: { current: 38, max: 42 },
       ac: 15,
       level: 7,
@@ -347,11 +355,22 @@ export class CampaignState {
       conditions: ['Concentrating: Haste'],
     };
 
+    // Pip is Lyra's pseudodragon familiar — demonstrates 1 seat controlling 2 actors.
+    const pip: Actor = {
+      id: 'actor-pip',
+      name: 'Pip (Familiar)',
+      type: 'pc',
+      seatPermissions: { 'seat-player-2': 'control' },
+      hp: { current: 10, max: 10 },
+      ac: 13,
+    };
+
     const thadric: Actor = {
       id: 'actor-thadric',
       name: 'Thadric Ironfoot',
       type: 'pc',
-      ownerId: 'seat-player-3',
+      // seat-player-1 has read access (can see Thadric's pills but cannot move him).
+      seatPermissions: { 'seat-player-3': 'control', 'seat-player-1': 'read' },
       hp: { current: 62, max: 72 },
       ac: 16,
       level: 7,
@@ -364,7 +383,7 @@ export class CampaignState {
       id: 'actor-zara',
       name: 'Zara Swiftarrow',
       type: 'pc',
-      ownerId: 'seat-player-4',
+      seatPermissions: { 'seat-player-4': 'control' },
       hp: { current: 41, max: 48 },
       ac: 17,
       level: 7,
@@ -375,15 +394,16 @@ export class CampaignState {
 
     this.actors.set(kael.id, kael);
     this.actors.set(lyra.id, lyra);
+    this.actors.set(pip.id, pip);
     this.actors.set(thadric.id, thadric);
     this.actors.set(zara.id, zara);
 
-    // Create GM-controlled actors
+    // Create GM-controlled actors (empty seatPermissions — accessible only via GM seatRole).
     const goblin1: Actor = {
       id: 'actor-goblin-1',
       name: 'Goblin Scout',
       type: 'monster',
-      ownerId: null,
+      seatPermissions: {},
       hp: { current: 7, max: 7 },
       ac: 13,
     };
@@ -392,7 +412,7 @@ export class CampaignState {
       id: 'actor-goblin-2',
       name: 'Goblin Warrior',
       type: 'monster',
-      ownerId: null,
+      seatPermissions: {},
       hp: { current: 0, max: 7 },
       ac: 13,
       conditions: ['Dead'],
@@ -402,7 +422,7 @@ export class CampaignState {
       id: 'actor-necromancer',
       name: 'Malakar the Dark',
       type: 'npc',
-      ownerId: null,
+      seatPermissions: {},
       hp: { current: 52, max: 68 },
       ac: 14,
       level: 9,
@@ -429,6 +449,14 @@ export class CampaignState {
       actorId: lyra.id,
       sceneId: tavernScene.id,
       position: { x: 350, y: 400 },
+      size: 1,
+    });
+
+    this.tokens.set('token-pip', {
+      id: 'token-pip',
+      actorId: pip.id,
+      sceneId: tavernScene.id,
+      position: { x: 370, y: 380 },
       size: 1,
     });
 
