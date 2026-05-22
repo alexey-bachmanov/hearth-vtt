@@ -6,6 +6,7 @@
  * Updated by server deltas via the WebSocket connection.
  */
 
+import { SvelteMap } from 'svelte/reactivity';
 import type { GridType, Position } from './types';
 import { viewportState } from './viewport.svelte';
 import { notificationState } from './notifications.svelte';
@@ -96,10 +97,10 @@ export class CampaignState {
   campaignName = $state<string>('');
   activeSceneId = $state<string | null>(null);
 
-  actors = $state<Map<string, Actor>>(new Map());
-  tokens = $state<Map<string, Token>>(new Map());
-  scenes = $state<Map<string, Scene>>(new Map());
-  effects = $state<Map<string, Effect>>(new Map());
+  actors = new SvelteMap<string, Actor>();
+  tokens = new SvelteMap<string, Token>();
+  scenes = new SvelteMap<string, Scene>();
+  effects = new SvelteMap<string, Effect>();
   events = $state<GameEvent[]>([]); // Recent events for chat log
 
   maxEvents = $state<number>(200); // Configurable
