@@ -55,9 +55,7 @@ function makeElement() {
     /** Helper: fire an event on this element. */
     fire(
       type: string,
-      eventData: Partial<PointerEvent | WheelEvent | MouseEvent> & {
-        currentTarget?: HTMLElement;
-      },
+      eventData: Partial<PointerEvent | WheelEvent | MouseEvent>,
     ) {
       const event = {
         currentTarget: el,
