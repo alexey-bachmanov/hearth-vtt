@@ -38,6 +38,12 @@ describe('reset()', () => {
     expect(connectionState.seatId).toBeNull();
   });
 
+  it('restores seatRole to null', () => {
+    connectionState.handleWelcome({ seatRole: 'gm' });
+    connectionState.reset();
+    expect(connectionState.seatRole).toBeNull();
+  });
+
   it('restores reconnectAttempts to 0', () => {
     connectionState.incrementReconnectAttempts();
     connectionState.incrementReconnectAttempts();
@@ -110,23 +116,40 @@ describe('setStatus()', () => {
 // ---------------------------------------------------------------------------
 
 describe('handleWelcome()', () => {
-  it('sets serverVersion and seatId and status to "connected"', () => {
-    connectionState.handleWelcome({ version: '1.0.0', seatId: 'seat-abc' });
+  it('sets serverVersion, seatId, seatRole, and status to "connected"', () => {
+    connectionState.handleWelcome({
+      version: '1.0.0',
+      seatId: 'seat-abc',
+      seatRole: 'player',
+    });
     expect(connectionState.serverVersion).toBe('1.0.0');
     expect(connectionState.seatId).toBe('seat-abc');
+    expect(connectionState.seatRole).toBe('player');
     expect(connectionState.status).toBe('connected');
   });
 
-  it('sets serverVersion to null and seatId to null when fields are absent', () => {
+  it('accepts all SeatRole values', () => {
+    connectionState.handleWelcome({ seatRole: 'gm' });
+    expect(connectionState.seatRole).toBe('gm');
+    connectionState.handleWelcome({ seatRole: 'spectator' });
+    expect(connectionState.seatRole).toBe('spectator');
+  });
+
+  it('sets serverVersion, seatId, and seatRole to null when fields are absent', () => {
     connectionState.handleWelcome({});
     expect(connectionState.serverVersion).toBeNull();
     expect(connectionState.seatId).toBeNull();
+    expect(connectionState.seatRole).toBeNull();
     expect(connectionState.status).toBe('connected');
   });
 
   it('does not throw when campaignId is present', () => {
     expect(() =>
-      connectionState.handleWelcome({ version: '2.0.0', seatId: 'seat-1', campaignId: 'camp-1' }),
+      connectionState.handleWelcome({
+        version: '2.0.0',
+        seatId: 'seat-1',
+        campaignId: 'camp-1',
+      }),
     ).not.toThrow();
   });
 });

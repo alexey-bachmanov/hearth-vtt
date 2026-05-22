@@ -231,27 +231,14 @@ class UIState {
   // Monotonic counter for stable, unique IDs (avoids Date.now() collisions).
   private nextSeq = 0;
 
-  // Seat role (derived from connection state)
-  // TODO: Retrieve actual seat role from server
+  // Seat role (read directly from connection state)
   get seatRole(): SeatRole {
-    return connectionState.seatId ? 'player' : null;
+    return connectionState.seatRole;
   }
 
-  // Permission flags (derived from seat role)
+  // GM tool visibility gate (convenience wrapper for LeftToolbar)
   get canAccessGMTools(): boolean {
-    return this.seatRole === 'gm';
-  }
-
-  get canDragTokens(): boolean {
-    return this.seatRole === 'gm' || this.seatRole === 'player';
-  }
-
-  get canUseRadialMenu(): boolean {
-    return this.seatRole === 'gm' || this.seatRole === 'player';
-  }
-
-  get canSeeActorPills(): boolean {
-    return this.seatRole === 'gm' || this.seatRole === 'player';
+    return connectionState.seatRole === 'gm';
   }
 
   // ============================================================================

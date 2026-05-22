@@ -1,15 +1,21 @@
 /**
  * Connection state management using Svelte 5 runes.
- * 
+ *
  * This module tracks the WebSocket connection status, protocol info,
  * and synchronization state with the server.
  */
 
-export type ConnectionStatus = 'disconnected' | 'connecting' | 'connected' | 'reconnecting';
+import type { SeatRole } from './types';
+
+export type ConnectionStatus =
+  | 'disconnected'
+  | 'connecting'
+  | 'connected'
+  | 'reconnecting';
 
 /**
  * Connection state store.
- * 
+ *
  * Tracks WebSocket connection lifecycle and server protocol information.
  * Updated by the WebSocket client in the api/ layer.
  */
@@ -19,6 +25,7 @@ class ConnectionState {
   serverVersion = $state<string | null>(null);
   protocolVersion = $state<string | null>(null);
   seatId = $state<string | null>(null);
+  seatRole = $state<SeatRole>(null);
   reconnectAttempts = $state<number>(0);
 
   /**
@@ -34,9 +41,15 @@ class ConnectionState {
   /**
    * Handle welcome message from server.
    */
-  handleWelcome(data: { version?: string; seatId?: string; campaignId?: string }) {
+  handleWelcome(data: {
+    version?: string;
+    seatId?: string;
+    seatRole?: SeatRole;
+    campaignId?: string;
+  }) {
     this.serverVersion = data.version || null;
     this.seatId = data.seatId || null;
+    this.seatRole = data.seatRole ?? null;
     this.status = 'connected';
     console.log('[ConnectionState] Welcome received', data);
   }
@@ -64,6 +77,7 @@ class ConnectionState {
     this.serverVersion = null;
     this.protocolVersion = null;
     this.seatId = null;
+    this.seatRole = null;
     this.reconnectAttempts = 0;
   }
 }
