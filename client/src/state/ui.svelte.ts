@@ -145,6 +145,19 @@ export interface OpenWindowParams {
   size?: { width: number; height: number };
 }
 
+/**
+ * The subject of a right-click context menu on the canvas.
+ *
+ * - `kind: 'token'` — the cursor was over a token when the menu was opened.
+ * - `kind: 'canvas'` — the cursor was over empty canvas space.
+ *
+ * `screenX`/`screenY` are viewport-relative coordinates used to position the
+ * floating menu element.
+ */
+export type ContextMenuTarget =
+  | { kind: 'token'; tokenId: string; screenX: number; screenY: number }
+  | { kind: 'canvas'; screenX: number; screenY: number };
+
 // ============================================================================
 // UIState class
 // ============================================================================
@@ -204,6 +217,13 @@ class UIState {
     baseY: number;
   } | null>(null);
 
+  /**
+   * The active canvas context-menu target, or null when the menu is closed.
+   * Set by CanvasInputController on right-click; cleared by ContextMenu.svelte
+   * on outside-click or Escape.
+   */
+  contextMenu = $state<ContextMenuTarget | null>(null);
+
   // Private reverse-lookup: windowId → groupId.
   // Maintained in sync with windowGroups to avoid O(n*m) scans.
   private windowGroupMap = new Map<string, string>();
@@ -232,6 +252,20 @@ class UIState {
 
   get canSeeActorPills(): boolean {
     return this.seatRole === 'gm' || this.seatRole === 'player';
+  }
+
+  // ============================================================================
+  // Context Menu Methods
+  // ============================================================================
+
+  /** Open the canvas context menu at the given target. */
+  openContextMenu(target: ContextMenuTarget) {
+    this.contextMenu = target;
+  }
+
+  /** Close the canvas context menu. */
+  closeContextMenu() {
+    this.contextMenu = null;
   }
 
   // ============================================================================

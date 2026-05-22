@@ -14,7 +14,8 @@
  * - **Scroll wheel** → zoom toward cursor (`viewportState.setZoom` + pan adjust)
  * - **Left-click drag on token** → show drag preview; on release commit locally
  *   (`campaignState.moveToken`). Snap-to-grid applied if `viewportState.snapToGrid`.
- * - **Right-click / contextmenu** → always prevented (no binding).
+ * - **Right-click** → hit-test; fires `onContextMenu` with `kind:'token'` or
+ *   `kind:'canvas'`. The `contextmenu` DOM event is always `preventDefault`-ed.
  *
  * Out of scope (deferred):
  * - Token selection state
@@ -25,6 +26,7 @@
 import type { Renderer } from '../render';
 import type { CampaignState } from '../state/campaign.svelte';
 import type { ViewportState } from '../state/viewport.svelte';
+import type { ContextMenuTarget } from '../state/ui.svelte';
 
 // Pixels of pointer movement required before a left-click becomes a drag.
 const DRAG_THRESHOLD = 4;
@@ -41,12 +43,15 @@ export interface CanvasInputControllerOptions {
     Renderer,
     'hitTestToken' | 'setTokenDragPreview' | 'clearTokenDragPreview'
   >;
+  /** Called when the user right-clicks the canvas. Receives the hit-tested target. */
+  onContextMenu?: (target: ContextMenuTarget) => void;
 }
 
 export class CanvasInputController {
   private _viewport: ViewportState;
   private _campaign: CampaignState;
   private _renderer: CanvasInputControllerOptions['renderer'];
+  private _onContextMenu: ((target: ContextMenuTarget) => void) | undefined;
 
   private _mode: Mode = 'idle';
 
@@ -66,10 +71,12 @@ export class CanvasInputController {
     viewportState,
     campaignState,
     renderer,
+    onContextMenu,
   }: CanvasInputControllerOptions) {
     this._viewport = viewportState;
     this._campaign = campaignState;
     this._renderer = renderer;
+    this._onContextMenu = onContextMenu;
   }
 
   // ============================================================================
@@ -86,7 +93,7 @@ export class CanvasInputController {
     const onPointerUp = (e: PointerEvent) => this._handlePointerUp(e);
     const onPointerCancel = (e: PointerEvent) => this._handlePointerCancel(e);
     const onWheel = (e: WheelEvent) => this._handleWheel(e);
-    const onContextMenu = (e: MouseEvent) => e.preventDefault();
+    const onContextMenu = (e: MouseEvent) => this._handleContextMenu(e);
 
     element.addEventListener('pointerdown', onPointerDown);
     element.addEventListener('pointermove', onPointerMove);
@@ -122,6 +129,8 @@ export class CanvasInputController {
       (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
       return;
     }
+
+    // Right-click → context menu handled in _handleContextMenu (contextmenu event)
 
     // Left-click → maybe token drag
     if (e.button === 0) {
@@ -206,6 +215,16 @@ export class CanvasInputController {
       this._dragTokenId = '';
       this._dragStarted = false;
     }
+  }
+
+  private _handleContextMenu(e: MouseEvent): void {
+    // Always prevent the browser's native context menu on the canvas.
+    e.preventDefault();
+    const tokenId = this._renderer.hitTestToken(e.clientX, e.clientY);
+    const target: ContextMenuTarget = tokenId
+      ? { kind: 'token', tokenId, screenX: e.clientX, screenY: e.clientY }
+      : { kind: 'canvas', screenX: e.clientX, screenY: e.clientY };
+    this._onContextMenu?.(target);
   }
 
   private _handleWheel(e: WheelEvent): void {

@@ -115,15 +115,19 @@ beforeEach(() => {
   el = makeElement();
 });
 
-function makeController(hitTokenId: string | null = null) {
+function makeController(
+  hitTokenId: string | null = null,
+  onContextMenu = vi.fn(),
+) {
   const renderer = makeMockRenderer(hitTokenId);
   const ctl = new CanvasInputController({
     viewportState,
     campaignState,
     renderer,
+    onContextMenu,
   });
   detach = ctl.attach(el as unknown as HTMLElement);
-  return { ctl, renderer };
+  return { ctl, renderer, onContextMenu };
 }
 
 // ---------------------------------------------------------------------------
@@ -133,8 +137,43 @@ function makeController(hitTokenId: string | null = null) {
 describe('contextmenu', () => {
   it('always prevents default', () => {
     makeController();
-    const event = el.fire('contextmenu', {});
+    const event = el.fire('contextmenu', { clientX: 50, clientY: 60 });
     expect(event.preventDefault).toHaveBeenCalled();
+  });
+
+  it('calls onContextMenu with kind:"token" when a token is hit', () => {
+    const { onContextMenu } = makeController('tok-1');
+    el.fire('contextmenu', { clientX: 50, clientY: 60 });
+    expect(onContextMenu).toHaveBeenCalledWith({
+      kind: 'token',
+      tokenId: 'tok-1',
+      screenX: 50,
+      screenY: 60,
+    });
+  });
+
+  it('calls onContextMenu with kind:"canvas" when no token is hit', () => {
+    const { onContextMenu } = makeController(null);
+    el.fire('contextmenu', { clientX: 100, clientY: 200 });
+    expect(onContextMenu).toHaveBeenCalledWith({
+      kind: 'canvas',
+      screenX: 100,
+      screenY: 200,
+    });
+  });
+
+  it('does not call onContextMenu when no callback is provided', () => {
+    // Construct manually with no callback — should not throw.
+    const renderer = makeMockRenderer(null);
+    const ctl = new CanvasInputController({
+      viewportState,
+      campaignState,
+      renderer,
+    });
+    ctl.attach(el as unknown as HTMLElement);
+    expect(() =>
+      el.fire('contextmenu', { clientX: 0, clientY: 0 }),
+    ).not.toThrow();
   });
 });
 

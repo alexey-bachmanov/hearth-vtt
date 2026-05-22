@@ -14,8 +14,7 @@
 
 import PlayLayoutBase from './PlayLayoutBase.svelte';
 import PlayLayoutOverlay from './PlayLayoutOverlay.svelte';
-import { FloatingWindowLayer } from '../window';
-</script>
+import { FloatingWindowLayer } from '../window'; import { ContextMenu } from '../canvas';</script>
 
 <div class="play-layout">
   <!-- Layer 1: Base (toolbar + canvas background) -->
@@ -26,6 +25,9 @@ import { FloatingWindowLayer } from '../window';
 
   <!-- Layer 3: Floating windows -->
   <FloatingWindowLayer />
+
+  <!-- Layer 4: Context menu (above floating windows) -->
+  <ContextMenu />
 </div>
 
 <style>

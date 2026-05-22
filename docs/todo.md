@@ -151,12 +151,12 @@ As work completes, check off tasks.
 
 ### Phase 9: Canvas Input & Viewport
 
-- [ ] Update `MainCanvas` — add pointer event handlers:
-  - [ ] Left click: token selection / tool interaction (delegates to current tool mode)
-  - [ ] Middle scroll: zoom in/out toward cursor, update `viewportState.zoom`
-  - [ ] Right click + drag: pan map, suppress context menu, update `viewportState.panOffset`
-  - [ ] Left click + drag on token: token drag (renderer API calls, no-op until renderer is real)
-- [ ] Wire `viewportState` to `QuickStatus` for reactive zoom/pan display
+- [x] Update `MainCanvas` — add pointer event handlers:
+  - [x] Left click: token selection / tool interaction (delegates to current tool mode)
+  - [x] Middle scroll: zoom in/out toward cursor, update `viewportState.zoom`
+  - [x] Right click + drag: pan map, suppress context menu, update `viewportState.panOffset`
+  - [x] Left click + drag on token: token drag (renderer API calls, no-op until renderer is real)
+- [x] Wire `viewportState` to `QuickStatus` for reactive zoom/pan display
 
 ### Phase 10: Seat Permissions
 
