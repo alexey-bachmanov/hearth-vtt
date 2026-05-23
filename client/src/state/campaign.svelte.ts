@@ -604,3 +604,11 @@ export const campaignState = new CampaignState();
 // TODO: Remove this when server sync is implemented
 campaignState.loadMockData();
 notificationState.loadMockNotifications();
+import('./connection.svelte').then(({ connectionState }) => {
+  connectionState.handleWelcome({
+    version: '1.0.0',
+    seatId: 'seat-player-2',
+    seatRole: 'gm',
+    campaignId: campaignState.campaignId!,
+  });
+});

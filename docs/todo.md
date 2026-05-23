@@ -160,9 +160,9 @@ As work completes, check off tasks.
 
 ### Phase 10: Seat Permissions
 
-- [ ] Add `seatPermissions` derived state — computes `canSeeGMTools`, `canDragToken(actorId)`, `canOpenRadialMenu(actorId)`, `visibleActorPills`
-- [ ] Gate GM-only UI: `LeftToolbar` GM section, `ActorPills` filtering
-- [ ] Gate token interactions: drag handlers and radial menu check permissions
+- [~] Add `seatPermissions` derived state — computes `canSeeGMTools`, `canDragToken(actorId)`, `canOpenRadialMenu(actorId)`, `visibleActorPills`
+- [x] Gate GM-only UI: `LeftToolbar` GM section, `ActorPills` filtering
+- [~] Gate token interactions: drag handlers and radial menu check permissions
 
 ### Phase 11: Cleanup & Final Documentation
 
