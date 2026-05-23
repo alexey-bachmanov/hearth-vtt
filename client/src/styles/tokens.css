@@ -24,7 +24,9 @@
   --color-text-secondary: #b0b0b0;
   --color-text-tertiary: #808080;
   --color-text-disabled: #505050;
-  --color-text-muted: var(--color-text-tertiary); /* Subdued text for headers and non-interactive labels */
+  --color-text-muted: var(
+    --color-text-tertiary
+  ); /* Subdued text for headers and non-interactive labels */
   --color-text-inverse: #000000; /* Dark text for use on bright colored backgrounds */
 
   /* Accent colors */
@@ -208,7 +210,7 @@
   --z-tooltip: 400;
   --z-dropdown: 500;
   --z-context-menu-backdrop: 599; /* Right-click context menu backdrop */
-  --z-context-menu: 600;          /* Right-click context menu panel */
+  --z-context-menu: 600; /* Right-click context menu panel */
 
   /* ========================================
      Shadows

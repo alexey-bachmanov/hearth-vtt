@@ -9,7 +9,7 @@
    * Structure (top to bottom):
    * - Top bar (QuickStatus left, ActorPills right)
    * - Middle spacer (flex: 1, empty space)
-   * - Notification area (bottom, TODO: Phase 7)
+   * - Notification area (bottom)
    */
 
   import { ActorPills, QuickStatus } from '../canvas';

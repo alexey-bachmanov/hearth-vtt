@@ -600,8 +600,8 @@ export class CampaignState {
  */
 export const campaignState = new CampaignState();
 
-// Load mock data on module initialization (development only)
-// TODO: Remove this when server sync is implemented
+// Load mock data on module initialization (development only).
+// Phase 3: Replace with server-driven initial state (sync.initial WS message).
 campaignState.loadMockData();
 notificationState.loadMockNotifications();
 import('./connection.svelte').then(({ connectionState }) => {
