@@ -163,45 +163,45 @@ describe('canDragToken', () => {
 });
 
 // ---------------------------------------------------------------------------
-// canOpenRadialMenu
+// hasActorControl
 // ---------------------------------------------------------------------------
 
-describe('canOpenRadialMenu', () => {
+describe('hasActorControl', () => {
   it('returns true for GM regardless of the actor', () => {
     loadFixture();
     connectionState.handleWelcome({ seatRole: 'gm', seatId: 'seat-gm' });
-    expect(seatPermissions.canOpenRadialMenu('a-gm-only')).toBe(true);
-    expect(seatPermissions.canOpenRadialMenu('a-control')).toBe(true);
+    expect(seatPermissions.hasActorControl('a-gm-only')).toBe(true);
+    expect(seatPermissions.hasActorControl('a-control')).toBe(true);
   });
 
   it('returns true for a player seat that has "control" over the actor', () => {
     loadFixture();
     connectionState.handleWelcome({ seatRole: 'player', seatId: 'seat-a' });
-    expect(seatPermissions.canOpenRadialMenu('a-control')).toBe(true);
+    expect(seatPermissions.hasActorControl('a-control')).toBe(true);
   });
 
   it('returns false for a player seat that has only "read" on the actor', () => {
     loadFixture();
     connectionState.handleWelcome({ seatRole: 'player', seatId: 'seat-a' });
-    expect(seatPermissions.canOpenRadialMenu('a-read')).toBe(false);
+    expect(seatPermissions.hasActorControl('a-read')).toBe(false);
   });
 
   it('returns false for a player seat with no permission on the actor', () => {
     loadFixture();
     connectionState.handleWelcome({ seatRole: 'player', seatId: 'seat-a' });
-    expect(seatPermissions.canOpenRadialMenu('a-gm-only')).toBe(false);
+    expect(seatPermissions.hasActorControl('a-gm-only')).toBe(false);
   });
 
   it('returns false when the actor does not exist', () => {
     loadFixture();
     connectionState.handleWelcome({ seatRole: 'player', seatId: 'seat-a' });
-    expect(seatPermissions.canOpenRadialMenu('a-nonexistent')).toBe(false);
+    expect(seatPermissions.hasActorControl('a-nonexistent')).toBe(false);
   });
 
   it('returns false when there is no seatId (spectator / unauthenticated)', () => {
     loadFixture();
     connectionState.handleWelcome({ seatRole: 'spectator' });
-    expect(seatPermissions.canOpenRadialMenu('a-control')).toBe(false);
+    expect(seatPermissions.hasActorControl('a-control')).toBe(false);
   });
 });
 

@@ -43,24 +43,24 @@ class SeatPermissions {
    */
   canDragToken(tokenId: string): boolean {
     if (connectionState.seatRole === 'gm') return true;
-    const seatId = connectionState.seatId;
-    if (!seatId) return false;
     const token = campaignState.getToken(tokenId);
     if (!token) return false;
-    const actor = campaignState.getActor(token.actorId);
-    if (!actor) return false;
-    return actor.seatPermissions[seatId] === 'control';
+    return this.hasActorControl(token.actorId);
   }
 
   /**
-   * True when the current seat is allowed to open the radial action menu for
-   * the given actor.
+   * True when the current seat has 'control' over the given actor.
+   *
+   * This is the core permission primitive for entity-level gates:
+   *   - drag a token on the canvas
+   *   - open the radial action menu
+   *   - (future) edit the character sheet
    *
    * - GM: always permitted.
-   * - Player: permitted only when the actor grants 'control' to this seat.
+   * - Player: permitted only when the actor's seatPermissions map grants 'control' to this seat.
    * - Spectator / unauthenticated: never permitted.
    */
-  canOpenRadialMenu(actorId: string): boolean {
+  hasActorControl(actorId: string): boolean {
     if (connectionState.seatRole === 'gm') return true;
     const seatId = connectionState.seatId;
     if (!seatId) return false;

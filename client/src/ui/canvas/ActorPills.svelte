@@ -65,7 +65,7 @@
     <ActorPill
       {actor}
       isActive={activeDropdown === actor.id}
-      isReadOnly={!seatPermissions.canOpenRadialMenu(actor.id)}
+      isReadOnly={!seatPermissions.hasActorControl(actor.id)}
       ontoggle={toggleDropdown}
       oncenter={centerOnActor}
       onopensheet={openCharacterSheet}
