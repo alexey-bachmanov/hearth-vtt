@@ -4,6 +4,8 @@
  *
  * Search and browse game content (spells, items, monsters, etc.).
  */
+import { Icon } from '../../shared';
+import { Sword, Backpack, Skull, BookOpen } from 'lucide-svelte';
 </script>
 
 <div class="drawer__section-list">
@@ -20,19 +22,19 @@
     <h3 class="drawer__section-title">Categories</h3>
     <div class="category-grid">
       <button class="category-card">
-        <span class="category-card__icon">⚔️</span>
+        <span class="category-card__icon"><Icon icon={Sword} label="Spells" size={32} /></span>
         <span class="category-card__name">Spells</span>
       </button>
       <button class="category-card">
-        <span class="category-card__icon">🎒</span>
+        <span class="category-card__icon"><Icon icon={Backpack} label="Items" size={32} /></span>
         <span class="category-card__name">Items</span>
       </button>
       <button class="category-card">
-        <span class="category-card__icon">👹</span>
+        <span class="category-card__icon"><Icon icon={Skull} label="Monsters" size={32} /></span>
         <span class="category-card__name">Monsters</span>
       </button>
       <button class="category-card">
-        <span class="category-card__icon">📖</span>
+        <span class="category-card__icon"><Icon icon={BookOpen} label="Rules" size={32} /></span>
         <span class="category-card__name">Rules</span>
       </button>
     </div>
@@ -66,7 +68,7 @@
   }
 
   .category-card__icon {
-    font-size: var(--font-size-3xl);
+    line-height: 0;
   }
 
   .category-card__name {

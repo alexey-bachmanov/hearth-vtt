@@ -4,6 +4,8 @@
  * 
  * Shows detailed information about an item, spell, or ability.
  */
+import { Icon } from '../shared';
+import { Sword } from 'lucide-svelte';
 
 interface Props {
   itemId: string;
@@ -22,7 +24,7 @@ let { itemId }: Props = $props();
   
   <div class="item-details">
     <div class="item-header">
-      <h3>⚔️ Longsword +1</h3>
+      <h3><Icon icon={Sword} label="Sword" /> Longsword +1</h3>
       <span class="item-rarity">Uncommon</span>
     </div>
     

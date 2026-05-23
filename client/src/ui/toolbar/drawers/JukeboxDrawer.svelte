@@ -4,6 +4,8 @@
  *
  * Audio player with playlist, transport controls, and volume.
  */
+import { Icon } from '../../shared';
+import { SkipBack, Play, SkipForward } from 'lucide-svelte';
 </script>
 
 <div class="drawer__section-list">
@@ -16,9 +18,9 @@
 
   <div class="drawer__section">
     <div class="transport-controls">
-      <button class="btn btn--sm" aria-label="Previous">⏮</button>
-      <button class="btn btn--sm btn--primary" aria-label="Play">▶</button>
-      <button class="btn btn--sm" aria-label="Next">⏭</button>
+      <button class="btn btn--sm" aria-label="Previous"><Icon icon={SkipBack} label="Previous" /></button>
+      <button class="btn btn--sm btn--primary" aria-label="Play"><Icon icon={Play} label="Play" /></button>
+      <button class="btn btn--sm" aria-label="Next"><Icon icon={SkipForward} label="Next" /></button>
     </div>
   </div>
 

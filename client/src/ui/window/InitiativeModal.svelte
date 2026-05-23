@@ -4,6 +4,8 @@
  * 
  * Shows initiative order and current turn marker.
  */
+import { Icon } from '../shared';
+import { SkipBack, SkipForward } from 'lucide-svelte';
 
 // Mock initiative data
 const initiativeOrder = [
@@ -35,8 +37,8 @@ const initiativeOrder = [
   </div>
   
   <div class="initiative-controls">
-    <button class="control-button">⏮️ Previous</button>
-    <button class="control-button control-button--primary">Next Turn ⏭️</button>
+    <button class="control-button"><Icon icon={SkipBack} label="Previous" /> Previous</button>
+    <button class="control-button control-button--primary">Next Turn <Icon icon={SkipForward} label="Next" /></button>
     <button class="control-button control-button--danger">End Combat</button>
   </div>
 </div>
