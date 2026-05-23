@@ -21,7 +21,7 @@ As work completes, check off tasks.
 
 ### Phase 1: Accessibility
 
-- [ ] Add `aria-label="Send a message"` (or a visually-hidden `<label>`) to the ChatLog message input [ChatLog.svelte](../client/src/ui/sidebar/ChatLog.svelte)
+- [x] Add `aria-label="Send a message"` (or a visually-hidden `<label>`) to the ChatLog message input [ChatLog.svelte](../client/src/ui/sidebar/ChatLog.svelte)
 - [ ] Add `role="dialog"`, `aria-modal="true"`, and `aria-labelledby` pointing at the window title to `TabbedWindow` [TabbedWindow.svelte](../client/src/ui/window/TabbedWindow.svelte)
 - [ ] Add focus trap to `TabbedWindow` — `Tab`/`Shift-Tab` cycles within the window; `Escape` focuses the title-bar close button [TabbedWindow.svelte](../client/src/ui/window/TabbedWindow.svelte)
 - [ ] Add landmark roles and a skip-link to `PlayLayout`:

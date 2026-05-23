@@ -47,7 +47,7 @@ function handleKeydown(event: KeyboardEvent) {
       placeholder="Type a message..."
       bind:value={messageInput}
       onkeydown={handleKeydown}
-      aria-label="Chat message"
+      aria-label="Send a message"
     />
     <button onclick={handleSend} aria-label="Send message">Send</button>
   </div>
