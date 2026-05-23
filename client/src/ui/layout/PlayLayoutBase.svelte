@@ -15,8 +15,12 @@
 </script>
 
 <div class="play-layout-base">
-  <LeftToolbar />
-  <MainCanvas />
+  <nav class="landmark" aria-label="Tools">
+    <LeftToolbar />
+  </nav>
+  <main class="landmark" id="main-content">
+    <MainCanvas />
+  </main>
 </div>
 
 <style>
@@ -29,5 +33,11 @@
     display: flex;
     flex-direction: row;
     z-index: var(--z-canvas);
+  }
+
+  /* Landmark wrappers are semantically present but invisible to the flex
+     layout algorithm so they don't disrupt the toolbar + canvas flex row. */
+  .landmark {
+    display: contents;
   }
 </style>

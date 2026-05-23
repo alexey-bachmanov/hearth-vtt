@@ -25,7 +25,7 @@ As work completes, check off tasks.
 - [x] Add `role="dialog"`, `aria-modal="true"`, and `aria-labelledby` pointing at the window title to `TabbedWindow` [TabbedWindow.svelte](../client/src/ui/window/TabbedWindow.svelte)
 - [x] Add focus trap to `TabbedWindow` — `Tab`/`Shift-Tab` cycles within the window; `Escape` focuses the title-bar close button [TabbedWindow.svelte](../client/src/ui/window/TabbedWindow.svelte)
   - Note: Tab focus trap intentionally omitted — TabbedWindow is a non-modal floating panel; trap would break the VTT workflow of keeping a window open while interacting with the canvas. `Escape` → close button retained as a deliberate keyboard dismiss shortcut.
-- [ ] Add landmark roles and a skip-link to `PlayLayout`:
+- [x] Add landmark roles and a skip-link to `PlayLayout`:
   - `<nav aria-label="Tools">` wrapping `LeftToolbar`
   - `<main id="main-content">` wrapping the canvas area
   - `<aside aria-label="Chat">` wrapping `RightSidebar`

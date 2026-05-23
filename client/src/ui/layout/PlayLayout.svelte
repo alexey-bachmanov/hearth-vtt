@@ -17,6 +17,9 @@ import PlayLayoutOverlay from './PlayLayoutOverlay.svelte';
 import { FloatingWindowLayer } from '../window'; import { ContextMenu } from '../canvas';</script>
 
 <div class="play-layout">
+  <!-- Skip link: off-screen by default, appears on keyboard focus. -->
+  <a class="skip-link" href="#main-content">Skip to canvas</a>
+
   <!-- Layer 1: Base (toolbar + canvas background) -->
   <PlayLayoutBase />
 
@@ -37,5 +40,21 @@ import { FloatingWindowLayer } from '../window'; import { ContextMenu } from '..
     height: 100vh;
     overflow: hidden;
     background-color: var(--color-bg-primary);
+  }
+
+  .skip-link {
+    position: absolute;
+    top: -100%;
+    left: 0;
+    z-index: 9999;
+    padding: 0.5rem 1rem;
+    background: var(--color-bg-elevated);
+    color: var(--color-text-primary);
+    text-decoration: none;
+    border-radius: 0 0 var(--radius-sm) 0;
+  }
+
+  .skip-link:focus {
+    top: 0;
   }
 </style>

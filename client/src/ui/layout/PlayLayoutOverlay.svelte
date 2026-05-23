@@ -30,7 +30,9 @@
   <CanvasOverlayColumn />
 
   <!-- Right sidebar (slides over canvas) -->
-  <RightSidebar />
+  <aside class="landmark" aria-label="Chat">
+    <RightSidebar />
+  </aside>
 </div>
 
 <style>
@@ -50,5 +52,11 @@
   .toolbar-spacer {
     flex: 0 0 var(--toolbar-left-width);
     pointer-events: none; /* Allow clicks to pass through to toolbar below */
+  }
+
+  /* Landmark wrapper is semantically present but invisible to the flex
+     layout algorithm so it doesn't disrupt the overlay lane layout. */
+  .landmark {
+    display: contents;
   }
 </style>
