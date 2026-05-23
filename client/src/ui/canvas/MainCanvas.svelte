@@ -19,6 +19,7 @@ import { CanvasInputController } from '../../app/canvas-input-controller';
 import { campaignState } from '../../state/campaign.svelte';
 import { viewportState } from '../../state/viewport.svelte';
 import { uiState } from '../../state/ui.svelte';
+import { seatPermissions } from '../../state/seatPermissions.svelte';
 
 let canvasElement: HTMLCanvasElement;
 let renderer: Renderer | null = $state(null);
@@ -35,6 +36,7 @@ onMount(() => {
       campaignState,
       renderer,
       onContextMenu: (target) => uiState.openContextMenu(target),
+      canDragToken: (tokenId) => seatPermissions.canDragToken(tokenId),
     });
     detach = ctl.attach(canvasElement);
   })();

@@ -45,6 +45,11 @@ export interface CanvasInputControllerOptions {
   >;
   /** Called when the user right-clicks the canvas. Receives the hit-tested target. */
   onContextMenu?: (target: ContextMenuTarget) => void;
+  /**
+   * Permission gate: returns true when the current seat is allowed to drag
+   * the given token. Defaults to always-true (no restriction).
+   */
+  canDragToken?: (tokenId: string) => boolean;
 }
 
 export class CanvasInputController {
@@ -52,6 +57,7 @@ export class CanvasInputController {
   private _campaign: CampaignState;
   private _renderer: CanvasInputControllerOptions['renderer'];
   private _onContextMenu: ((target: ContextMenuTarget) => void) | undefined;
+  private _canDragToken: (tokenId: string) => boolean;
 
   private _mode: Mode = 'idle';
 
@@ -72,11 +78,13 @@ export class CanvasInputController {
     campaignState,
     renderer,
     onContextMenu,
+    canDragToken,
   }: CanvasInputControllerOptions) {
     this._viewport = viewportState;
     this._campaign = campaignState;
     this._renderer = renderer;
     this._onContextMenu = onContextMenu;
+    this._canDragToken = canDragToken ?? (() => true);
   }
 
   // ============================================================================
@@ -137,7 +145,7 @@ export class CanvasInputController {
       if (this._mode !== 'idle') return;
 
       const tokenId = this._renderer.hitTestToken(e.clientX, e.clientY);
-      if (tokenId) {
+      if (tokenId && this._canDragToken(tokenId)) {
         this._mode = 'tokenDragging';
         this._dragPointerId = e.pointerId;
         this._dragTokenId = tokenId;

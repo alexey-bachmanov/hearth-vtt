@@ -7,15 +7,15 @@
    * Filtered by seat permissions.
    */
 
-  import { campaignState } from '../../state/campaign.svelte';
   import { uiState } from '../../state/ui.svelte';
+  import { seatPermissions } from '../../state/seatPermissions.svelte';
   import ActorPill from './ActorPill.svelte';
 
   // Active dropdown state (actorId or null)
   let activeDropdown = $state<string | null>(null);
 
-  // Get party actors using $derived
-  const partyActors = $derived(campaignState.getPartyActors());
+  // Actors visible to this seat (filtered by seatPermissions).
+  const partyActors = $derived(seatPermissions.visibleActorPills);
 
   /**
    * Toggle dropdown for a specific actor pill.
@@ -65,6 +65,7 @@
     <ActorPill
       {actor}
       isActive={activeDropdown === actor.id}
+      isReadOnly={!seatPermissions.canOpenRadialMenu(actor.id)}
       ontoggle={toggleDropdown}
       oncenter={centerOnActor}
       onopensheet={openCharacterSheet}

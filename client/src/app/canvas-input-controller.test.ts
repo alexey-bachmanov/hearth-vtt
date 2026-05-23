@@ -445,6 +445,32 @@ describe('token drag', () => {
     expect(token?.position).toEqual({ x: 100, y: 100 }); // unchanged
   });
 
+  it('does not start drag when canDragToken returns false', () => {
+    addToken();
+    const renderer = makeMockRenderer(TOKEN_ID);
+    const ctl = new CanvasInputController({
+      viewportState,
+      campaignState,
+      renderer,
+      canDragToken: () => false, // permission denied
+    });
+    detach = ctl.attach(el as unknown as HTMLElement);
+
+    el.fire(
+      'pointerdown',
+      ptr({ button: 0, pointerId: 1, clientX: 100, clientY: 100 }),
+    );
+    el.fire('pointermove', ptr({ pointerId: 1, clientX: 110, clientY: 100 }));
+    el.fire(
+      'pointerup',
+      ptr({ button: 0, pointerId: 1, clientX: 110, clientY: 100 }),
+    );
+
+    expect(renderer.setTokenDragPreview).not.toHaveBeenCalled();
+    const token = campaignState.getToken(TOKEN_ID);
+    expect(token?.position).toEqual({ x: 100, y: 100 }); // unchanged
+  });
+
   it('ignores left-click when no token is hit', () => {
     addToken();
     const { renderer } = makeController(null); // no token under cursor

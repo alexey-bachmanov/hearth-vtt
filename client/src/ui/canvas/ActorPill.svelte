@@ -12,12 +12,14 @@
   interface Props {
     actor: Actor;
     isActive: boolean;
+    /** True when the current seat has read-only access to this actor (cannot control). */
+    isReadOnly?: boolean;
     ontoggle: (actorId: string) => void;
     oncenter: (actorId: string) => void;
     onopensheet: (actorId: string) => void;
   }
 
-  let { actor, isActive, ontoggle, oncenter, onopensheet }: Props = $props();
+  let { actor, isActive, isReadOnly = false, ontoggle, oncenter, onopensheet }: Props = $props();
 
   // Position tracking for dropdown
   let pillElement: HTMLDivElement | null = $state(null);
@@ -52,7 +54,7 @@
   }
 </script>
 
-<div class="actor-pill" bind:this={pillElement}>
+<div class="actor-pill" class:actor-pill--readonly={isReadOnly} bind:this={pillElement}>
   <!-- Main button: click to center on token -->
   <button
     class="actor-pill__main"
@@ -155,6 +157,11 @@
 <style>
   .actor-pill {
     position: relative;
+  }
+
+  /* Read-only pill: player can view but not control this actor */
+  .actor-pill--readonly {
+    opacity: 0.7;
   }
 
   /* Dropdown Menu */
