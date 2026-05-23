@@ -462,6 +462,29 @@ function handleDetach(windowId: string) {
   contextMenu = null;
 }
 
+// ============================================================================
+// Keyboard navigation
+// ============================================================================
+
+/**
+ * Reference to the single-tab close button — focused on Escape.
+ * Null in multi-tab mode; Escape is a graceful no-op in that case.
+ *
+ * Note: TabbedWindow is a non-modal floating panel — it does not block the
+ * rest of the UI. We do NOT implement a Tab focus trap; Tab flows normally
+ * through the page so users can keep a window open and interact with the
+ * canvas, toolbar, and chat simultaneously. Escape gives keyboard users a
+ * deliberate shortcut to dismiss the window without disrupting Tab flow.
+ */
+let closeBtn: HTMLButtonElement | null = $state(null);
+
+function handleDialogKeyDown(event: KeyboardEvent) {
+  if (event.key === 'Escape') {
+    event.preventDefault();
+    closeBtn?.focus();
+  }
+}
+
 // Close context menu when clicking outside it.
 function handleGlobalClick(event: MouseEvent) {
   if (contextMenu && !(event.target as HTMLElement).closest('.tabbed-window__context-menu')) {
@@ -505,10 +528,14 @@ function handleGlobalKeydown(event: KeyboardEvent) {
     class:tabbed-window--drop-target={isDropTarget}
     style="left: {renderX}px; top: {renderY}px; width: {renderWidth}px; height: {renderHeight}px; z-index: {group.zIndex};"
     onmousedown={handleWindowMouseDown}
+    onkeydown={handleDialogKeyDown}
     role="dialog"
-    aria-label={activeTab?.title ?? 'Window'}
+    aria-labelledby="tabbed-window-{group.id}-label"
     tabindex="-1"
   >
+    <!-- Visually-hidden label referenced by aria-labelledby. -->
+    <span id="tabbed-window-{group.id}-label" class="sr-only">{activeTab?.title ?? 'Window'}</span>
+
     <!-- ================================================================
          Header: tab strip (multi-tab) or title bar (single tab)
          ================================================================ -->
@@ -548,6 +575,7 @@ function handleGlobalKeydown(event: KeyboardEvent) {
         <div class="tabbed-window__title-bar">
           <h4 class="tabbed-window__title">{activeTab?.title ?? ''}</h4>
           <button
+            bind:this={closeBtn}
             class="tabbed-window__close"
             aria-label="Close window"
             onclick={handleWindowClose}

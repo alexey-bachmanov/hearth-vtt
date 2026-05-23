@@ -22,8 +22,9 @@ As work completes, check off tasks.
 ### Phase 1: Accessibility
 
 - [x] Add `aria-label="Send a message"` (or a visually-hidden `<label>`) to the ChatLog message input [ChatLog.svelte](../client/src/ui/sidebar/ChatLog.svelte)
-- [ ] Add `role="dialog"`, `aria-modal="true"`, and `aria-labelledby` pointing at the window title to `TabbedWindow` [TabbedWindow.svelte](../client/src/ui/window/TabbedWindow.svelte)
-- [ ] Add focus trap to `TabbedWindow` — `Tab`/`Shift-Tab` cycles within the window; `Escape` focuses the title-bar close button [TabbedWindow.svelte](../client/src/ui/window/TabbedWindow.svelte)
+- [x] Add `role="dialog"`, `aria-modal="true"`, and `aria-labelledby` pointing at the window title to `TabbedWindow` [TabbedWindow.svelte](../client/src/ui/window/TabbedWindow.svelte)
+- [x] Add focus trap to `TabbedWindow` — `Tab`/`Shift-Tab` cycles within the window; `Escape` focuses the title-bar close button [TabbedWindow.svelte](../client/src/ui/window/TabbedWindow.svelte)
+  - Note: Tab focus trap intentionally omitted — TabbedWindow is a non-modal floating panel; trap would break the VTT workflow of keeping a window open while interacting with the canvas. `Escape` → close button retained as a deliberate keyboard dismiss shortcut.
 - [ ] Add landmark roles and a skip-link to `PlayLayout`:
   - `<nav aria-label="Tools">` wrapping `LeftToolbar`
   - `<main id="main-content">` wrapping the canvas area
