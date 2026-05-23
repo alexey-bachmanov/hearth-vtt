@@ -8,175 +8,27 @@ As work completes, check off tasks.
 
 # Current Projects
 
-## Play UI Overhaul (Feb 2026)
+## Play UI Tech Debt Sprint
 
-**Goal:** Restructure the play interface from a 5-zone grid layout to a modern 3-zone layout with left icon toolbar, canvas overlays, bottom notification toasts, and tabbed floating windows. Admin UI is untouched.
-
-**Decisions locked in:**
-
-- **Icons:** Lucide via `lucide-svelte` (tree-shakeable, Svelte-native)
-- **Drawer behavior:** Overlays canvas (no layout push), one drawer open at a time
-- **Notifications:** Bottom-left anchored, horizontal stack with leftward compaction
-- **Tabbed windows:** Context menu to combine initially, then drag-to-combine
-- **Radial menu:** Custom SVG/CSS, deferred until renderer and token system exist
-- **Target screens:** Desktop and large-format tablets; plan for touch but defer mobile layout
-- **Admin UI:** Completely untouched — all changes scoped to `/play` path
+**Goal:** Close accessibility gaps in the Play UI left over from the Play UI Overhaul sprint. All items are actionable now without pending infrastructure.
 
 **Verification criteria:**
 
-- `npm run build` passes in client after each phase
-- After Phase 2: PlayLayout renders with new 3-zone grid
-- After Phase 4: Left toolbar renders icons, clicking opens/closes drawer overlay
-- After Phase 5: Right sidebar shows only chat log
-- After Phase 6: Actor pills visible top-right with dropdowns, quick status top-left
-- After Phase 7: Notifications render bottom-left and stack correctly
-- After Phase 8: Can open multiple windows, combine into tab groups, detach tabs
-- After Phase 9: Right-click drag pans, scroll zooms (updates viewport state)
-- Manual smoke test: Load `/play` → see new layout → verify all toolbar icons → open/close drawers → verify chat sidebar → verify admin UI unchanged at `/admin`
+- `npm run build` passes after each phase
+- Screen reader announces ChatLog input label
+- Keyboard focus stays inside a `TabbedWindow` while it is open; `Escape` dismisses
+- PlayLayout has recognizable landmark regions and a functional skip-link
 
-### Phase 1: Documentation
+### Phase 1: Accessibility
 
-- [x] Update [client.md](../docs/components/client.md) with new UI layout, component hierarchy, and architecture
-- [x] Update [todo.md](../docs/todo.md) with new sprint plan, archive completed sprint, move testing to tech debt
-
-### Phase 2: CampaignState & Mock Data
-
-- [x] Implement `CampaignState` as a concrete reactive store with typed entity collections
-  - [x] Define types: `Actor`, `Token`, `Scene`, `Effect`, seat role/permissions
-  - [x] Populate with rich D&D-flavored mock data (party actors, GM actors, scenes, tokens)
-  - [x] Methods: `getActor(id)`, `getToken(id)`, `getScene(id)`, `getActorsForSeat(seatId)`, `getPartyActors()`
-- [x] Add `seatRole` (`'gm' | 'player' | 'spectator'`) to `connectionState` or `campaignState`
-- [x] Add `viewportState` store — `zoom`, `panOffset`, `gridSpacing`, `gridType`, `snapToGrid`, `mapName`
-- [x] Add `notificationState` store — ordered notification array with `push()`, `dismiss(id)`, auto-remove for ephemeral
-- [x] Wire existing `eventLogState` to `ChatLog` (replace hardcoded sample events) and populate with mock events
-
-### Phase 3: Setup & Shared Components
-
-- [x] Install `lucide-svelte` in client workspace
-- [x] Create `Tooltip` component — custom positioned tooltip (hover + focus), replaces native `title` attrs
-- [x] Create `Icon` wrapper component — standardizes size/color/aria-label for Lucide icons
-- [x] Update [tokens.css](../client/src/styles/tokens.css):
-  - [x] Replace `--toolbar-bottom-height` with `--toolbar-left-width` (56px) and `--drawer-width` (320px)
-  - [x] Add `--z-drawer` layer between canvas and overlay
-  - [x] Add `--notification-height`, `--pill-height` tokens
-- [x] Add new CSS component classes to [components.css](../client/src/styles/components.css):
-  - [x] `.toolbar-icon-btn` — square icon button with hover/active/selected states
-  - [x] `.drawer-panel` — slide-out panel base styling
-  - [x] `.notification-toast` — bottom notification card
-  - [x] `.actor-pill` — split button pill
-
-### Phase 4: Left Toolbar & Drawer System
-
-- [x] Create `LeftToolbar` component — narrow vertical icon bar (56px), three sections with dividers:
-  - [x] **Quick tools** (top): Dice roller, annotation, measurement, initiative toggle, jukebox
-  - [x] **Big tools** (middle): Campaign journal, player compendium, settings
-  - [x] **GM tools** (bottom, seat-gated): Lighting, obstructions, scene selector, campaign prep, token library, game settings
-  - [x] Each icon uses `Tooltip` + `Icon` components; clicking toggles `uiState.activeToolDrawer`
-  - [x] Active tool gets visual indicator (left accent bar or background highlight)
-- [x] Create `ToolDrawer` wrapper — 320px slide-out panel overlaying canvas
-  - [x] Smooth CSS transition (`transform: translateX`) for open/close
-  - [x] Click-outside or Escape to close
-  - [x] Header with drawer title + close button, scrollable content area
-  - [x] Renders correct drawer content based on `uiState.activeToolDrawer`
-- [x] Create drawer content components in `ui/toolbar/drawers/`:
-  - [x] `DiceRollerDrawer` — preset dice buttons (simple mode), and custom formula editor (advanced mode)
-  - [x] `AnnotationDrawer` — shape selection, color/weight pickers
-  - [x] `MeasurementDrawer` — mode selector, public/private toggle
-  - [x] `InitiativeDrawer` — turn order list, controls, show/hide panel
-  - [x] `JukeboxDrawer` — playlist, transport controls, volume (migrated from sidebar)
-  - [x] `JournalDrawer` — handouts/notes browser (migrated from sidebar)
-  - [x] `CompendiumDrawer` — search + browse by category/Tome (migrated from sidebar)
-  - [x] `SettingsDrawer` — audio/video/UI preferences (migrated from sidebar)
-  - [x] `LightingDrawer` — light placement/editing tools (GM only, migrated from sidebar)
-  - [x] `ObstructionDrawer` — wall/door/window tools (GM only, migrated from sidebar)
-  - [x] `SceneDrawer` — map browser/selector (GM only, migrated from sidebar)
-  - [x] `CampaignPrepDrawer` — encounter setup, NPC staging area (GM only, placeholder)
-  - [x] `TokenLibraryDrawer` — drag-to-map actor browser (GM only, migrated from sidebar)
-  - [x] `GameSettingsDrawer` — campaign-level game settings (GM only, placeholder)
-- [x] Update `uiState` — add `activeToolDrawer: string | null`, remove old `selectedTool`/`activeDrawerTab`
-- [x] Rewrite `PlayLayout` — 3-column CSS grid: `[toolbar-left] auto [canvas-area] 1fr [sidebar-right] var(--sidebar-right-width)`. Canvas area is `position: relative` for overlay anchoring. Drawer overlays absolutely over canvas
-- [x] Delete old toolbar components: `BottomToolbar`, `DiceRoller`, `DrawingTools`, `InitiativeTracker`, `MeasurementTool`, `PingTool`
-- [x] Update [toolbar/index.ts](../client/src/ui/toolbar/index.ts) barrel
-
-### Phase 5: Right Sidebar Simplification
-
-- [x] Rewrite `RightSidebar` — chat/event log only (header + ChatLog + input), no DrawerTabs
-- [x] Add sidebar collapse/expand toggle — open by default, collapsible for more map space
-- [x] Wire `ChatLog` to `campaignState.events` (remove hardcoded sample events)
-- [x] Delete old sidebar components: `DrawerTabs`, `CompendiumDrawer`, `JournalDrawer`, `SettingsDrawer`, `JukeboxDrawer`, `LeftSidebar`, `SceneNavigator`, `WallEditor`, `LightEditor`, `ActorLibrary`
-- [x] Update [sidebar/index.ts](../client/src/ui/sidebar/index.ts) barrel — export only `RightSidebar`, `ChatLog`, `GameEventCard`
-
-### Phase 6: Canvas Overlays
-
-- [x] Create `ActorPills` — positioned top-right of canvas area
-  - [x] Horizontal row of split-button pills for party-controlled actors
-  - [x] Main button: actor name (truncated), click to center map on token
-  - [x] Dropdown caret: flyout with quick stats (HP bar, AC, status indicators), center-on-token and open-character-sheet buttons
-  - [x] Filtered by seat permissions via `$derived` from `campaignState`
-- [x] Create `QuickStatus` — positioned top-left of canvas area
-  - [x] Compact mode (default): low opacity, shows map name + zoom % + connection dot (green/red)
-  - [x] Hover mode: opacity 1.0, expands downward with zoom slider, grid spacing, snap-to-grid toggle, connection status text
-  - [x] Reads from `viewportState` and `connectionState`
-- [x] Update [canvas/index.ts](../client/src/ui/canvas/index.ts) barrel
-
-### Phase 7: Bottom Notifications
-
-- [x] Create `NotificationArea` — fixed bottom-left, horizontal flexbox row
-  - [x] Renders notifications from `notificationState`
-  - [x] Compact leftward on dismiss with CSS transition
-  - [x] Z-index between toolbar and floating window layers
-- [x] Create `NotificationCard` — individual card styled by kind:
-  - [x] **Ephemeral**: subtle bg, auto-fade, slide-up entrance
-  - [x] **Blocking**: accent border, action buttons, no auto-dismiss
-  - [x] **Persistent**: warning border, explicit dismiss button required
-- [x] Delete old snackbar components and `ui/snackbar/` directory entirely
-- [x] Create [notifications/index.ts](../client/src/ui/notifications/index.ts) barrel
-
-### Phase 8: Tabbed Floating Windows
-
-- [x] Redesign window state model in `uiState`:
-  - [x] Replace `openWindows` Map with `windowGroups: Map<groupId, { tabs, activeTabId, position, size, zIndex }>`
-  - [x] Methods: `openWindow()`, `closeTab()`, `mergeGroups()`, `detachTab()`, `bringGroupToFront()`
-- [x] Create `TabbedWindow` component:
-  - [x] Tab bar below title bar when group has >1 tab
-  - [x] Click tab to switch, context menu to detach tab
-  - [x] Single-tab groups look identical to current windows (tab bar hidden)
-  - [x] Active tab content rendered via dynamic component dispatch
-- [x] Add tab merge UI: context menu on window title bar with "Merge into..." option listing other open windows
-- [x] Rewrite `FloatingWindowLayer` — iterate `uiState.windowGroups`
-- [x] Replace `FloatingWindow` with `TabbedWindow` shell; delete old component
-- [x] Update [window/index.ts](../client/src/ui/window/index.ts) barrel
-- [x] Implement drag-to-combine: drag window title bar onto another window's tab bar to merge
-- [x] Implement drag-to-detach: drag tab out of tab bar to create new window group
-
-### Phase 9: Canvas Input & Viewport
-
-- [x] Update `MainCanvas` — add pointer event handlers:
-  - [x] Left click: token selection / tool interaction (delegates to current tool mode)
-  - [x] Middle scroll: zoom in/out toward cursor, update `viewportState.zoom`
-  - [x] Right click + drag: pan map, suppress context menu, update `viewportState.panOffset`
-  - [x] Left click + drag on token: token drag (renderer API calls, no-op until renderer is real)
-- [x] Wire `viewportState` to `QuickStatus` for reactive zoom/pan display
-
-### Phase 10: Seat Permissions
-
-- [~] Add `seatPermissions` derived state — computes `canSeeGMTools`, `canDragToken(actorId)`, `canOpenRadialMenu(actorId)`, `visibleActorPills`
-- [x] Gate GM-only UI: `LeftToolbar` GM section, `ActorPills` filtering
-- [~] Gate token interactions: drag handlers and radial menu check permissions
-
-### Phase 11: Cleanup & Final Documentation
-
-- [x] Replace remaining emoji icons in play-UI components with Lucide icons
-- [x] Update all barrel files across `toolbar/`, `sidebar/`, `canvas/`, `notifications/`, `window/`
-- [x] Update [client.md](../docs/components/client.md) to reflect actual implementation
-- [x] Update [todo.md](../docs/todo.md) — check off completed phases, note any deferred items
-
-### Deferred (Post-Sprint)
-
-- **Radial menu** — custom SVG/CSS radial on token click; needs renderer + token system first
-- **Pop-out windows** — open floating window in separate browser window for multi-monitor
-- **Drag-and-drop from drawers** — drag Compendium items to sheets, drag actors to map
-- **`SeatRole` type duplication** — `SeatRole` (`'gm' | 'player' | 'spectator' | null`) is defined in `client/src/state/types.ts` and also inline in `server/src/storage/storage.ts`; WS message shapes (welcome, etc.) are typed independently on each side. Will be resolved when `packages/shared` is bootstrapped — planned for the game loop / WS auth sprint.
+- [ ] Add `aria-label="Send a message"` (or a visually-hidden `<label>`) to the ChatLog message input [ChatLog.svelte](../client/src/ui/sidebar/ChatLog.svelte)
+- [ ] Add `role="dialog"`, `aria-modal="true"`, and `aria-labelledby` pointing at the window title to `TabbedWindow` [TabbedWindow.svelte](../client/src/ui/window/TabbedWindow.svelte)
+- [ ] Add focus trap to `TabbedWindow` — `Tab`/`Shift-Tab` cycles within the window; `Escape` focuses the title-bar close button [TabbedWindow.svelte](../client/src/ui/window/TabbedWindow.svelte)
+- [ ] Add landmark roles and a skip-link to `PlayLayout`:
+  - `<nav aria-label="Tools">` wrapping `LeftToolbar`
+  - `<main id="main-content">` wrapping the canvas area
+  - `<aside aria-label="Chat">` wrapping `RightSidebar`
+  - Skip-link: `<a class="skip-link" href="#main-content">Skip to canvas</a>` (off-screen by default, visible on focus) [PlayLayout.svelte](../client/src/ui/layout/PlayLayout.svelte)
 
 ---
 
@@ -256,6 +108,14 @@ State stores are plain TypeScript classes — instantiate directly, no DOM requi
 
 Known issues organized by area. Items here can be promoted to "Current Projects" when prioritized.
 
+## Shared Package (`packages/shared`)
+
+The `packages/shared` directory is referenced in docs and architecture but does not yet exist. These will be resolved when it is bootstrapped as part of implementation strategy Phase 0 / game loop sprint.
+
+- [ ] `packages/` directory doesn't exist — create as a proper npm workspace package
+- [ ] `SeatRole` type (`'gm' | 'player' | 'spectator' | null`) duplicated between `client/src/state/types.ts` and `server/src/storage/storage.ts`
+- [ ] WS message shapes (welcome, etc.) typed independently on client and server — no shared protocol types yet
+
 ## Server
 
 ### Security (Not in Current Sprint)
@@ -301,19 +161,7 @@ Known issues organized by area. Items here can be promoted to "Current Projects"
 
 ### CSS & Styling
 
-- **Duplicated CSS (handled in Phase 3):**
-  - Button styles (`.btn`, `.btn-primary`, `.btn-secondary`, `.btn-danger`, `.btn-sm`)
-  - Form styles
-  - Error banner styles
-  - Spinner animations
-
-- **Missing CSS custom properties (handled in Phase 3):**
-  - All listed in Phase 3
-
-### State Management
-
-- [x] `FloatingWindowLayer` maintains separate `$state` disconnected from `uiState.openWindows` — **addressed in Play UI Overhaul Phase 8**
-- [x] `RightSidebar` maintains own `activeDrawer` instead of using `uiState` — **addressed in Play UI Overhaul Phase 5**
+- [ ] Shared button styles (`.btn` variants), form inputs, error banners, and spinner animations still duplicated across admin components — consolidate when Admin UI Overhaul is promoted
 
 ### API Layer
 
@@ -335,11 +183,7 @@ Known issues organized by area. Items here can be promoted to "Current Projects"
 ### Accessibility
 
 - [ ] AdminTree missing ARIA tree roles [AdminTree.svelte](../client/src/ui/admin/AdminTree.svelte#L81)
-- [ ] ChatLog input has no label [ChatLog.svelte](../client/src/ui/sidebar/ChatLog.svelte#L36)
-  - [x] FloatingWindow drag has no keyboard navigation [FloatingWindow.svelte](../client/src/ui/window/FloatingWindow.svelte#L55)
-- [ ] No focus trap in floating windows or modals
 - [ ] Emoji-only buttons lack `aria-label` throughout admin UI
-- [ ] No skip navigation or landmark roles in PlayLayout
 
 ### Stub Implementations
 
@@ -348,12 +192,20 @@ Known issues organized by area. Items here can be promoted to "Current Projects"
 - [ ] Util module empty [util/index.ts](../client/src/util/index.ts)
 - [ ] `campaign.setInitialState()` has TODO [campaign.svelte.ts](../client/src/state/campaign.svelte.ts#L27)
 - [ ] `campaign.applyDelta()` is stub [campaign.svelte.ts](../client/src/state/campaign.svelte.ts#L35)
-- [ ] Many placeholder UI components with hardcoded content (SceneNavigator, WallEditor, ActorLibrary, etc.)
+- [ ] Several floating window and drawer components are placeholder stubs with hardcoded content: `CharacterSheet`, `DocumentReader`, `ItemInspector`, `InitiativeModal`, `CampaignPrepDrawer`, `GameSettingsDrawer`
 
 ### Console Logging
 
 - [ ] Pervasive `console.log` in production paths across all API and state files
 - [ ] No log-level gating
+
+### Deferred Features
+
+These play UI features were deferred from the Play UI Overhaul sprint, pending infrastructure that doesn't exist yet.
+
+- [ ] **Radial menu** — context radial on token right-click; custom SVG/CSS; defer until renderer + token system exist
+- [ ] **Pop-out windows** — detach a floating window into a separate browser window for multi-monitor setups
+- [ ] **Drag-and-drop from drawers** — drag actors from Token Library to map; drag Compendium items onto character sheets; defer until renderer + character sheet system exist
 
 ## Admin UI Overhaul (Future Sprint)
 
@@ -380,10 +232,6 @@ The admin UI predates the Play UI Overhaul and is due for a similar pass. Items 
 - [ ] Client-side routing patterns [routes.ts](../client/src/app/routes.ts), [Router.svelte](../client/src/app/Router.svelte)
 - [ ] CORS configuration [server.ts](../server/src/server.ts#L82)
 - [ ] `GET /api/info` endpoint [health.ts](../server/src/routes/health.ts#L37)
-
-### Package Info
-
-- [ ] `packages/` directory referenced in docs but doesn't exist
 
 ## Build & Infrastructure
 
