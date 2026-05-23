@@ -71,19 +71,19 @@
   .context-menu-backdrop {
     position: fixed;
     inset: 0;
-    z-index: var(--z-context-menu-backdrop, 800);
+    z-index: var(--z-context-menu-backdrop);
     cursor: default;
   }
 
   .context-menu {
     position: fixed;
-    z-index: var(--z-context-menu, 801);
+    z-index: var(--z-context-menu);
     min-width: 180px;
     padding: var(--space-xs) 0;
-    background: var(--color-bg-elevated, #1e1e2e);
-    border: 1px solid var(--color-border-subtle, rgba(255, 255, 255, 0.1));
-    border-radius: var(--radius-md, 6px);
-    box-shadow: 0 4px 16px rgba(0, 0, 0, 0.4);
+    background: var(--color-bg-elevated);
+    border: 1px solid var(--color-border-subtle);
+    border-radius: var(--radius-md);
+    box-shadow: var(--shadow-md);
 
     /* Prevent the backdrop click from immediately closing the menu */
     pointer-events: auto;
@@ -91,11 +91,11 @@
 
   .context-menu-header {
     padding: var(--space-xs) var(--space-md);
-    font-size: var(--font-size-xs, 0.7rem);
+    font-size: var(--font-size-xs);
     font-weight: 600;
     text-transform: uppercase;
     letter-spacing: 0.08em;
-    color: var(--color-text-muted, rgba(255, 255, 255, 0.4));
+    color: var(--color-text-muted);
     cursor: default;
     user-select: none;
   }
@@ -107,33 +107,33 @@
     background: none;
     border: none;
     text-align: left;
-    font-size: var(--font-size-sm, 0.875rem);
-    color: var(--color-text-primary, #e0e0f0);
+    font-size: var(--font-size-sm);
+    color: var(--color-text-primary);
     cursor: pointer;
     white-space: nowrap;
     transition: background 80ms ease;
   }
 
   .context-menu-item:not(:disabled):hover {
-    background: var(--color-bg-hover, rgba(255, 255, 255, 0.08));
+    background: var(--color-bg-hover);
   }
 
   .context-menu-item:disabled {
-    color: var(--color-text-muted, rgba(255, 255, 255, 0.3));
+    color: var(--color-text-muted);
     cursor: not-allowed;
   }
 
   .context-menu-item--danger {
-    color: var(--color-danger, #e06c75);
+    color: var(--color-danger);
   }
 
   .context-menu-item--danger:not(:disabled):hover {
-    background: var(--color-danger-subtle, rgba(224, 108, 117, 0.12));
+    background: var(--color-danger-faint);
   }
 
   .context-menu-divider {
     margin: var(--space-xs) 0;
     border: none;
-    border-top: 1px solid var(--color-border-subtle, rgba(255, 255, 255, 0.1));
+    border-top: 1px solid var(--color-border-subtle);
   }
 </style>

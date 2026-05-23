@@ -351,7 +351,7 @@ function isInviteActive(invite: Invite): boolean {
 
   .role-badge.gm {
     background-color: var(--color-gm-badge);
-    color: #000;
+    color: var(--color-text-inverse);
   }
 
   .status-badge {
