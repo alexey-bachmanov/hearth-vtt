@@ -172,7 +172,7 @@ Target: desktop and large-format tablets. Touch-friendly button sizes are a cons
 ```
 App
 ├── PlayLayout (3-column CSS grid)
-│   ├── LeftToolbar (narrow 56px vertical icon bar)
+│   ├── LeftToolbar (narrow 42px vertical icon bar)
 │   │   ├── [Quick Tools — top section]
 │   │   │   ├── DiceRollerDrawer (custom formula + preset buttons + history)
 │   │   │   ├── AnnotationDrawer (shapes, color, weight)
@@ -248,20 +248,20 @@ App
 
 Notifications are rendered as toast-like cards anchored to the **bottom-left corner** of the canvas area, stacking **left-to-right**. When a notification is dismissed, remaining cards compact leftward with a smooth transition. This replaces the previous SnackbarArea design.
 
-### Notification Kinds
+### Notification Types
 
-| Kind         | Rendering                                | Behavior                                                                      |
-| ------------ | ---------------------------------------- | ----------------------------------------------------------------------------- |
-| `ephemeral`  | Subtle toast, auto-fades                 | Auto-dismisses after timeout (e.g., "Connection restored"). No close btn      |
-| `blocking`   | Accent-bordered card with action buttons | Requires user interaction (e.g., "Select a target" + Cancel). No auto-dismiss |
-| `persistent` | Warning-bordered card with dismiss btn   | Requires explicit dismiss (e.g., "Concentrating on Wall of Fire — [Drop]")    |
-| `inline`     | Embedded in another component            | Rendered within character sheet or chat card (unchanged from prior design)    |
+| Type         | Rendering                        | Behavior                                                                                                                                            |
+| ------------ | -------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `ephemeral`  | Subtle toast, auto-fades         | Auto-dismisses after timeout (default 5s). No close button (e.g., "Connection restored")                                                            |
+| `persistent` | Dismiss button or action buttons | Stays until explicitly dismissed. Use for prompts and ongoing states (e.g., "Select a target — [Cancel]", "Concentrating on Wall of Fire — [Drop]") |
+
+Notification visual style is controlled separately by `kind` (`NotificationKind`): semantic values `info`, `success`, `warning`, `error`; and color values `yellow`, `purple`, `pink`, `blue`, `green`, `red`, `orange` for custom prompt styles.
 
 ### Targeting Flow Example
 
 1. Player clicks "Attack" on character sheet
 2. Server sends `Prompt` with `kind: 'blocking'`, targeting spec in payload
-3. Client pushes blocking notification: "Select a target" with Cancel button
+3. Client pushes a persistent notification with action buttons: "Select a target" + [Cancel]
 4. Client activates `TargetingOverlay` with reticle cursor on canvas
 5. Player clicks token on map
 6. Client sends `WorkflowInput` with target selection
@@ -277,16 +277,32 @@ Ongoing state effects (e.g., "Concentrating on Wall of Fire") are rendered as `p
 Managed by `notificationState` store:
 
 ```ts
+type NotificationType = 'ephemeral' | 'persistent';
+
+type NotificationKind =
+  | 'info'
+  | 'success'
+  | 'warning'
+  | 'error' // semantic
+  | 'yellow'
+  | 'purple'
+  | 'pink'
+  | 'blue'
+  | 'green'
+  | 'red'
+  | 'orange'; // color/prompt
+
 interface Notification {
   id: string;
-  kind: 'ephemeral' | 'blocking' | 'persistent';
+  type: NotificationType;
+  kind: NotificationKind;
   message: string;
-  actions?: { label: string; callback: () => void }[];
-  timeout?: number; // ms, for ephemeral only
+  timestamp: number;
+  actions?: { label: string; onClick: () => void }[];
 }
 ```
 
-Methods: `push(notification)`, `dismiss(id)`, `clear()`. Ephemeral notifications automatically remove themselves after their timeout.
+Methods: `push(type, kind, message, actions?)`, `dismiss(id)`, `clear()`. Convenience helpers: `info(message)`, `success(message)`, `warning(message)`, `error(message)`, `prompt(kind, message, actions)`. Ephemeral notifications auto-dismiss after `ephemeralTimeout` (default 5 000 ms).
 
 ---
 
@@ -396,7 +412,7 @@ interface WindowTab {
 }
 ```
 
-Managed by `uiState.windowGroups`. Methods: `openWindow()`, `closeTab()`, `mergeWindow(sourceGroupId, targetGroupId)`, `detachTab(groupId, tabId)`, `bringToFront(groupId)`.
+Managed by `uiState.windowGroups`. Methods: `openWindow()`, `closeTab()`, `mergeGroups(sourceGroupId, targetGroupId)`, `detachTab(groupId, tabId)`, `bringGroupToFront(groupId)`.
 
 ### Window Types
 
@@ -412,7 +428,7 @@ Managed by `uiState.windowGroups`. Methods: `openWindow()`, `closeTab()`, `merge
 
 ## Left Toolbar & Drawer System
 
-The left toolbar is a narrow vertical icon bar (56px wide) that replaces the previous BottomToolbar and LeftSidebar. All tools are accessed through icons that open slide-out drawer panels.
+The left toolbar is a narrow vertical icon bar (42px wide) that replaces the previous BottomToolbar and LeftSidebar. All tools are accessed through icons that open slide-out drawer panels.
 
 ### Toolbar Layout
 
@@ -609,7 +625,7 @@ Drag Compendium items to character sheet windows, drag actors from token library
 
 Touch input support for tablets. Considerations:
 
-- Touch-friendly button sizes (toolbar icons already sized for touch at 56px)
+- Touch-friendly button sizes (toolbar icons already sized for touch at 42px)
 - Gesture support (pinch to zoom map, two-finger pan)
 - Responsive layout for portrait/landscape
 

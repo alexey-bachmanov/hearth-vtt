@@ -166,10 +166,10 @@ As work completes, check off tasks.
 
 ### Phase 11: Cleanup & Final Documentation
 
-- [ ] Replace remaining emoji icons in play-UI components with Lucide icons
-- [ ] Update all barrel files across `toolbar/`, `sidebar/`, `canvas/`, `notifications/`, `window/`
-- [ ] Update [client.md](../docs/components/client.md) to reflect actual implementation
-- [ ] Update [todo.md](../docs/todo.md) — check off completed phases, note any deferred items
+- [x] Replace remaining emoji icons in play-UI components with Lucide icons
+- [x] Update all barrel files across `toolbar/`, `sidebar/`, `canvas/`, `notifications/`, `window/`
+- [x] Update [client.md](../docs/components/client.md) to reflect actual implementation
+- [x] Update [todo.md](../docs/todo.md) — check off completed phases, note any deferred items
 
 ### Deferred (Post-Sprint)
 
@@ -313,7 +313,7 @@ Known issues organized by area. Items here can be promoted to "Current Projects"
 ### State Management
 
 - [x] `FloatingWindowLayer` maintains separate `$state` disconnected from `uiState.openWindows` — **addressed in Play UI Overhaul Phase 8**
-- [ ] `RightSidebar` maintains own `activeDrawer` instead of using `uiState` — **addressed in Play UI Overhaul Phase 5**
+- [x] `RightSidebar` maintains own `activeDrawer` instead of using `uiState` — **addressed in Play UI Overhaul Phase 5**
 
 ### API Layer
 
@@ -354,6 +354,15 @@ Known issues organized by area. Items here can be promoted to "Current Projects"
 
 - [ ] Pervasive `console.log` in production paths across all API and state files
 - [ ] No log-level gating
+
+## Admin UI Overhaul (Future Sprint)
+
+The admin UI predates the Play UI Overhaul and is due for a similar pass. Items are already tracked individually in the Accessibility, API Layer, and Error Handling sections above. When promoted to a sprint, consolidate into a phased plan covering:
+
+- Lucide icon replacement throughout (AdminTree, ServerSettings, CampaignDetail, AdminLayout, NotLoggedInPage, JoinPage)
+- ARIA tree roles, focus traps, and `aria-label` on icon-only buttons
+- Wire admin components to the API layer (remove raw `fetch()` from AdminLogin, AdminSetup, JoinPage)
+- Error handling robustness (`try/catch` on `response.json()` in AdminLogin, AdminSetup)
 
 ## Documentation
 
