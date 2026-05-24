@@ -37,21 +37,21 @@ If you need to cross a boundary, add an interface/adapter rather than importing 
 **Allowed imports**
 
 - `server/src/routes/**` and `server/src/ws/**`
-  - may import: `server/src/services/**`, `packages/shared/**`, `server/src/auth/**` (interfaces), `server/src/config/**`
+  - may import: `server/src/services/**`, `shared/**`, `server/src/auth/**` (interfaces), `server/src/config/**`
   - may NOT import: `server/src/storage/sqlite/**` directly (must go through interfaces/services)
 
 - `server/src/services/**`
-  - may import: `server/src/domain/**`, `server/src/storage/**` (interfaces), `packages/shared/**`, `server/src/util/**`
+  - may import: `server/src/domain/**`, `server/src/storage/**` (interfaces), `shared/**`, `server/src/util/**`
   - may NOT import: `fastify`, websocket libs, sqlite driver libs, filesystem libs
 
 - `server/src/domain/**`
-  - may import: other `domain/**`, `packages/shared/**` (pure types only)
+  - may import: other `domain/**`, `shared/**` (pure types only)
   - may NOT import: `services/**`, `routes/**`, `ws/**`, `storage/**`, any framework/IO libraries
 
 - `server/src/storage/**`
   - `server/src/storage/index.ts` defines interfaces (storage, repositories, etc.)
   - `server/src/storage/sqlite/**` implements those interfaces and may import sqlite libs
-  - may import: `server/src/domain/**` (types), `packages/shared/**` (types), `server/src/util/**`
+  - may import: `server/src/domain/**` (types), `shared/**` (types), `server/src/util/**`
   - may NOT import: `routes/**`, `ws/**`
 
 - `server/src/util/**`
@@ -69,24 +69,24 @@ If you need to cross a boundary, add an interface/adapter rather than importing 
 **Allowed imports**
 
 - `client/src/ui/**` (Svelte components, UI composition)
-  - may import: `client/src/app/**`, `client/src/state/**`, `client/src/api/**`, `client/src/render/**` (public surface), `packages/shared/**`
+  - may import: `client/src/app/**`, `client/src/state/**`, `client/src/api/**`, `client/src/render/**` (public surface), `shared/**`
   - may NOT import: low-level WebGL engine internals directly unless through `render/` public API
 
 - `client/src/app/**` (application orchestration)
-  - may import: `client/src/state/**`, `client/src/api/**`, `client/src/domain/**`, `client/src/render/**`, `packages/shared/**`, `client/src/util/**`
+  - may import: `client/src/state/**`, `client/src/api/**`, `client/src/domain/**`, `client/src/render/**`, `shared/**`, `client/src/util/**`
   - may NOT import: Svelte component files except via UI entry points
 
 - `client/src/render/**` (WebGL renderer + scene management)
-  - may import: `client/src/domain/**`, `packages/shared/**`, `client/src/util/**`
+  - may import: `client/src/domain/**`, `shared/**`, `client/src/util/**`
   - may NOT import: Svelte, UI components
   - renderer must expose a small stable API (e.g., `initRenderer`, `setScene`, `updateTokens`, `updateVisibilityMasks`)
 
 - `client/src/state/**` (stores/state containers)
-  - may import: `packages/shared/**`, `client/src/domain/**`, `client/src/util/**`
+  - may import: `shared/**`, `client/src/domain/**`, `client/src/util/**`
   - may NOT import: UI components, WebGL internals
 
 - `client/src/api/**` (HTTP/WS client)
-  - may import: `packages/shared/**`, `client/src/state/**` (interfaces only), `client/src/util/**`
+  - may import: `shared/**`, `client/src/state/**` (interfaces only), `client/src/util/**`
   - may NOT import: UI components, renderer internals
 
 - `client/src/domain/**` (pure client-side domain helpers)
@@ -96,11 +96,11 @@ If you need to cross a boundary, add an interface/adapter rather than importing 
 
 ---
 
-### Shared packages (`/packages`)
+### Shared package (`/shared`)
 
 **Goal:** shared code must be portable across server and client.
 
-- `packages/shared/**`
+- `shared/**`
   - contains: protocol message types, schemas, ids, dice parser, small pure utilities
   - may NOT import: node-only libs, browser-only libs, Fastify, Svelte, filesystem, sqlite drivers
 

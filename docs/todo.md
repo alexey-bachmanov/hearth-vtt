@@ -109,13 +109,13 @@ State stores are plain TypeScript classes — instantiate directly, no DOM requi
 
 Known issues organized by area. Items here can be promoted to "Current Projects" when prioritized.
 
-## Shared Package (`packages/shared`)
+## Shared Package (`shared/`)
 
-The `packages/shared` directory is referenced in docs and architecture but does not yet exist. These will be resolved when it is bootstrapped as part of implementation strategy Phase 0 / game loop sprint.
+The `shared/` workspace package has been bootstrapped (Phase 0) with the full Phase 3 type catalog.
 
-- [ ] `packages/` directory doesn't exist — create as a proper npm workspace package
-- [ ] `SeatRole` type (`'gm' | 'player' | 'spectator' | null`) duplicated between `client/src/state/types.ts` and `server/src/storage/storage.ts`
-- [ ] WS message shapes (welcome, etc.) typed independently on client and server — no shared protocol types yet
+- [x] `packages/` directory doesn't exist — created as `shared/` npm workspace package
+- [x] `SeatRole` type (`'gm' | 'player' | 'spectator'`) duplicated between client and server — migrated to `@hearth-vtt/shared`
+- [x] WS message shapes (welcome, etc.) typed independently on client and server — migrated to `shared/src/protocol/ws.ts` with Zod validation
 
 ## Server
 

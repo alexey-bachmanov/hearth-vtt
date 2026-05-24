@@ -22,6 +22,8 @@ export default defineConfig({
         'src/**/*.test.ts',
         'src/**/*.d.ts',
         'src/index.ts', // Barrel re-export only
+        'src/ids.ts', // Type aliases only — no runtime code
+        'src/stubs.ts', // Type aliases only — no runtime code
       ],
     },
 

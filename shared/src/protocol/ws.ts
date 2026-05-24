@@ -10,6 +10,8 @@
 
 import { z } from 'zod';
 import { seatRoleSchema } from '../seat';
+import { promptSchema } from '../prompt';
+import { workflowStateSchema } from '../workflow';
 
 // ============================================================================
 // Server → Client message schemas
@@ -41,17 +43,17 @@ const eventNewSchema = z.object({
 
 const promptCreateSchema = z.object({
   type: z.literal('prompt.create'),
-  payload: z.unknown(),
+  payload: promptSchema,
 });
 
 const promptCancelSchema = z.object({
   type: z.literal('prompt.cancel'),
-  payload: z.unknown(),
+  payload: z.object({ id: z.string() }),
 });
 
 const workflowUpdateSchema = z.object({
   type: z.literal('workflow.update'),
-  payload: z.unknown(),
+  payload: workflowStateSchema,
 });
 
 const tokenMovePreviewServerSchema = z.object({
