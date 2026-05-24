@@ -59,52 +59,56 @@ async function main() {
   mkdirSync(join(distDir, 'client'), { recursive: true });
   mkdirSync(join(serverRoot, 'dist'), { recursive: true });
 
-  // Step 2: Build client
-  console.log('2. Building client...');
+  // Step 2: Build shared package
+  console.log('2. Building shared package...');
+  execSync('npm run build:shared', { cwd: projectRoot, stdio: 'inherit' });
+
+  // Step 3: Build client
+  console.log('3. Building client...');
   execSync('npm run build:client', { cwd: projectRoot, stdio: 'inherit' });
 
-  // Step 3: Bundle server
-  console.log('3. Bundling server...');
+  // Step 4: Bundle server
+  console.log('4. Bundling server...');
   await bundleServer();
 
-  // Step 4: Create launcher for SEA
-  console.log('4. Creating SEA launcher...');
+  // Step 5: Create launcher for SEA
+  console.log('5. Creating SEA launcher...');
   await createLauncher();
 
-  // Step 5: Generate SEA blob
-  console.log('5. Generating SEA blob...');
+  // Step 6: Generate SEA blob
+  console.log('6. Generating SEA blob...');
   execSync('node --experimental-sea-config sea-config.json', {
     cwd: serverRoot,
     stdio: 'inherit',
   });
 
-  // Step 6: Copy Node binary
-  console.log('6. Copying Node binary...');
+  // Step 7: Copy Node binary
+  console.log('7. Copying Node binary...');
   const nodePath = process.execPath;
   const exePath = join(distDir, exeName);
   copyFileSync(nodePath, exePath);
 
-  // Step 7: Inject SEA blob
-  console.log('7. Injecting SEA blob...');
+  // Step 8: Inject SEA blob
+  console.log('8. Injecting SEA blob...');
   await injectBlob(exePath);
 
-  // Step 8: Copy bundled server
-  console.log('8. Copying server bundle...');
+  // Step 9: Copy bundled server
+  console.log('9. Copying server bundle...');
   copyFileSync(
     join(serverRoot, 'dist/bundle.cjs'),
     join(distDir, 'server.cjs'),
   );
 
-  // Step 9: Copy client dist
-  console.log('9. Copying client assets...');
+  // Step 10: Copy client dist
+  console.log('10. Copying client assets...');
   copyDirSync(join(projectRoot, 'client/dist'), join(distDir, 'client/dist'));
 
-  // Step 10: Copy native modules
-  console.log('10. Copying native modules...');
+  // Step 11: Copy native modules
+  console.log('11. Copying native modules...');
   copyNativeModules();
 
-  // Step 11: Create documentation
-  console.log('11. Creating documentation...');
+  // Step 12: Create documentation
+  console.log('12. Creating documentation...');
   createDocs();
 
   console.log('');
