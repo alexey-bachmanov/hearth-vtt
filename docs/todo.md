@@ -273,6 +273,189 @@ The admin UI predates the Play UI Overhaul and is due for a similar pass. Items 
 
 ---
 
+# Future Milestones Wishlist
+
+Features worth building eventually to make HearthVTT a compelling, complete VTT. None are currently in progress. When prioritizing, promote an item (or a group of related items) to "Current Projects" with a detailed, step-by-step plan.
+
+---
+
+## In-Game Note-Taking (Markdown Documents)
+
+Players and GMs need a place to record session notes, lore, and reminders without leaving the VTT. A lightweight markdown editor integrated into the floating window system would cover this.
+
+**Key characteristics:**
+
+- View mode (rendered markdown) and edit mode (plain text), toggled in the window title bar.
+- Documents are stored in the campaign (a `documents` table in SQLite, scoped to campaign).
+- "Share" action sends a document to one or more seats — read-only or read-write, based on the sharer's intent.
+- The `DocumentReader` floating window stub is already scaffolded — this feature fills it in.
+
+**Implementation path:**
+
+- Add a `documents` table to `SqliteStorage` (id, campaign_id, title, content, owner_seat_id, created_at, updated_at).
+- Add CRUD routes under `/api/campaigns/:id/documents`.
+- Add a `share_document` WS message from server to target seat(s).
+- Client: extend `DocumentReader.svelte` with a markdown render/edit toggle; back it with a `DocumentStore`.
+- Pick a small, dependency-free markdown renderer (e.g. `marked` or `micromark`) — add an ADR if a new dependency is introduced.
+
+---
+
+## Actor Pill Quick Actions
+
+The actor pill (sidebar card for a scene actor) should surface a pinned list of quick actions the controlling player can trigger without opening the full character sheet — e.g. "Attack", "Cast Spell", "Use Potion".
+
+**Key characteristics:**
+
+- Actions available in the quick-action list are drawn from the actor's loaded ruleset (actions the actor actually has).
+- The player chooses which actions to pin; the pinned list is stored in actor state.
+- Permissions follow seat ↔ actor permissions: if a seat can control the actor, they can see and trigger quick actions for it.
+- Triggering a quick action dispatches it through the normal GameEngine action pipeline.
+
+**Implementation path:**
+
+- Requires the GameEngine and ruleset action dispatch pipeline to be non-stub.
+- Actor state in `CampaignState` gains a `pinnedActions: string[]` field (array of ruleset action IDs).
+- The actor pill renders a collapsible "Quick Actions" section below the HP bar.
+- Clicking a quick action dispatches an `action` WS message to the server.
+
+---
+
+## Actor Pill List / Compact Toggle
+
+The actor pill sidebar should support switching between a detailed list view and a compact view (icon + name only) for sessions with many actors on screen. Pure client-side UI preference.
+
+**Key characteristics:**
+
+- Toggle in the sidebar header.
+- State persisted in `UiStore` (not campaign state — it's a per-client display preference).
+- Compact view shows token image, name, and a minimal HP bar only.
+
+---
+
+## Onboarding Tutorials
+
+New users should be guided through their first session rather than having to reverse-engineer the interface. Separate tours for GMs and players make sense because their workflows differ meaningfully.
+
+**Key characteristics:**
+
+- **Player tutorial:** moving tokens, rolling dice, chat log, opening the character sheet, signaling readiness.
+- **GM tutorial:** creating a campaign, inviting players, setting up a scene, placing tokens, using fog of war, managing the initiative tracker.
+- Tours are dismissible and re-triggerable from the help menu.
+- Implemented as a step-based overlay (highlight element + tooltip) within the normal UI — no separate tutorial mode needed.
+
+**Implementation path:**
+
+- A lightweight `TutorialStore` tracks which steps have been seen (persisted to `localStorage`).
+- Each step specifies a CSS selector or component ref to highlight, a tooltip message, and a "next" trigger (click, keystroke, or explicit "Next" button).
+- No server changes needed — entirely client-side.
+- Two entry points: auto-triggered on first login (dismissible), and a "Take a tour" button in the help / settings menu.
+
+---
+
+## "It's Your Turn" Indicator
+
+When the initiative tracker advances to a player's token, they should get an unmissable signal — important for online sessions where players are multitasking.
+
+**Key characteristics:**
+
+- Visual indicator on the active token in the WebGL layer (animated pulse, glowing border, etc.).
+- Optional browser notification (Web Notifications API, opt-in) for players who have tabbed away.
+- GM can manually "ping" a seat outside of initiative order.
+- Precise UX TBD — warrants playtesting before locking down the design.
+
+**Implementation path:**
+
+- Requires the initiative tracker and GameEngine turn management to be non-stub.
+- Server emits a `turn_started` WS message with the active seat and token IDs when the tracker advances.
+- Renderer checks `campaignState.currentTurn` and applies a highlight pass to the active token sprite.
+- Browser notification: client requests `Notification.permission` on game join; fires a notification on `turn_started` when the tab is not focused.
+
+---
+
+## Quick-Start Demo Campaign
+
+A ready-to-play campaign bundled with HearthVTT to get new users into actual play immediately. Also serves as a product demo for anyone evaluating the software.
+
+**Key characteristics:**
+
+- Based on D&D 5e SRD content (no licensing issues).
+- One complete encounter — a tavern brawl or similar scene: visually interesting, quick to resolve, representative of a typical session.
+- Pre-built map with walls, lighting, and fog of war configured.
+- Several pregenerated actors (fighter, rogue, wizard, etc.) with full stat blocks and ruleset-defined actions.
+- Actors are not pre-assigned to seats — the GM assigns them at the table as players join.
+- Ships as a `.campaign` file checked into `content/demo/`, importable from the admin dashboard.
+
+**Implementation path:**
+
+- Requires the `.campaign` import/export format and the renderer/fog system to be non-stub.
+- Add an "Import demo campaign" button to the admin dashboard.
+- Write a short "Getting Started" guide in `docs/` that walks through the demo campaign as the first experience.
+
+---
+
+## Map Pins
+
+GMs (and optionally players with permission) should be able to drop pins on the map canvas that link to readable documents — location descriptions, NPC notes, hidden lore, etc.
+
+**Key characteristics:**
+
+- Pins are placed at a world-space coordinate on the active scene.
+- Each pin links to a document (see In-Game Note-Taking above) or a plain-text label.
+- GM-only pins are invisible to players; shared pins are visible to all.
+- Clicking a pin opens its linked document in a `DocumentReader` floating window.
+- Placement UX TBD — likely right-click map → "Place pin".
+
+**Implementation path:**
+
+- Depends on the document system above.
+- Add a `map_pins` table to `SqliteStorage` (id, scene_id, x, y, document_id, visible_to_players).
+- Renderer adds a `PinsLayer` above the map but below tokens; renders pin icons at world coordinates.
+- Clicking a pin dispatches to the UI layer (not the renderer) to open the linked document window.
+
+---
+
+## Multi-Track Ambient Audio (Jukebox Mixer)
+
+Background music and ambient sound design are a major part of VTT atmosphere. Rather than a simple single-track jukebox, HearthVTT should support multiple concurrent audio layers that the GM can mix in real time — e.g. a persistent "forest ambience" layer that crossfades into "battle drums" when combat starts.
+
+**Key characteristics:**
+
+- GM defines named audio layers (e.g. "Ambience", "Music", "Combat").
+- Each layer has its own volume slider and a track queue.
+- GM uses a mixer panel to adjust layer volumes and trigger crossfades between tracks.
+- Audio is synced to clients via playback commands over WS (asset references + timing), not by streaming audio data.
+- Audio assets stored in campaign `AssetStore`.
+
+**Note:** Pocket Bard already does multi-track ambient audio well as an external tool. This is a deliberate "good enough, built-in" version — lightweight and zero-dependency for the GM — not an attempt to replicate their full feature set.
+
+**Implementation path:**
+
+- Requires the `AssetStore` interface to be implemented.
+- Server emits `audio_command` WS messages (play, pause, stop, set_volume, crossfade) to all seats.
+- Client: Web Audio API player with one `GainNode` per layer, each fed from an `<audio>` element.
+- GM UI: a "Jukebox" drawer or floating window with per-layer controls and a crossfade slider.
+
+---
+
+## Readable Documents Attached to Tokens
+
+A token should optionally have an attached readable document — a stat block summary, flavor text, a letter the character is carrying, etc. The GM (or controlling seat) can share it via the token's context menu.
+
+**Key characteristics:**
+
+- A token may have zero or one attached document (linked to the document system above).
+- The token context menu gains a "Share document" option, visible to the GM or the controlling seat.
+- Receiving a shared document opens it in a `DocumentReader` floating window for the target seat.
+- Relationship to actor data (ruleset-defined stat blocks vs. freeform attached documents) is TBD — may evolve once the ruleset engine is more concrete.
+
+**Implementation path:**
+
+- Depends on the document system and the token context menu (radial menu, currently deferred).
+- Actor state gains an optional `attachedDocumentId: string | null` field.
+- Sharing dispatches a `share_document` WS message from the server to target seats.
+
+---
+
 # Bugs
 
 ## UI
