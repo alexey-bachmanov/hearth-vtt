@@ -252,7 +252,11 @@ export class InMemoryBackend implements StorageBackend {
     sessionTokenHash: string,
   ): Promise<AdminSession | null> {
     for (const session of this.adminSessions.values()) {
-      if (session.sessionTokenHash === sessionTokenHash) return { ...session };
+      if (
+        session.sessionTokenHash === sessionTokenHash &&
+        session.revokedAt === null
+      )
+        return { ...session };
     }
     return null;
   }

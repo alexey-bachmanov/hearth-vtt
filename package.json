@@ -27,10 +27,12 @@
     "docker:logs": "docker compose logs -f",
     "test": "npm run test --workspaces --if-present",
     "test:coverage": "npm run test:coverage --workspaces --if-present",
+    "e2e": "playwright test",
     "lint": "npm run lint --workspaces --if-present",
     "clean": "node scripts/clean.js"
   },
   "devDependencies": {
+    "@playwright/test": "^1.60.0",
     "concurrently": "^9.2.1",
     "esbuild": "^0.27.3",
     "typescript": "^5.9.3"

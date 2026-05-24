@@ -21,7 +21,6 @@ let success = $state(false);
 
 onMount(() => {
   // TODO: Validate token exists before showing form
-  console.log('JoinPage mounted with token:', token);
 });
 
 async function handleSubmit(event: Event) {
@@ -36,18 +35,11 @@ async function handleSubmit(event: Event) {
   error = null;
 
   try {
-    // TODO: Call POST /api/auth/claim-invite
-    console.log('Claiming invite:', { token, pin });
-    
-    // Simulate API call
-    const response = await new Promise<Response>((resolve) => {
-      setTimeout(() => {
-        // Mock successful response
-        resolve(new Response(JSON.stringify({ success: true }), { 
-          status: 200,
-          headers: { 'Content-Type': 'application/json' }
-        }));
-      }, 1000);
+    const response = await fetch('/api/auth/claim-invite', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      credentials: 'include',
+      body: JSON.stringify({ token, pin }),
     });
 
     if (!response.ok) {
@@ -65,7 +57,7 @@ async function handleSubmit(event: Event) {
       return;
     }
     
-    // Mock success - TODO: Handle actual response
+    // Claim successful
     success = true;
     
     // Redirect to /play after successful claim
