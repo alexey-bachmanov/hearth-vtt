@@ -38,8 +38,6 @@ export class InMemoryBackend implements StorageBackend {
   // ---------------------------------------------------------------------------
 
   async init(): Promise<void> {}
-  closeMetadataDb(): void {}
-  closeCampaignDb(_campaignId: string): void {}
   close(): void {}
 
   // ---------------------------------------------------------------------------

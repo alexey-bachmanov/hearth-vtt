@@ -6,8 +6,7 @@ import path from 'path';
  */
 export async function ensureDataDir(dataDir: string): Promise<void> {
   const subdirs = [
-    'campaigns',  // Campaign working directories
-    'db',         // SQLite database files
+    'db', // SQLite database file (hearth.db)
   ];
 
   // Create main data dir
