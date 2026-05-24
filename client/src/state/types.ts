@@ -6,14 +6,10 @@
  */
 
 /**
- * Seat role for permission gating.
- *
- * - gm: Game master with full permissions
- * - player: Player with limited permissions
- * - spectator: Observer with read-only access
- * - null: No seat assigned (not logged in)
+ * Seat role for permission gating. Canonical definition lives in @hearth-vtt/shared.
+ * Use `SeatRole | null` where no seat is assigned (e.g. before login).
  */
-export type SeatRole = 'gm' | 'player' | 'spectator' | null;
+export type { SeatRole } from '@hearth-vtt/shared';
 
 /**
  * Grid type for scenes and viewport.

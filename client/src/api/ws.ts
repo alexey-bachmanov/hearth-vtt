@@ -17,39 +17,11 @@
  */
 
 import { connectionState } from '../state/connection.svelte';
-
-/**
- * WebSocket message types (Server → Client).
- */
-type ServerMessage =
-  | {
-      type: 'welcome';
-      protocolVersion: string;
-      serverVersion: string;
-      seatId: string;
-      campaignId: string;
-    }
-  | { type: 'sync.initial'; payload: unknown }
-  | { type: 'sync.delta'; payload: unknown }
-  | { type: 'event.new'; payload: unknown }
-  | { type: 'prompt.create'; payload: unknown }
-  | { type: 'prompt.cancel'; payload: unknown }
-  | { type: 'workflow.update'; payload: unknown }
-  | { type: 'token.move.preview'; payload: unknown }
-  | { type: 'token.move.preview.end'; payload: unknown }
-  | { type: 'pong' }
-  | { type: 'error'; payload: { code: string; message: string } };
-
-/**
- * WebSocket message types (Client → Server).
- */
-type ClientMessage =
-  | { type: 'resume'; lastEventSeq: number }
-  | { type: 'action'; payload: unknown }
-  | { type: 'workflow.input'; payload: unknown }
-  | { type: 'token.move.preview'; payload: unknown }
-  | { type: 'token.move'; payload: unknown }
-  | { type: 'ping' };
+import {
+  serverMessageSchema,
+  type ServerMessage,
+  type ClientMessage,
+} from '@hearth-vtt/shared';
 
 /**
  * WebSocket client for realtime communication.
@@ -167,13 +139,13 @@ export class WebSocketClient {
    */
   private handleMessage(event: MessageEvent): void {
     try {
-      const message = JSON.parse(event.data) as ServerMessage;
+      const raw: unknown = JSON.parse(event.data as string);
+      const message = serverMessageSchema.parse(raw);
       console.log('[WebSocketClient] Received message', message);
-
       this.dispatchMessage(message);
     } catch (error) {
       console.error(
-        '[WebSocketClient] Failed to parse message:',
+        '[WebSocketClient] Failed to parse/validate message:',
         error,
         event.data,
       );
@@ -237,16 +209,14 @@ export class WebSocketClient {
   /**
    * Handle welcome message from server.
    */
-  private handleWelcome(message: {
-    protocolVersion: string;
-    serverVersion: string;
-    seatId: string;
-    campaignId: string;
-  }): void {
+  private handleWelcome(
+    message: Extract<ServerMessage, { type: 'welcome' }>,
+  ): void {
     console.log('[WebSocketClient] Welcome received', message);
     connectionState.handleWelcome({
       version: message.serverVersion,
       seatId: message.seatId,
+      seatRole: message.seatRole,
       campaignId: message.campaignId,
     });
   }

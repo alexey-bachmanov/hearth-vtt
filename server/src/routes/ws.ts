@@ -9,6 +9,7 @@
  */
 
 import type { FastifyInstance } from 'fastify';
+import { clientMessageSchema, type ServerMessage } from '@hearth-vtt/shared';
 
 export async function wsRoutes(server: FastifyInstance) {
   /**
@@ -18,43 +19,62 @@ export async function wsRoutes(server: FastifyInstance) {
     server.log.info('WebSocket client connected');
 
     // Send welcome message
-    socket.send(
-      JSON.stringify({
-        type: 'welcome',
-        protocolVersion: '1.0',
-        serverVersion: '0.1.0',
-        seatId: 'seat-mock-001',
-        seatRole: 'player',
-        campaignId: 'campaign-mock-001',
-      }),
-    );
+    const welcome: ServerMessage = {
+      type: 'welcome',
+      protocolVersion: '1.0',
+      serverVersion: '0.1.0',
+      seatId: 'seat-mock-001',
+      seatRole: 'player',
+      campaignId: 'campaign-mock-001',
+    };
+    socket.send(JSON.stringify(welcome));
 
-    socket.on('message', (message) => {
+    socket.on('message', (raw) => {
+      let parsed: unknown;
       try {
-        const data = JSON.parse(message.toString());
+        parsed = JSON.parse(raw.toString());
+      } catch {
+        server.log.warn('WebSocket message was not valid JSON');
+        const err: ServerMessage = {
+          type: 'error',
+          payload: {
+            code: 'INVALID_JSON',
+            message: 'Message must be valid JSON',
+          },
+        };
+        socket.send(JSON.stringify(err));
+        return;
+      }
 
-        // Handle ping/pong
-        if (data.type === 'ping') {
-          socket.send(
-            JSON.stringify({
-              type: 'pong',
-            }),
-          );
-        }
+      const result = clientMessageSchema.safeParse(parsed);
+      if (!result.success) {
+        server.log.warn('Invalid WebSocket message: %s', result.error.message);
+        const err: ServerMessage = {
+          type: 'error',
+          payload: {
+            code: 'INVALID_MESSAGE',
+            message: 'Unrecognised message type or shape',
+          },
+        };
+        socket.send(JSON.stringify(err));
+        return;
+      }
 
-        // Handle resume
-        if (data.type === 'resume') {
-          server.log.info('Client resuming from event: %d', data.lastEventSeq);
-          // Stub: In a real implementation, send event backlog or sync.initial
-        }
+      const message = result.data;
 
-        // Handle action dispatch
-        if (data.type === 'action') {
-          server.log.info('Received action: %s', JSON.stringify(data.payload));
-          // Stub: In a real implementation, dispatch to GameEngine
-        }
-      } catch (_err) {
-        server.log.warn('Invalid WebSocket message received');
+      if (message.type === 'ping') {
+        const pong: ServerMessage = { type: 'pong' };
+        socket.send(JSON.stringify(pong));
+      }
+
+      if (message.type === 'resume') {
+        server.log.info('Client resuming from event: %d', message.lastEventSeq);
+        // Stub: In a real implementation, send event backlog or sync.initial
+      }
+
+      if (message.type === 'action') {
+        server.log.info('Received action: %s', JSON.stringify(message.payload));
+        // Stub: In a real implementation, dispatch to GameEngine
       }
     });
 

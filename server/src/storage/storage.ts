@@ -4,6 +4,7 @@
  */
 
 import { SqliteStorage } from './sqlite-storage';
+import type { SeatRole } from '@hearth-vtt/shared';
 
 export interface Campaign {
   id: string;
@@ -67,7 +68,7 @@ export interface Seat {
   id: string;
   campaignId: string;
   displayName: string; // Player's display name in this campaign
-  role: 'gm' | 'player' | 'spectator'; // Campaign role (no 'admin' role)
+  role: SeatRole; // Campaign role (no 'admin' role)
   isActive: boolean; // Can be deactivated without deletion
   createdAt: number;
   updatedAt: number;
