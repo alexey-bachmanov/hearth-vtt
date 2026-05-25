@@ -11,7 +11,7 @@
  *
  * Active interface (Phase A/B):
  *   init, dispose, setScene, updateTokens, setViewport,
- *   setTokenDragPreview, clearTokenDragPreview, hitTestToken
+ *   setTokenDragPreview, clearTokenDragPreview, hitTestToken, setOverlay
  *
  * Deferred to later phases (fog, lighting, AoE, VFX, annotations, measurement):
  *   updateVisibilityMask, updateLights, addAoEEffect, removeAoEEffect,
@@ -72,6 +72,13 @@ export interface Renderer {
    * or null if the point hits no token.
    */
   hitTestToken(screenX: number, screenY: number): string | null;
+
+  /**
+   * Reserved for future ambient scene effects (rain, snow, particles, AoE fog).
+   * The OverlayLayer container is wired into the world stack above tokens;
+   * this method is a no-op placeholder until specific effect types are designed.
+   */
+  setOverlay(spec: unknown): void;
 }
 
 // ============================================================================
@@ -93,6 +100,7 @@ export class StubRenderer implements Renderer {
   hitTestToken(_screenX: number, _screenY: number): string | null {
     return null;
   }
+  setOverlay(_spec: unknown): void {}
 }
 
 // ============================================================================

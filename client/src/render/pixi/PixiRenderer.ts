@@ -45,6 +45,14 @@ export class PixiRenderer implements Renderer {
       canvas,
       resizeTo: canvas.parentElement ?? undefined,
       backgroundAlpha: 0,
+      // antialias + autoDensity/resolution together address token/grid edge
+      // jaggies at all zoom levels. MSAA (via antialias) is handled by the
+      // WebGL driver; autoDensity + devicePixelRatio ensures the backing buffer
+      // matches the screen's physical pixel density.
+      //
+      // FXAA post-process filter was evaluated but is only available via
+      // @pixi/filter-fxaa, which is not compatible with PixiJS v8. Skipped as
+      // out of scope; native MSAA is sufficient for this project's needs.
       antialias: true,
       autoDensity: true,
       resolution: window.devicePixelRatio ?? 1,
