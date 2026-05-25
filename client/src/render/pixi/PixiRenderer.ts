@@ -15,6 +15,7 @@ import type { Scene, Token, Position } from '@hearth-vtt/shared';
 import type { Renderer, ViewportParams } from '../index';
 import { BackgroundLayer } from './layers/BackgroundLayer';
 import { GridLayer } from './layers/GridLayer';
+import { OverlayLayer } from './layers/OverlayLayer';
 import { TokenLayer } from './layers/TokenLayer';
 
 export class PixiRenderer implements Renderer {
@@ -23,6 +24,7 @@ export class PixiRenderer implements Renderer {
   private _background: BackgroundLayer | null = null;
   private _grid: GridLayer | null = null;
   private _tokens: TokenLayer | null = null;
+  private _overlay: OverlayLayer | null = null;
   private _resizeObserver: ResizeObserver | null = null;
 
   /**
@@ -58,10 +60,12 @@ export class PixiRenderer implements Renderer {
     this._background = new BackgroundLayer();
     this._grid = new GridLayer();
     this._tokens = new TokenLayer(app);
+    this._overlay = new OverlayLayer();
 
     world.addChild(this._background.container);
     world.addChild(this._grid.container);
     world.addChild(this._tokens.container);
+    world.addChild(this._overlay.container);
 
     // Token overlay (drag ghosts) is screen-space: added directly to stage above world.
     app.stage.addChild(world);
@@ -88,6 +92,7 @@ export class PixiRenderer implements Renderer {
     this._background?.destroy();
     this._grid?.destroy();
     this._tokens?.destroy();
+    this._overlay?.destroy();
     this._app?.destroy(false, { children: true });
 
     this._app = null;
@@ -95,6 +100,7 @@ export class PixiRenderer implements Renderer {
     this._background = null;
     this._grid = null;
     this._tokens = null;
+    this._overlay = null;
     this._resizeObserver = null;
     this._ready = false;
     this._pendingCalls = [];
@@ -138,6 +144,19 @@ export class PixiRenderer implements Renderer {
   hitTestToken(screenX: number, screenY: number): string | null {
     if (!this._ready || !this._tokens) return null;
     return this._tokens.hitTestToken(screenX, screenY);
+  }
+
+  // ============================================================================
+  // Overlay
+  // ============================================================================
+
+  /**
+   * Reserved for future ambient scene effects (rain, snow, particles, AoE fog).
+   * The OverlayLayer container is wired into the world stack above tokens; this
+   * method is a no-op until specific effect types are designed and implemented.
+   */
+  setOverlay(_spec: unknown): void {
+    // Intentionally empty placeholder — see OverlayLayer.ts.
   }
 
   // ============================================================================

@@ -105,6 +105,7 @@ These play UI features were deferred from the Play UI Overhaul sprint, pending i
 - [ ] **Radial menu** — context radial on token right-click; custom SVG/CSS; defer until renderer + token system exist
 - [ ] **Pop-out windows** — detach a floating window into a separate browser window for multi-monitor setups
 - [ ] **Drag-and-drop from drawers** — drag actors from Token Library to map; drag Compendium items onto character sheets; defer until renderer + character sheet system exist
+- [ ] **OverlayLayer content** — the world-container slot above tokens ([OverlayLayer.ts](../client/src/render/pixi/layers/OverlayLayer.ts)) is reserved but empty; decide what goes here (rain/snow/particle emitters, AoE fog, etc.) and implement when the effect system is designed
 
 ## Admin UI Overhaul (Future Sprint)
 

@@ -97,9 +97,7 @@ export class BackgroundLayer {
       video.addEventListener(
         'error',
         () =>
-          reject(
-            new Error(`BackgroundLayer: failed to load video "${url}"`),
-          ),
+          reject(new Error(`BackgroundLayer: failed to load video "${url}"`)),
         { once: true },
       );
       video.load();
