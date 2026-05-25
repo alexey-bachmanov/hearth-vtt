@@ -6,28 +6,31 @@ This document defines the **join link**, **PIN claim**, **cookie session**, and 
 
 ## Goals
 
-- **Low friction**: players join via a link, not mandatory platform accounts.
-- **Secure by default** (hosted/tunnel): HTTPS + WSS, HttpOnly cookies, token rotation.
-- **No secrets in bookmarks**: join tokens are temporary and not meant to be retained.
+- **Low friction**: players join via a link, not mandatory cloud-platform accounts.
+- **Lightweight per-server accounts**: a player has a username + password on each server they play on (no email, no recovery questions). Enables multi-device login, browser changes, and cookie clearing without GM intervention.
+- **Portable campaigns**: a campaign's seats are durable identifiers within the campaign file. Account-to-seat bindings are server-local and remapped on import/export between servers (or between self-host and cloud).
+- **Secure by default** (hosted/tunnel): HTTPS + WSS, HttpOnly cookies.
+- **No secrets in bookmarks**: invite tokens are temporary; the bookmarkable `/play` URL contains no secrets.
 - **Server Admin ≠ Campaign GM**: server access control (admin) is separate from campaign gameplay (GM).
-- **Admin ≠ Seat**: server admin is a server-level identity, not tied to campaign participation.
+- **Admin ≠ Player Account ≠ Seat**: three distinct identity layers (see Terminology).
 - **Single server implementation**: only `PUBLIC_BASE_URL` changes per deployment.
 
 Non-goals (for v1):
 
-- OAuth / social login (platform accounts optional later)
-- strong identity verification beyond invite + PIN (this is a game table context)
+- OAuth / social login (platform accounts optional later, see Open Issues)
+- email-based password recovery (admin resets player passwords via admin UI)
+- strong identity verification beyond username + password + invite PIN (this is a game table context)
 
 ---
 
 ## Terminology
 
 - **Server Admin**: operator of the server instance; manages server-wide operations (not tied to any campaign).
-- **Admin** (legacy context): when used in campaign context, refers to admin seat holders (deprecated in favor of server admin model).
-- **Seat**: an access identity within a campaign (player seat / GM seat / spectator).
-- **Invite**: a capability token that can be claimed to create/attach a seat session.
-- **Session**: long-lived access represented by refresh token (cookie), producing short-lived access tokens.
-- **AdminSession**: separate authentication for server admin (distinct from seat-based sessions).
+- **PlayerAccount**: a server-local identity (username + password). Belongs to one server. May hold multiple seats across multiple campaigns. Identifies the _person_.
+- **Seat**: an access identity within a single campaign (player / GM / spectator). Bound to exactly one PlayerAccount and exactly one Campaign at any time. Identifies the _role_. Cardinality: one PlayerAccount → N seats; one Campaign → N seats; one Seat → exactly 1 PlayerAccount and 1 Campaign.
+- **Invite**: a capability token that can be claimed to bind a seat to a PlayerAccount (existing or newly created during claim).
+- **AuthSession**: long-lived player session, identified by a refresh token cookie. Bound to a PlayerAccount (not a seat). Produces short-lived access tokens used for API/WS auth.
+- **AdminSession**: separate authentication for server admin (distinct from player sessions: different cookies, different tables, different recovery flow).
 
 ---
 
@@ -47,50 +50,87 @@ All modes use the same routes and cookies.
 
 ### `GET /join/<inviteToken>`
 
-Entry point from Discord/email.
+Entry point from Discord/email/etc.
 
 Behavior:
 
-- Validate invite token existence and expiry.
-- If already claimed/revoked: show a friendly “expired link” page and offer to request a new invite.
-- If valid: render a lightweight claim page (or serve the SPA and route to claim UI).
+- Validate invite token existence and expiry. **GET must have no side effects** (no claim attempts logged, no `maxClaims` decrement) — Discord/Slack/etc. preview bots will hit this URL.
+- If already claimed/revoked: render a friendly "expired link" page with instructions to ask the GM for a new invite.
+- If valid: serve the SPA and route to the claim UI.
 
 **Never** require the user to bookmark this URL.
 
 ### `POST /api/auth/claim-invite`
 
-Claim the invite and mint a session.
+Claim the invite. Binds the seat to a PlayerAccount (existing or newly created in the same request).
 
 Inputs:
 
-- `inviteToken` (from URL or body)
-- `pin` (user-provided)
-- optional device metadata: `deviceName`, `userAgent` (for admin audit UI)
+- `inviteToken`
+- `pin` (user-provided invite PIN)
+- `mode`: `"login"` | `"register"`
+- If `mode: "login"`: `{ username, password }` of an existing PlayerAccount on this server.
+- If `mode: "register"`: `{ username, password }` for a new PlayerAccount (server enforces username uniqueness and password min length).
+- optional device metadata: `deviceName`, `userAgent` (for audit UI)
 
-Outputs on success:
+Server behavior on success:
 
-- Sets secure cookies (refresh token)
-- Returns minimal JSON to boot the client (campaignId, seatId, roles)
-- Client redirects (or server responds with 302) to `/play`
+- Validates PIN; if invalid, applies rate limit (see PIN policy).
+- Validates/creates the PlayerAccount.
+- Binds `seats.accountId = <claiming account>`.
+- Creates an AuthSession bound to the PlayerAccount.
+- Sets the refresh cookie.
+- Returns minimal boot JSON: `{ accountId, campaignId, seatId, roles }`.
+- Client redirects to `/play/<campaignId>`.
+
+If the user is already logged in to a different account in the same browser, the claim page still shows the login/register choice — it does **not** auto-bind to the current cookie. (Households sharing a browser need this.)
 
 ### `GET /play`
 
-Stable play URL (bookmarkable). Contains no secrets.
+Stable bookmarkable URL. Contains no secrets.
 
-If not authenticated, it should show:
+Behavior:
 
-- “Not logged in” + a link to request a new invite (or instructions).
+- Not authenticated → render login page (username + password + "forgot password" link).
+- Authenticated → render **campaign picker** listing every campaign the account holds a seat in. Single-seat accounts may be auto-redirected to `/play/<campaignId>`.
+
+### `GET /play/<campaignId>`
+
+Per-campaign play URL. Bookmarkable. Contains no secrets.
+
+Behavior:
+
+- Not authenticated → redirect to `/play` (with optional `?returnTo=...`).
+- Authenticated but no seat in this campaign → show "no access" page with link to `/play`.
+- Authenticated with a seat → load the play UI for that campaign.
+
+### `POST /api/auth/login`
+
+Log into an existing PlayerAccount.
+
+Inputs: `{ username, password }`.
+
+On success: creates AuthSession, sets refresh cookie, returns `{ accountId }` and the list of campaigns/seats the account holds.
+
+Rate-limited per IP (see PIN/password policy).
 
 ### `POST /api/auth/refresh`
 
-Uses refresh cookie to mint a new access token (or update server-side session state).
+Uses refresh cookie to mint a new short-lived access token.
 
-- rotates refresh tokens on each use
-- invalidates old refresh token
+- **Refresh token is stable across normal use** (does not rotate on every refresh). This intentionally diverges from strict OAuth BCP to support multi-tab and multi-device usage, which are the norm for a VTT.
+- **Reuse detection still applies to revoked tokens**: presenting a refresh token whose session has been revoked (by logout, admin kick, or password change) revokes the entire session chain defensively and forces re-login.
+- Refresh tokens have a finite max lifetime (default 30 days, configurable) after which the user must log in again.
 
 ### `POST /api/auth/logout`
 
-Revokes the current session (server-side) and clears cookies.
+Revokes the current AuthSession (server-side) and clears the refresh cookie. Other devices remain logged in.
+
+### `POST /api/auth/forgot-password` (player; admin-mediated)
+
+For self-hosted: returns a generic "contact your admin" response. The actual reset is performed by the admin via `PATCH /api/admin/accounts/:id/reset-password`, which sets a temporary password the player must change on first login.
+
+For cloud-hosted: handled by the platform's account management, not by HearthVTT. See Open Issues.
 
 ---
 
@@ -125,64 +165,115 @@ Admin controls:
 
 ---
 
-## PIN policy (one-time friction)
+## PlayerAccount model
 
-Purpose: mitigate link leakage.
+A PlayerAccount is the durable identity for a player on a server. It owns sessions, holds seats, and is the unit of password change / account revocation.
 
-- PIN is required during invite claim (configurable per invite).
-- Store only `pinHash` (argon2id preferred; bcrypt acceptable).
-- Rate-limit failed PIN attempts:
-  - per invite token (e.g., 5 attempts / 10 minutes)
-  - per IP (e.g., 20 attempts / 10 minutes)
-- On too many failures, temporarily lock the invite (cooldown), and log the event for admin.
+### Schema
+
+`player_accounts` table:
+
+- `id` (uuid, primary key)
+- `username` (unique on the server, case-insensitive)
+- `password_hash` (scrypt; reuse the admin auth hashing utility)
+- `must_change_password` (bool — set true when an admin issues a temporary password)
+- `created_at`, `last_login_at`
+
+`seats.account_id` foreign keys into `player_accounts.id`. Nullable until claimed.
+
+`auth_sessions` belongs to `account_id` (not `seat_id`).
+
+### Username rules
+
+- Unique per server, case-insensitive.
+- Min/max length and allowed characters TBD; ASCII alphanumeric + `_-.` is a safe starting point.
+- Players choose their own usernames at claim time. No admin pre-approval.
+- Username collisions are local to one server; the blast radius is small. Suggested UX on collision: "that username is taken — pick another, or log in if it's you."
+
+### Password rules
+
+- Hashed with scrypt (same utility as admin password hashing).
+- Minimum length: 8 characters. No complexity requirements (per current research, length matters more than character classes).
+- No maximum length below 256.
+- Stored only as hash; never logged.
+- Failed login attempts **rate-limit by IP**, not by account. Locking accounts on failed logins creates a DoS vector against a known username list.
+
+### Multi-seat semantics
+
+- One account can hold seats in many campaigns on the same server.
+- A seat is bound to exactly one account at any time.
+- Re-binding a seat to a different account is an admin operation (e.g., a player leaves the table; their seat is re-issued to someone else). Re-binding revokes any active sessions tied to the old account _for that seat's campaign access_, but does not revoke the old account itself.
+- When a campaign is exported, seat IDs and seat metadata are preserved. Account bindings are **not** exported. On import to a different server, seats arrive unbound and must be re-claimed via fresh invites.
+
+### Account management routes (player-facing)
+
+The `/account` route is deferred (see Open Issues), but the eventual surface includes:
+
+- View account info (username, created date, list of seats across campaigns).
+- Change password.
+- Log out everywhere (revoke all AuthSessions for the account).
+
+For cloud-hosted deployments, the player-facing account UI is provided by the platform, not by HearthVTT. See Open Issues.
 
 ---
 
-## Session model (cookie + rotation)
+## PIN policy (one-time friction)
+
+Purpose: mitigate invite link leakage.
+
+- PIN is required during invite claim (configurable per invite).
+- Store only `pinHash` (argon2id preferred; scrypt acceptable to share infrastructure with password hashing).
+- Rate-limit failed PIN attempts:
+  - per invite token: 5 attempts, then 60-second cooldown (not "locked until expiry" — the most common cause of PIN failure is the GM mistyping the PIN to the player, and a short cooldown lets them re-verify and try again).
+  - per IP: 20 attempts / 10 minutes.
+- After the per-invite cooldown elapses, the invite is usable again with full attempt budget reset.
+- Log every failed attempt with IP for admin audit.
+- Admin UI shows the PIN inline (not just the hash) so the admin can re-verify what they sent.
+
+---
+
+## Session model (stable refresh + rotating access)
 
 ### Tokens
 
-- **Refresh token**: long-lived secret stored in HttpOnly cookie; used to mint access token.
-- **Access token**: short-lived proof used for API calls and WS auth decision.
-  - may be returned as a JSON response and stored in memory (recommended)
-  - or set as a short-lived cookie (acceptable, but harder to reason about CSRF)
+- **Refresh token**: long-lived secret bound to the PlayerAccount, stored in HttpOnly cookie. Default lifetime 30 days. Used only against `/api/auth/refresh` and during WS upgrade.
+- **Access token**: short-lived bearer token (default 15 minutes). Returned by `/api/auth/refresh` as JSON; client stores it in memory and sends it on API requests as `Authorization: Bearer <token>`. WS upgrade may use either the refresh cookie or an access token query header (cookie is preferred).
+
+The refresh token is **stable** — it does not rotate on every successful refresh. This is a deliberate departure from strict OAuth BCP, motivated by:
+
+- **Multi-tab safety.** Rotating refresh tokens on every use plus reuse detection produces false-positive session revocations any time two tabs refresh near-simultaneously. Multi-tab is the norm for a VTT (map + character sheet pop-out).
+- **Multi-device safety.** Same problem at device scope (phone + laptop both refreshing).
+- **Acceptable threat model.** A VTT session is not a bank. The cost of a stolen refresh token is bounded (max 30 days, scoped to one server, no payment data).
+
+Reuse detection still applies to **revoked** refresh tokens: presenting a refresh token whose session was revoked (logout, admin kick, password change) revokes the entire session chain and forces re-login on that device.
 
 ### Cookies
 
-Set refresh cookie:
+Refresh cookie:
 
 - `HttpOnly`
 - `Secure` (hosted/tunnel; in direct mode may be false)
 - `SameSite=Lax` (player sessions; admin sessions use `Strict`)
 - `Path=/`
 
-Name recommendation:
+Name:
 
 - `hearth_refresh` (player sessions)
 - `hearth_admin_session` (admin sessions)
-
-Optional cookie:
-
-- `hearth_session` (if you need a stable session id distinct from refresh token)
-
-### Rotation
-
-- Each refresh call issues a **new refresh token** and invalidates the previous token.
-- Server stores refresh tokens hashed (like passwords) or stores opaque IDs with a database record.
-- Reuse detection:
-  - if an old refresh token is presented after rotation, revoke the entire session chain (defensive).
 
 ### Revocation
 
 Admin actions:
 
-- revoke a seat’s sessions
-- revoke a device/session
-- kick active WS connections for a seat
+- revoke a PlayerAccount's sessions (forces re-login on all devices)
+- revoke a single device/session
+- kick active WS connections for a PlayerAccount (closes sockets without revoking the session — the next reconnect re-authenticates and resumes)
+- reset a PlayerAccount's password (sets `must_change_password`, revokes all sessions)
 
 User actions:
 
-- logout revokes current session
+- logout (current session)
+- log out everywhere (all sessions for the account) — deferred to `/account` route
 
 ---
 
@@ -192,32 +283,48 @@ User actions:
 
 Client connects to:
 
-- `wss://<origin>/ws` (hosted/tunnel)
-- `ws://<origin>/ws` (direct/LAN)
+- `wss://<origin>/ws?campaignId=<campaignId>` (hosted/tunnel)
+- `ws://<origin>/ws?campaignId=<campaignId>` (direct/LAN)
+
+The `campaignId` query parameter selects which seat the connection is for (one account may hold seats in multiple campaigns; the connection is per-seat).
 
 Auth mechanism:
 
-- server reads refresh/access cookie during WS upgrade
-- validates session
-- maps connection to `{campaignId, seatId, roles}`
+- Server reads the refresh cookie during WS upgrade.
+- Validates the AuthSession → PlayerAccount.
+- Resolves the seat: `SELECT * FROM seats WHERE account_id = ? AND campaign_id = ?`.
+- If no seat → close with 4403.
+- If valid → maps the connection to `{accountId, campaignId, seatId, roles}` and registers it in the seat's connection set.
+
+### Multiple connections per seat
+
+A seat may have **multiple simultaneous WebSocket connections** (multi-tab, pop-out windows, multi-device). The server keeps a `Set<WebSocket>` per `(accountId, seatId)` and broadcasts state changes to all of them.
+
+Design implications (see also [realtime-ws.md](../protocols/realtime-ws.md)):
+
+- All transient interactive state (prompts, workflow steps, initiative, token positions) is **server-owned**. Each connection is a projection of server state, not an independent state machine.
+- Prompts are not delivered messages; they are state with a `status` field. A new prompt appears on all connections for the seat. When any connection resolves it, the server broadcasts the resolution and all connections dismiss the UI.
+- Action handlers must be **idempotent against stale prompts**: an action referencing a `resolved` or `cancelled` prompt returns a no-op (with an info-level error), not an actual state change. This makes stale-UI-on-second-device safe by construction.
+- Optimistic UI updates (e.g., live token drag) stay **on the originating connection only**. They are not broadcast to the originating account's _other_ connections, which see only server-confirmed positions.
 
 Handshake messages (minimum):
 
-- client: `{ type: "hello", protocolVersion, clientVersion? }`
-- server: `{ type: "welcome", protocolVersion, serverVersion, seatId, campaignId }`
+- server (on connect): `{ type: "welcome", protocolVersion, serverVersion, accountId, seatId, campaignId }`
 
 If not authenticated:
 
-- server closes with an appropriate close code (e.g., 4401-like app code), and client shows “please re-join.”
+- Server closes with 4401 (no session) or 4403 (session valid but no seat in this campaign).
+- Client attempts one silent `/api/auth/refresh` before showing the re-auth UI. If the refresh succeeds, reconnect with the new access token; only if refresh also fails does the user see a login page.
 
 ### Reconnect behavior
 
 On reconnect:
 
-- client sends `{ type: "resume", lastEventSeq }`
-- server replies with:
-  - event backlog or snapshot + deltas
-  - outstanding prompts for that seat
+- Client sends `{ type: "resume", lastEventSeq }`.
+- Server replies with:
+  - event backlog since `lastEventSeq` (or full snapshot if too stale)
+  - the current set of pending prompts for that seat (derived from server state, not replayed from a delivery log)
+  - the current set of active workflows for that seat
 
 ---
 
@@ -257,14 +364,17 @@ Server admin must be able to:
 
 - create campaigns
 - delete campaigns
-- import/export campaigns
+- import/export campaigns (account bindings are stripped on export; seats arrive unbound on import)
 - create seats (across all campaigns)
 - delete seats
+- re-bind a seat to a different account (e.g., player roster change)
 - create invite (role, expiry, pin required)
 - revoke invite
-- revoke sessions for a seat
-- kick live connections for a seat
-- view audit log: claims, failures, revocations
+- list PlayerAccounts on this server
+- reset a PlayerAccount password (sets `must_change_password`, revokes all sessions)
+- revoke all sessions for a PlayerAccount
+- kick live WS connections for a PlayerAccount or seat
+- view audit log: claims, login failures, password resets, revocations
 
 ---
 
@@ -278,6 +388,23 @@ Server admin authentication is **separate** from seat-based player authenticatio
 - **Cloud-hosted security**: Platform can manage admin credentials securely
 - **Tunneled deployment support**: Admin UI accessible from internet with strong authentication
 - **No seat coupling**: Admin identity is not tied to campaign participation
+
+### Admin password reset (forgotten password)
+
+If the admin forgets their password, recovery uses the **filesystem-flag** pattern:
+
+1. The admin (who has filesystem access — that's the point of self-hosting) creates an empty file at `DATA_DIR/admin-reset.flag`.
+2. On next server startup (or via a `POST /api/admin/reset` endpoint that only works when the flag is present), the server:
+   - Nulls `password_hash` on the `server_admin` record.
+   - Re-runs the initial-setup ceremony: generates a new setup PIN, writes it to `DATA_DIR/admin-setup-pin.txt`, logs it to console.
+   - Deletes `admin-reset.flag` (so the reset is not re-triggered on every subsequent startup).
+3. The admin visits `/admin/setup` and completes setup as if it were a fresh install. **Campaigns, seats, and player accounts are untouched.**
+
+The admin login page exposes an "I forgot my password" button that displays instructions for creating the flag file (it cannot trigger the reset directly without filesystem access, by design).
+
+For cloud-hosted deployments, the platform provides admin credential recovery through its own channel (same one used to deliver the initial `ADMIN_SETUP_PIN`).
+
+---
 
 ### Admin Auth Flow: First-Time Setup
 
@@ -381,7 +508,9 @@ Server admin authentication is **separate** from seat-based player authenticatio
 | **Created when** | First server startup                       | Invite claimed              |
 | **Managed by**   | Server operator                            | Server admin (via admin UI) |
 
-**Critical distinction**: Admin never "holds a seat" in campaigns. If admin wants to participate in a campaign as a player or GM, they must create a seat and claim an invite like any other player.
+**Critical distinction**: Admin never "holds a seat" in campaigns. If admin wants to participate in a campaign as a player or GM, they must create a PlayerAccount and claim an invite like any other player. The admin identity and the player identity are deliberately separated, even when held by the same human.
+
+The player login page and admin login page should share component infrastructure (form, validation, error display) but be visually distinct (different page chrome, different copy) so a user who is both an admin and a player on the same server doesn't end up in the wrong flow.
 
 ### Security Considerations
 
@@ -550,5 +679,54 @@ These records must be stored via `Storage`:
 - Use a reverse proxy (hosted/tunnel) for TLS termination; keep server proxy-aware (`TRUST_PROXY=true` when behind proxy).
 - Avoid secrets in URLs beyond the temporary invite token.
 - Prefer server-authoritative join claim response to set cookies and redirect cleanly.
+- Reuse the admin auth password-hashing utility (scrypt) for PlayerAccount passwords. Same constant-time comparison, same salt strategy.
+- Reuse the admin session-cleanup periodic job for `auth_sessions` cleanup.
+
+---
+
+## Open Issues (deferred for later design)
+
+These are known design problems with the auth model that are explicitly **out of scope for the initial lightweight-accounts implementation**. Documented here so they are not forgotten.
+
+### 1. Cloud-platform account binding
+
+When HearthVTT runs on a managed hosting platform ("HearthVTTHub" or any third-party host), the player-facing account system should not be HearthVTT's per-server username + password. Players expect to use their platform account.
+
+**Constraints:**
+
+- HearthVTT and any specific hosting platform must remain **separate entities** for legal and licensing reasons (AGPL, see [ADR 008](../decisions/008-licensing-and-contributions.md)). There must be no platform-specific code in the HearthVTT codebase.
+- Platform identity must bind to HearthVTT seats through a **public, documented API** that any hosting platform could implement, not a special-cased integration.
+- Self-hosted deployments must continue to work without any platform involvement.
+
+**Likely shape (TBD):**
+
+- HearthVTT exposes a server-to-server API for "shadow accounts": the platform tells HearthVTT "this seat should be bound to platform-account-id `<opaque>`," and HearthVTT creates a local PlayerAccount that has no password (login is delegated to the platform via signed assertion / OIDC / similar).
+- The platform handles all account UX (signup, login, password reset, account settings). HearthVTT's `/account` route is hidden in this mode.
+- The HearthVTT login page is replaced by a platform-provided redirect.
+
+This design needs concrete protocol shape, security analysis, and prototype before being locked in.
+
+### 2. Player-facing `/account` route
+
+Self-hosted servers need a player-facing account management page (change password, list seats, log out everywhere). The route exists conceptually but is not designed in detail. Deferred until the lightweight-accounts implementation lands and account management becomes a felt pain point.
+
+For cloud-hosted deployments, `/account` is not exposed — account settings are handled by the platform. The decision of how to route around this (404? redirect to platform settings URL passed via config?) is part of Open Issue #1.
+
+### 3. Two-people-one-account collision
+
+If two players in the same household share a browser profile and both have seats in the same campaign on the same server, they have to log out and log back in to switch identities. This is the standard web-app failure mode and matches user expectations from every other site. No fix planned. Browser profiles or private windows are the workaround.
+
+### 4. Notification kind explicit field
+
+The client UI currently has an implicit split between **ephemeral notifications** (toasts, brief banners — "reconnected to server," "saved") and **blocking notifications** (action prompts, target selection — server-authoritative state requiring user response). This split should be made explicit:
+
+- Server-authoritative blocking notifications correspond 1:1 with server `Prompt` state. They survive reconnect because they are re-fetched from server state.
+- UI-only ephemeral notifications are client-local and do not survive reconnect.
+
+The client `notifications` store should have a `kind: 'prompt' | 'ephemeral'` field so the two are never accidentally conflated. Tracked in [todo.md](../todo.md) for the next client refactor.
+
+### 5. Public-game griefing mitigations
+
+For servers running large public games (open invites in a public Discord), additional protections are useful: per-claim admin approval queue, expected-username binding on invites, IP-continuity audit. None are in scope for v1. Default invite flow stays friction-free for small private games (the primary use case). Revisit when a real public-game user reports the need.
 
 ---

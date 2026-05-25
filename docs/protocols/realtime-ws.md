@@ -35,15 +35,17 @@ wss://server.example.com/ws
 
 For local development, the connection may use `ws://localhost:3000/ws`, but production deployments **must** use WSS with valid TLS certificates.
 
-**Authentication**: Session cookies (refresh token) are automatically sent by the browser during WebSocket upgrade. The server:
+**Authentication**: Session cookies (refresh token) are automatically sent by the browser during WebSocket upgrade. The connection URL includes the campaign ID as a query parameter (`?campaignId=<id>`) to select which seat the connection is for, since one PlayerAccount may hold seats in multiple campaigns on the same server. The server:
 
 1. Reads cookies from the upgrade request headers
-2. Validates the session (checks refresh token hash against stored AuthSessions)
-3. Maps the session to `{campaignId, seatId, roles}`
-4. If valid, completes the upgrade and sends `welcome` message
-5. If invalid, closes the connection with app-level close code (e.g., 4401)
+2. Validates the AuthSession → PlayerAccount
+3. Resolves the seat: `SELECT * FROM seats WHERE account_id = ? AND campaign_id = ?`
+4. Maps the connection to `{accountId, campaignId, seatId, roles}`
+5. Registers the connection in the seat's connection set (see Multiple Connections Per Seat below)
+6. If valid, completes the upgrade and sends `welcome` message
+7. If session invalid, closes with 4401; if session valid but no seat in this campaign, closes with 4403
 
-**Important**: Auth tokens are **never** sent as query parameters or in the WebSocket URL. This prevents token leakage in logs, bookmarks, and browser history.
+**Important**: Auth tokens are **never** sent as query parameters or in the WebSocket URL. The `campaignId` query parameter is not a secret; it's a routing hint. The session is established via the cookie.
 
 ### 2. Welcome and Initial Sync
 
@@ -95,9 +97,47 @@ On disconnect, client should attempt reconnection with exponential backoff. On r
 
 ### 5. Disconnect
 
-On disconnect, server cleans up any pending workflows/prompts for that seat.
+On disconnect, the server removes the connection from the seat's connection set. **Pending prompts and workflows are NOT cleaned up** — they remain in server-owned state and will be re-sent on the next reconnect (from this device or any other device the seat is connected from).
 
 See [auth-join-flow.md](../components/auth-join-flow.md) for complete authentication specification.
+
+---
+
+## Multiple Connections Per Seat
+
+A seat may have **multiple simultaneous WebSocket connections**: multi-tab usage (map + character sheet pop-out), multi-device (laptop + phone), or both. The server keeps a `Set<WebSocket>` per `(accountId, seatId)` and broadcasts state changes to all connections in the set.
+
+### State authority rule
+
+All transient interactive state is **server-owned**. Each connection is a projection of server state, not an independent state machine. State that is server-owned and broadcast to all of a seat's connections:
+
+- Prompts (status: `pending` | `resolved` | `cancelled`)
+- Workflow steps
+- Initiative tracker state and "whose turn" indicator
+- Token positions (after server-confirmed move)
+- Fog reveals
+- Chat / event log
+
+This is the architectural answer to the "stale prompt on second device" problem: prompts are not delivered messages, they are state with a status. When one device resolves a prompt, the server updates the prompt's status and broadcasts the change to all of the seat's connections. The UI on the other devices unmounts the prompt automatically because it's a function of `promptStore[promptId].status`.
+
+### Idempotent action handling
+
+Actions referencing a prompt or workflow step **must be idempotent against stale state**: if a client submits an action referencing a prompt that has already been `resolved` or `cancelled`, the server returns a no-op (with an info-level `error` message) rather than mutating state. This makes the inherent network race — user clicks on device B while device A's resolution is still in flight — safe by construction.
+
+### Optimistic UI scoping
+
+Optimistic UI updates (e.g., live token drag preview) stay **on the originating connection only**. They are NOT broadcast to the originating account's other connections. Other devices see only server-confirmed positions.
+
+The `token.move.preview` channel (described below) is for broadcasting _other seats'_ drags to this seat, not for broadcasting this seat's drags back to itself. The originating device renders its own preview locally; the server only sends `token.move.preview` to other seats' connections.
+
+### Reconnect is cheap
+
+Because all state is server-owned, opening a new connection on a new device requires only:
+
+1. Send current `sync.initial` (campaign state, recent events, pending prompts, active workflows).
+2. New connection joins the broadcast set.
+
+There is no per-device session state to migrate.
 
 ---
 

@@ -42,6 +42,25 @@ Known issues organized by area. Items here can be promoted to "Current Projects"
 - [ ] No message size limit (`maxPayload`)
 - [ ] No message schema validation beyond `.type` check
 - [ ] No rate limiting on messages
+- [ ] **Multi-connection-per-seat support**: server currently assumes (or will assume) one WS per seat. Refactor to keep `Set<WebSocket>` per `(accountId, seatId)` and broadcast state changes to all. See [realtime-ws.md](../docs/protocols/realtime-ws.md) "Multiple Connections Per Seat" section.
+- [ ] **Server-authoritative prompt state**: prompts should be stored with explicit `status: 'pending' | 'resolved' | 'cancelled'` and broadcast as state changes, not delivered as one-shot messages. Required for multi-device safety. See [auth-join-flow.md](../docs/components/auth-join-flow.md) and [realtime-ws.md](../docs/protocols/realtime-ws.md).
+- [ ] **Idempotent action handlers**: actions referencing resolved/cancelled prompts must return no-op, not error.
+
+### Auth & Sessions
+
+Lightweight PlayerAccount model is the long-term direction (see [auth-join-flow.md](../docs/components/auth-join-flow.md)). Current implementation predates this decision. Promote to a sprint when ready.
+
+- [ ] **PlayerAccount schema**: add `player_accounts` table (id, username, password_hash, must_change_password, created_at, last_login_at). Add `account_id` FK on `seats`. Move `auth_sessions` to bind to `account_id` instead of `seat_id`.
+- [ ] **Claim flow update**: `POST /api/auth/claim-invite` accepts `mode: 'login' | 'register'` plus `{ username, password }`. Existing single-step claim is replaced.
+- [ ] **Login route**: add `POST /api/auth/login` (username + password) and the corresponding `/play` login page UI.
+- [ ] **Campaign picker UI**: `/play` becomes a campaign picker for accounts with multiple seats; `/play/<campaignId>` is the per-campaign play URL.
+- [ ] **Stable refresh token, rotating access token**: refresh token does not rotate on every use (multi-tab safety). Reuse detection still applies to revoked tokens.
+- [ ] **Silent refresh on WS auth close**: client attempts one `/api/auth/refresh` before falling back to the login UI.
+- [ ] **Admin password reset via filesystem flag**: `DATA_DIR/admin-reset.flag` triggers re-running initial setup on next startup. Admin login page exposes "I forgot my password" with instructions.
+- [ ] **Admin can reset PlayerAccount passwords**: `PATCH /api/admin/accounts/:id/reset-password` sets a temporary password, revokes all sessions, sets `must_change_password`.
+- [ ] **PIN cooldown change**: per-invite PIN cooldown is 60s (not "until expiry") so a typo'd PIN doesn't dead-end the invite.
+- [ ] **Rate-limit failed logins by IP, not by account**: account-level lockout is a DoS vector.
+- [ ] **Audit log surface**: claims, login failures, password resets, revocations should be visible in admin UI.
 
 ### Code Quality
 
@@ -94,6 +113,10 @@ Known issues organized by area. Items here can be promoted to "Current Projects"
 - [ ] **Hex grid** — `GridLayer` only draws square grids; `gridType: 'hex'` is accepted but silently falls back to no grid [GridLayer.ts](../client/src/render/pixi/layers/GridLayer.ts)
 - [ ] Several floating window and drawer components are placeholder stubs with hardcoded content: `CharacterSheet`, `DocumentReader`, `ItemInspector`, `InitiativeModal`, `CampaignPrepDrawer`, `GameSettingsDrawer`
 
+### Notifications
+
+- [ ] **Explicit `kind` field on notifications**: split into `kind: 'prompt' | 'ephemeral'`. Prompt-kind notifications are projections of server-owned `Prompt` state (survive reconnect; resolved by server response). Ephemeral-kind notifications are client-local (toasts, banners; do not survive reconnect). The current implicit ephemeral/blocking split should become an explicit, type-checked field. See [auth-join-flow.md Open Issues](../docs/components/auth-join-flow.md#open-issues-deferred-for-later-design).
+
 ### Console Logging
 
 - [ ] Pervasive `console.log` in production paths across all API and state files
@@ -116,6 +139,8 @@ The admin UI predates the Play UI Overhaul and is due for a similar pass. Items 
 - ARIA tree roles, focus traps, and `aria-label` on icon-only buttons
 - Wire admin components to the API layer (remove raw `fetch()` from AdminLogin, AdminSetup, JoinPage)
 - Error handling robustness (`try/catch` on `response.json()` in AdminLogin, AdminSetup)
+- **PlayerAccount management surface** (depends on the Auth & Sessions migration): list accounts on this server, view per-account seat list across all campaigns, reset password, revoke all sessions, view audit log entries per account. Re-bind seat to a different account (player roster change).
+- **Player-facing `/account` route** (self-host only): change password, list own seats, log out everywhere. Cloud-hosted deployments hide this route; account UX is provided by the platform.
 
 ## Documentation
 

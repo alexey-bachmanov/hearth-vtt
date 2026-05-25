@@ -18,7 +18,9 @@ This document is the high-level map of how the major pieces fit together.
 
 ### Server is authoritative
 
-The server is the single source of truth for campaign state. Clients may do optimistic UI, but the server validates and resolves actions into state changes and broadcasts results.
+The server is the single source of truth for campaign state. Clients may render optimistic UI for their own in-flight gestures (e.g., live token drag preview on the dragging device only), but the server validates and resolves all actions into state changes and broadcasts results.
+
+This authority extends beyond persistent campaign state to all **transient interactive state**: pending Prompts, workflow steps, initiative tracker position, turn indicators, and token positions are all server-owned with explicit status fields. Clients render projections of this state; they do not own it. This makes multi-device and multi-tab usage safe by construction: a Prompt resolved on one device updates server state, which broadcasts to all of the seat's connections, which dismiss the prompt UI uniformly. Action handlers are idempotent against stale references (e.g., responding to an already-resolved Prompt is a no-op, not an error condition).
 
 ### Rulesets are data-driven with safe execution
 
@@ -145,17 +147,21 @@ Admin sessions are **completely separate** from seat-based sessions (different c
 
 #### Player Authentication (Campaign Participation)
 
+**Identity model**: A **PlayerAccount** is a server-local identity (username + password) that may hold multiple **Seats** across multiple campaigns on the same server. One PlayerAccount → N seats; one Seat → exactly one PlayerAccount + one Campaign. Sessions are bound to the PlayerAccount, not the seat. A WebSocket connection is per-seat (the connection URL selects which campaign), and a seat may have multiple simultaneous connections (multi-tab, multi-device, pop-out windows).
+
 **Join flow**:
 
 1. Admin creates **Seats** and generates **Invites** (capability tokens with PIN protection)
-2. Players receive invite link: `GET /join/<inviteToken>`
-3. Claim requires PIN entry (one-time use, mitigates link leakage)
-4. Successful claim creates AuthSession with cookie-based refresh token
-5. Client redirects to `/play` (clean, bookmarkable URL)
-6. WebSocket connections authenticate via cookies (no tokens in URLs)
-7. Sessions can be revoked by admin or user logout
+2. Players receive invite link: `GET /join/<inviteToken>` (no side effects — safe for Discord previews)
+3. Claim requires PIN entry + log into existing PlayerAccount OR create new one in the same request
+4. Successful claim binds the seat to the PlayerAccount, creates AuthSession, sets refresh cookie
+5. Client redirects to `/play/<campaignId>` (per-campaign bookmarkable URL; `/play` is a campaign picker)
+6. WebSocket connections authenticate via cookies (no tokens in URLs); refresh token is stable, access tokens rotate
+7. Sessions can be revoked by admin or user logout; admin can reset PlayerAccount passwords
 
-Platform identity (OAuth/passkey/email) may exist later for hosted convenience, but **seat membership remains authoritative** for campaign participation.
+**Portability**: PlayerAccount↔Seat bindings are server-local and are stripped on campaign export. On import to a different server (e.g., self-host → cloud or vice versa), seats arrive unbound and must be re-claimed via fresh invites. The campaign and its seat structure are portable; account identity is not.
+
+A cloud-hosted deployment will eventually replace the per-server PlayerAccount system with platform-managed accounts bound to seats via a public, platform-agnostic API. See Open Issues in [auth-join-flow.md](components/auth-join-flow.md).
 
 See [auth-join-flow.md](components/auth-join-flow.md), [ADR 005](decisions/005-networking-management.md), and [ADR 007](decisions/007-server-level-admin.md) for complete authentication specifications.
 

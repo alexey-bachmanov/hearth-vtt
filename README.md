@@ -35,8 +35,8 @@ Implemented or in active development:
 - Authoritative game server (Fastify + WebSocket) that serves its own web client
 - SQLite-backed persistence with portable campaign packages
 - Admin UI for campaign, seat, and invite management
-- Invite-link join flow with PIN-protected, revocable sessions
-- Reactive client state, play UI scaffolding, and renderer integration points
+- Invite-link join flow: players create a lightweight per-server account (username + password) at claim time, enabling multi-device login and cookie-clearing recovery without GM intervention
+- Stable refresh / short-lived access token session model; revocable sessions
 
 Planned (see [docs/todo.md](docs/todo.md) and [docs/implementation-strategy.md](docs/implementation-strategy.md)):
 
@@ -44,6 +44,7 @@ Planned (see [docs/todo.md](docs/todo.md) and [docs/implementation-strategy.md](
 - Ruleset engine: data-defined schemas, actions, UI templates, and a constrained DSL for action resolution
 - Portable `.campaign`, `.tome`, `.ruleset`, and `.character` file formats
 - Effects as first-class entities (modifiers and durations)
+- Reactive client state, play UI scaffolding, and renderer integration points
 - Optional relay/tunneling for remote play without port forwarding
 
 ---
@@ -103,7 +104,9 @@ Useful scripts from the repo root:
 
 ### First-time admin setup
 
-On first start the server generates a one-time setup PIN and writes it to the console and to `admin-setup-pin.txt`. Visit `/admin/setup`, enter the PIN, and set an admin password. After that, manage campaigns, seats, and invites from `/admin`. Players join via `/join/<inviteToken>` and end up at `/play`. See [docs/components/auth-join-flow.md](docs/components/auth-join-flow.md) for details.
+On first start the server generates a one-time setup PIN and writes it to the console and to `admin-setup-pin.txt`. Visit `/admin/setup`, enter the PIN, and set an admin password. After that, manage campaigns, seats, and invites from `/admin`.
+
+Players join via `/join/<inviteToken>`. On first claim they create a lightweight account (username + password) scoped to this server. After claiming, they land at `/play/<campaignId>`. On subsequent visits they log in at `/play` and pick their campaign. Account bindings are server-local and stripped on campaign export. See [docs/components/auth-join-flow.md](docs/components/auth-join-flow.md) and [docs/decisions/010-player-account-model.md](docs/decisions/010-player-account-model.md) for the full design.
 
 ---
 
