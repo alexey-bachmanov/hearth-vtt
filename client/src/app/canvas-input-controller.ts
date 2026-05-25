@@ -9,18 +9,27 @@
  * - `attach(element)` wires up listeners and returns a cleanup function
  *   (called by the Svelte `onDestroy` in MainCanvas.svelte).
  *
- * Input behaviors:
- * - **Middle-click drag** → pan (`viewportState.panBy`)
- * - **Scroll wheel** → zoom toward cursor (`viewportState.setZoom` + pan adjust)
- * - **Left-click drag on token** → show drag preview; on release commit locally
- *   (`campaignState.moveToken`). Snap-to-grid applied if `viewportState.snapToGrid`.
- * - **Right-click** → hit-test; fires `onContextMenu` with `kind:'token'` or
- *   `kind:'canvas'`. The `contextmenu` DOM event is always `preventDefault`-ed.
+ * Intent layer:
+ * Raw pointer events are first mapped to a `CanvasIntent` via
+ * `resolvePointerDownIntent` and the module-level `BINDING_TABLE`, then
+ * dispatched to the appropriate state mutation. This separates "what is the
+ * user trying to do?" from "how do we do it?", making the binding table the
+ * single source of truth for pointer-down input semantics.
  *
- * Out of scope (deferred):
- * - Token selection state
- * - Server action dispatch (Phase 3 of implementation-strategy.md)
- * - Touch / pinch-zoom gestures
+ * Input behaviors:
+ * - **Middle-click drag** → `pan` intent → `viewportState.panBy`
+ * - **Scroll wheel** → `zoom` intent → `viewportState.setZoom` + pan adjust
+ * - **Left-click on token** → `beginTokenDrag` intent (tentative); resolves to
+ *   `selectToken` at pointerup if released before the drag threshold, or commits
+ *   a `moveToken` if the threshold is crossed (D4).
+ * - **Shift + left-click on token** → `addToSelection` intent (wired in D2).
+ * - **Left-click on empty canvas** → `marqueeSelect` intent (wired in D5).
+ * - **Right-click** → `contextMenu` intent; native browser menu always suppressed.
+ * - **Escape key** → `deselectAll` intent (wired in D8).
+ *
+ * Out of scope (deferred to later phases):
+ * - Touch / pinch-zoom gestures (Phase E)
+ * - Server action dispatch for token moves (Phase 3)
  */
 
 import type { Renderer } from '../render';
@@ -35,6 +44,85 @@ const DRAG_THRESHOLD = 4;
 const ZOOM_STEP = 0.001;
 
 type Mode = 'idle' | 'panning' | 'tokenDragging';
+
+// ============================================================================
+// Intent layer
+// ============================================================================
+
+/**
+ * The full set of semantic actions the canvas input system can produce.
+ * Each intent maps to exactly one state mutation or renderer call.
+ *
+ * - `pan` / `zoom` — viewport movement (pointer drag / wheel)
+ * - `selectToken` — single-select a token (left-click, no drag, no shift)
+ * - `addToSelection` — extend multi-selection (shift + left-click on token)
+ * - `beginTokenDrag` — start dragging a token (resolves to `selectToken` if
+ *   released before the drag threshold)
+ * - `contextMenu` — open context menu (right-click or long-press)
+ * - `marqueeSelect` — drag-rectangle multi-select on empty canvas
+ * - `deselectAll` — clear selection (Escape key)
+ */
+export type CanvasIntent =
+  | 'pan'
+  | 'zoom'
+  | 'selectToken'
+  | 'addToSelection'
+  | 'beginTokenDrag'
+  | 'contextMenu'
+  | 'marqueeSelect'
+  | 'deselectAll';
+
+/** Context captured at the moment of a pointer-down event. */
+export interface PointerDownContext {
+  /** DOM button index: 0 = left, 1 = middle, 2 = right. */
+  button: number;
+  shiftKey: boolean;
+  /** Id of the token under the pointer, or null for empty canvas. */
+  tokenId: string | null;
+}
+
+interface BindingEntry {
+  match: (ctx: PointerDownContext) => boolean;
+  intent: CanvasIntent;
+}
+
+/**
+ * Ordered binding table: first matching entry wins.
+ *
+ * Rules are evaluated top to bottom. To customise bindings in the future,
+ * replace or extend this table — the dispatch logic in the controller does
+ * not need to change.
+ */
+const BINDING_TABLE: BindingEntry[] = [
+  // Middle-click → pan, regardless of target
+  { match: (c) => c.button === 1, intent: 'pan' },
+  // Shift + left-click on token → add to multi-selection
+  {
+    match: (c) => c.button === 0 && c.shiftKey && c.tokenId !== null,
+    intent: 'addToSelection',
+  },
+  // Left-click on token (no modifier) → tentative drag / select
+  {
+    match: (c) => c.button === 0 && !c.shiftKey && c.tokenId !== null,
+    intent: 'beginTokenDrag',
+  },
+  // Left-click on empty canvas → marquee multi-select (mouse/stylus only)
+  {
+    match: (c) => c.button === 0 && c.tokenId === null,
+    intent: 'marqueeSelect',
+  },
+];
+
+/**
+ * Map a pointer-down context to a `CanvasIntent` using the binding table.
+ * Returns null when no entry matches (e.g. right-click, which is handled via
+ * the `contextmenu` DOM event rather than `pointerdown`).
+ */
+export function resolvePointerDownIntent(
+  ctx: PointerDownContext,
+): CanvasIntent | null {
+  return BINDING_TABLE.find((entry) => entry.match(ctx))?.intent ?? null;
+}
 
 export interface CanvasInputControllerOptions {
   viewportState: ViewportState;
@@ -125,36 +213,52 @@ export class CanvasInputController {
   // ============================================================================
 
   private _handlePointerDown(e: PointerEvent): void {
-    // Middle-click → start pan
-    if (e.button === 1) {
-      e.preventDefault(); // suppress browser auto-scroll cursor
-      if (this._mode !== 'idle') return;
+    // Suppress browser auto-scroll on middle-click regardless of current mode.
+    if (e.button === 1) e.preventDefault();
 
-      this._mode = 'panning';
-      this._panPointerId = e.pointerId;
-      this._panLastX = e.clientX;
-      this._panLastY = e.clientY;
-      (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
-      return;
-    }
+    if (this._mode !== 'idle') return;
 
-    // Right-click → context menu handled in _handleContextMenu (contextmenu event)
+    // Only hit-test on left-click; other buttons don't target tokens.
+    const tokenId =
+      e.button === 0 ? this._renderer.hitTestToken(e.clientX, e.clientY) : null;
 
-    // Left-click → maybe token drag
-    if (e.button === 0) {
-      if (this._mode !== 'idle') return;
+    const intent = resolvePointerDownIntent({
+      button: e.button,
+      shiftKey: e.shiftKey,
+      tokenId,
+    });
 
-      const tokenId = this._renderer.hitTestToken(e.clientX, e.clientY);
-      if (tokenId && this._canDragToken(tokenId)) {
-        this._mode = 'tokenDragging';
-        this._dragPointerId = e.pointerId;
-        this._dragTokenId = tokenId;
-        this._dragStartX = e.clientX;
-        this._dragStartY = e.clientY;
-        this._dragStarted = false;
+    switch (intent) {
+      case 'pan':
+        this._mode = 'panning';
+        this._panPointerId = e.pointerId;
+        this._panLastX = e.clientX;
+        this._panLastY = e.clientY;
         (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
-      }
-      // No token hit → no-op (selection deferred)
+        break;
+
+      case 'beginTokenDrag':
+        if (tokenId && this._canDragToken(tokenId)) {
+          this._mode = 'tokenDragging';
+          this._dragPointerId = e.pointerId;
+          this._dragTokenId = tokenId;
+          this._dragStartX = e.clientX;
+          this._dragStartY = e.clientY;
+          this._dragStarted = false;
+          (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
+        }
+        break;
+
+      case 'addToSelection':
+        // Wired in D2 (selection store).
+        break;
+
+      case 'marqueeSelect':
+        // Wired in D5.
+        break;
+
+      default:
+        break;
     }
   }
 
