@@ -7,48 +7,13 @@
  */
 
 import { SvelteMap } from 'svelte/reactivity';
-import type { GridType, Position } from './types';
+import type { Actor, Token, Scene, Position } from '@hearth-vtt/shared';
 import { viewportState } from './viewport.svelte';
 import { notificationState } from './notifications.svelte';
 
 // ============================================================================
 // Types
 // ============================================================================
-
-export interface Actor {
-  id: string;
-  name: string;
-  type: 'pc' | 'npc' | 'monster';
-  /** Per-seat permission map. GM-role seats have implicit full access and are not listed here. */
-  seatPermissions: Record<string, 'control' | 'read'>;
-  hp: { current: number; max: number };
-  ac: number;
-  level?: number;
-  class?: string;
-  isConcentrating?: boolean;
-  conditions?: string[];
-}
-
-export interface Token {
-  id: string;
-  actorId: string;
-  sceneId: string;
-  position: Position;
-  size: number; // grid squares (e.g., 1 for medium, 2 for large)
-  rotation?: number; // degrees
-  hidden?: boolean; // GM only
-}
-
-export interface Scene {
-  id: string;
-  name: string;
-  mapImageUrl: string;
-  gridType: GridType;
-  gridSize: number; // pixels per grid square
-  gridScale: string; // e.g., "5ft", "10m"
-  width: number; // pixels
-  height: number; // pixels
-}
 
 export interface Effect {
   id: string;
@@ -300,7 +265,7 @@ export class CampaignState {
     const tavernScene: Scene = {
       id: 'scene-tavern',
       name: 'The Prancing Pony',
-      mapImageUrl: '/maps/tavern.jpg',
+      background: { kind: 'image', url: '/maps/tavern.jpg' },
       gridType: 'square',
       gridSize: 50,
       gridScale: '5ft',
@@ -311,7 +276,7 @@ export class CampaignState {
     const dungeonScene: Scene = {
       id: 'scene-dungeon',
       name: 'Crypt of the Forgotten King',
-      mapImageUrl: '/maps/dungeon.jpg',
+      background: { kind: 'image', url: '/maps/dungeon.jpg' },
       gridType: 'square',
       gridSize: 50,
       gridScale: '5ft',

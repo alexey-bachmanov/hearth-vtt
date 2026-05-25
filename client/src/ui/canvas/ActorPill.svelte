@@ -6,7 +6,7 @@
    */
 
   import { ChevronDown, User, Crosshair, ScrollText } from 'lucide-svelte';
-  import type { Actor } from '../../state/campaign.svelte';
+  import type { Actor } from '@hearth-vtt/shared';
   import Icon from '../shared/Icon.svelte';
 
   interface Props {

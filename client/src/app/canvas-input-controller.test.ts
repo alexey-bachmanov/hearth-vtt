@@ -17,7 +17,7 @@ import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { CanvasInputController } from './canvas-input-controller';
 import { viewportState } from '../state/viewport.svelte';
 import { campaignState } from '../state/campaign.svelte';
-import type { Token } from '../state/campaign.svelte';
+import type { Token } from '@hearth-vtt/shared';
 
 // ---------------------------------------------------------------------------
 // Mock renderer

@@ -9,7 +9,7 @@
 
 import { describe, it, expect, vi } from 'vitest';
 import { render, screen, fireEvent } from '@testing-library/svelte';
-import type { Actor } from '../../state/campaign.svelte';
+import type { Actor } from '@hearth-vtt/shared';
 import ActorPill from './ActorPill.svelte';
 
 // ---------------------------------------------------------------------------

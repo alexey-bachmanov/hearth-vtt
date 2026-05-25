@@ -14,7 +14,7 @@
  * the coarse boolean flags on `uiState`.
  */
 
-import type { Actor } from './campaign.svelte';
+import type { Actor } from '@hearth-vtt/shared';
 import { campaignState } from './campaign.svelte';
 import { connectionState } from './connection.svelte';
 

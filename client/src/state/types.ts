@@ -13,17 +13,12 @@ export type { SeatRole } from '@hearth-vtt/shared';
 
 /**
  * Grid type for scenes and viewport.
- *
- * - square: Traditional D&D-style square grid
- * - hex: Hexagonal grid (flat-top or pointy-top)
- * - none: No grid overlay
+ * Canonical definition lives in @hearth-vtt/shared.
  */
-export type GridType = 'square' | 'hex' | 'none';
+export type { GridType } from '@hearth-vtt/shared';
 
 /**
  * 2D position coordinates (pixels or grid units depending on context).
+ * Canonical definition lives in @hearth-vtt/shared.
  */
-export interface Position {
-  x: number;
-  y: number;
-}
+export type { Position } from '@hearth-vtt/shared';

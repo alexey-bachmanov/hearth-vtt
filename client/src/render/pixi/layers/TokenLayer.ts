@@ -23,8 +23,7 @@ import {
   RenderTexture,
   type Application,
 } from 'pixi.js';
-import type { Token } from '../../../state/campaign.svelte';
-import type { Position } from '../../../state/types';
+import type { Token, Position } from '@hearth-vtt/shared';
 
 // Placeholder circle colors keyed by token type hint (stored in token metadata TBD).
 // For now every token gets a distinct hue based on a hash of its id.

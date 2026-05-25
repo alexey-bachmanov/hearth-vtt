@@ -8,7 +8,7 @@
  */
 
 import { Container, Graphics } from 'pixi.js';
-import type { Scene } from '../../../state/campaign.svelte';
+import type { Scene } from '@hearth-vtt/shared';
 
 const GRID_COLOR = 0x000000;
 const GRID_ALPHA = 0.2;

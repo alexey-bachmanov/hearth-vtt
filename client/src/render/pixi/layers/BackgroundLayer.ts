@@ -9,7 +9,7 @@
  */
 
 import { Assets, Container, Sprite, Texture } from 'pixi.js';
-import type { Scene } from '../../../state/campaign.svelte';
+import type { Scene } from '@hearth-vtt/shared';
 
 export class BackgroundLayer {
   readonly container: Container;
@@ -27,7 +27,7 @@ export class BackgroundLayer {
    * If scene is undefined or has no image URL the layer is cleared.
    */
   async setScene(scene: Scene | undefined): Promise<void> {
-    const url = scene?.mapImageUrl ?? '';
+    const url = scene?.background?.url ?? scene?.mapImageUrl ?? '';
 
     if (!url) {
       this._clear();

@@ -11,8 +11,7 @@
  */
 
 import { Application, Container } from 'pixi.js';
-import type { Scene, Token } from '../../state/campaign.svelte';
-import type { Position } from '../../state/types';
+import type { Scene, Token, Position } from '@hearth-vtt/shared';
 import type { Renderer, ViewportParams } from '../index';
 import { BackgroundLayer } from './layers/BackgroundLayer';
 import { GridLayer } from './layers/GridLayer';

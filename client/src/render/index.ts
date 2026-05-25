@@ -19,8 +19,7 @@
  *   addAnnotation, removeAnnotation, setMeasurementPreview
  */
 
-import type { Scene, Token } from '../state/campaign.svelte';
-import type { Position } from '../state/types';
+import type { Scene, Token, Position } from '@hearth-vtt/shared';
 
 // ============================================================================
 // Public types
