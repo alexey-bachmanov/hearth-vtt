@@ -355,6 +355,7 @@ A token should optionally have an attached readable document — a stat block su
 ## UI
 
 - [ ] Admin setup page extends past the bottom of the screen and isn't scrollable.
+- [ ] Play UI: zooming the map using the slider in the quick status bar zooms into the top left corner, should zoom on center of map canvas.
 
 ## Backend
 

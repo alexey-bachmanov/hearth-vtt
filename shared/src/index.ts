@@ -2,6 +2,23 @@
 // Exports are added here as modules are implemented.
 
 export { seatRoleSchema, type SeatRole } from './seat';
+
+export {
+  gridTypeSchema,
+  type GridType,
+  positionSchema,
+  type Position,
+  sceneBackgroundSchema,
+  type SceneBackground,
+  sceneSchema,
+  type Scene,
+  tokenSchema,
+  type Token,
+  actorSeatPermissionSchema,
+  type ActorSeatPermission,
+  actorSchema,
+  type Actor,
+} from './entities';
 export {
   serverMessageSchema,
   type ServerMessage,
