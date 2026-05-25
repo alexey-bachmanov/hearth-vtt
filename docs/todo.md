@@ -352,6 +352,48 @@ A token should optionally have an attached readable document — a stat block su
 
 ---
 
+## Grid Alignment Tool (GM-Only Map Setup)
+
+Aligning the application grid to a map image is one of the most frustrating parts of VTT session prep. The naive approach — independent sliders for scale, x-offset, and y-offset — creates a painful feedback loop: adjusting scale shifts the offset, re-adjusting the offset reveals scale is still wrong, repeat until you throw your keyboard. This feature replaces that with a purpose-built calibration mode centered on shortening the iteration loop until it stops being annoying.
+
+**Key design principle:** Iteration loops are necessary for precise convergence, but they should be as short as possible. The goal is not to eliminate interaction, but to eliminate wasted interaction.
+
+**Planned approach: Anchor + scale pivot with sensitivity levels**
+
+The GM enters calibration mode; the grid turns translucent red and a draggable anchor point appears. The workflow:
+
+1. Drag the anchor to a known grid intersection on the map image.
+2. Use a scale control to adjust grid cell size — **scale always pivots around the anchor**, so the anchor stays fixed as the grid expands or contracts. This eliminates the position/scale coupling that causes the death spiral.
+3. Sensitivity levels allow progressively finer adjustments: coarse (e.g. ±50%), medium (±5%), fine (±0.5%). The GM can converge quickly without overshooting, and the smallest sensitivity level is precise enough for any map.
+4. Confirm → grid fades to a subtle translucent in-play style.
+
+Sensitivity levels are the key UX mechanism: they make the single-knob approach sufficient for 99% of cases. The exact sensitivity values and control style (buttons vs. a step-size dropdown vs. holding modifier keys while dragging) should be playtested before being locked down.
+
+**Other approaches considered:**
+
+- **Bounding-box calibration:** Drag a rectangle over N×M cells, type in the cell count, app back-calculates. Fast for square grids with obvious rectangular regions, but any misalignment in the drag gesture requires starting over. Mitigated by adding adjustment handles to the bounding box after placement, but it's unclear this saves meaningful time over Option 1. Deferred until Option 1 is polished — revisit then.
+- **Two-anchor drag:** Place two anchors on known grid intersections; app constrains them to the same x or y axis (no rotation — grids are assumed straight; if a map designer rotated their grid, that is a them problem). Shorter iteration loop than naive sliders, but still more fiddly than anchor + sensitivity levels, especially on dense maps (e.g. regional exploration maps with fine hex grids). Deferred; revisit alongside bounding-box after Option 1 ships.
+- **Two-point correspondence:** Click two app grid intersections, then the corresponding map points; app solves scale + offset deterministically. Faster than two-anchor drag, but a misclick means starting over. Rejected — no iteration path.
+
+**Key characteristics:**
+
+- GM-only; not accessible to players.
+- Calibration mode entered from scene settings or a dedicated toolbar button.
+- Grid renders in a distinct "calibration" color (translucent red) during setup vs. normal in-play style (subtle gray).
+- Calibration result stored as `gridSize: number`, `gridOffsetX: number`, `gridOffsetY: number` on the Scene.
+- Supports both square and hex grids (the anchor-pivot approach is grid-topology-agnostic).
+- Grid rotation is not supported — maps with rotated grids should be rotated at the image level before import.
+
+**Implementation path:**
+
+- Renderer exposes `setCalibrationMode(active: boolean)`, which toggles a `CalibrationLayer` above the normal grid.
+- `CalibrationLayer` renders the red grid and draggable anchor point as screen-space PixiJS Graphics.
+- Anchor drag updates `gridOffsetX/Y`; scale control updates `gridSize`; scale math pivots around the anchor's world position. Both changes re-render `CalibrationLayer` live.
+- Sensitivity levels adjust the step size of the scale control; exact values TBD from playtesting.
+- On confirm: `patch_scene` action dispatched to server; `CalibrationLayer` hidden; normal grid re-renders with new values.
+
+---
+
 # Bugs
 
 ## UI
