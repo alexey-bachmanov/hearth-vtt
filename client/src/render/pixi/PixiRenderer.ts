@@ -15,6 +15,7 @@ import type { Scene, Token, Position } from '@hearth-vtt/shared';
 import type { Renderer, ViewportParams } from '../index';
 import { BackgroundLayer } from './layers/BackgroundLayer';
 import { GridLayer } from './layers/GridLayer';
+import { MarqueeLayer } from './layers/MarqueeLayer';
 import { OverlayLayer } from './layers/OverlayLayer';
 import { TokenLayer } from './layers/TokenLayer';
 
@@ -25,6 +26,7 @@ export class PixiRenderer implements Renderer {
   private _grid: GridLayer | null = null;
   private _tokens: TokenLayer | null = null;
   private _overlay: OverlayLayer | null = null;
+  private _marquee: MarqueeLayer | null = null;
   private _resizeObserver: ResizeObserver | null = null;
 
   /**
@@ -79,6 +81,10 @@ export class PixiRenderer implements Renderer {
     app.stage.addChild(world);
     app.stage.addChild(this._tokens.overlayContainer);
 
+    // Marquee layer is screen-space: sits above all world and token content.
+    this._marquee = new MarqueeLayer();
+    app.stage.addChild(this._marquee.container);
+
     // Observe parent size changes so the canvas fills its container.
     const parent = canvas.parentElement;
     if (parent) {
@@ -101,6 +107,7 @@ export class PixiRenderer implements Renderer {
     this._grid?.destroy();
     this._tokens?.destroy();
     this._overlay?.destroy();
+    this._marquee?.destroy();
     this._app?.destroy(false, { children: true });
 
     this._app = null;
@@ -109,6 +116,7 @@ export class PixiRenderer implements Renderer {
     this._grid = null;
     this._tokens = null;
     this._overlay = null;
+    this._marquee = null;
     this._resizeObserver = null;
     this._ready = false;
     this._pendingCalls = [];
@@ -165,6 +173,12 @@ export class PixiRenderer implements Renderer {
    */
   setOverlay(_spec: unknown): void {
     // Intentionally empty placeholder — see OverlayLayer.ts.
+  }
+
+  setMarqueeRect(
+    rect: { x: number; y: number; w: number; h: number } | null,
+  ): void {
+    this._marquee?.setRect(rect);
   }
 
   // ============================================================================

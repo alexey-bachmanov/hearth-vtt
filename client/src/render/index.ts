@@ -11,7 +11,8 @@
  *
  * Active interface (Phase A/B):
  *   init, dispose, setScene, updateTokens, setViewport,
- *   setTokenDragPreview, clearTokenDragPreview, hitTestToken, setOverlay
+ *   setTokenDragPreview, clearTokenDragPreview, hitTestToken, setOverlay,
+ *   setMarqueeRect
  *
  * Deferred to later phases (fog, lighting, AoE, VFX, annotations, measurement):
  *   updateVisibilityMask, updateLights, addAoEEffect, removeAoEEffect,
@@ -79,6 +80,14 @@ export interface Renderer {
    * this method is a no-op placeholder until specific effect types are designed.
    */
   setOverlay(spec: unknown): void;
+
+  /**
+   * Show or update the marquee selection rectangle (screen-space coords).
+   * Pass `null` to hide the rectangle.
+   */
+  setMarqueeRect(
+    rect: { x: number; y: number; w: number; h: number } | null,
+  ): void;
 }
 
 // ============================================================================
@@ -101,6 +110,9 @@ export class StubRenderer implements Renderer {
     return null;
   }
   setOverlay(_spec: unknown): void {}
+  setMarqueeRect(
+    _rect: { x: number; y: number; w: number; h: number } | null,
+  ): void {}
 }
 
 // ============================================================================

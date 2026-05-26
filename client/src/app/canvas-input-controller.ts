@@ -46,7 +46,7 @@ const DRAG_THRESHOLD = 4;
 // Zoom step per wheel scroll "tick" (normalized to 100px of deltaY).
 const ZOOM_STEP = 0.001;
 
-type Mode = 'idle' | 'panning' | 'tokenDragging';
+type Mode = 'idle' | 'panning' | 'tokenDragging' | 'marqueeSelecting';
 
 // ============================================================================
 // Intent layer
@@ -132,7 +132,10 @@ export interface CanvasInputControllerOptions {
   campaignState: CampaignState;
   renderer: Pick<
     Renderer,
-    'hitTestToken' | 'setTokenDragPreview' | 'clearTokenDragPreview'
+    | 'hitTestToken'
+    | 'setTokenDragPreview'
+    | 'clearTokenDragPreview'
+    | 'setMarqueeRect'
   >;
   /** Called when the user right-clicks the canvas. Receives the hit-tested target. */
   onContextMenu?: (target: ContextMenuTarget) => void;
@@ -163,6 +166,11 @@ export class CanvasInputController {
   private _dragStartX = 0;
   private _dragStartY = 0;
   private _dragStarted = false; // true once threshold is exceeded
+
+  // Pointer state for marquee selection
+  private _marqueePointerId = -1;
+  private _marqueeStartX = 0;
+  private _marqueeStartY = 0;
 
   constructor({
     viewportState,
@@ -261,7 +269,11 @@ export class CanvasInputController {
         break;
 
       case 'marqueeSelect':
-        // Wired in D5.
+        this._mode = 'marqueeSelecting';
+        this._marqueePointerId = e.pointerId;
+        this._marqueeStartX = e.clientX;
+        this._marqueeStartY = e.clientY;
+        (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
         break;
 
       default:
@@ -301,6 +313,37 @@ export class CanvasInputController {
   }
 
   private _handlePointerUp(e: PointerEvent): void {
+    if (
+      this._mode === 'marqueeSelecting' &&
+      e.pointerId === this._marqueePointerId
+    ) {
+      // Convert screen rect to world space and find all tokens whose position
+      // falls within it. Replaces the current selection.
+      const p1 = this._screenToWorld(this._marqueeStartX, this._marqueeStartY);
+      const p2 = this._screenToWorld(e.clientX, e.clientY);
+      const minX = Math.min(p1.x, p2.x);
+      const maxX = Math.max(p1.x, p2.x);
+      const minY = Math.min(p1.y, p2.y);
+      const maxY = Math.max(p1.y, p2.y);
+
+      selectionState.clear();
+      for (const [id, token] of this._campaign.tokens) {
+        if (
+          token.position.x >= minX &&
+          token.position.x <= maxX &&
+          token.position.y >= minY &&
+          token.position.y <= maxY
+        ) {
+          selectionState.addToSelection(id);
+        }
+      }
+
+      this._renderer.setMarqueeRect(null);
+      this._mode = 'idle';
+      this._marqueePointerId = -1;
+      return;
+    }
+
     if (this._mode === 'panning' && e.pointerId === this._panPointerId) {
       this._mode = 'idle';
       this._panPointerId = -1;
@@ -317,6 +360,9 @@ export class CanvasInputController {
         }
         this._campaign.moveToken(this._dragTokenId, worldPos);
         this._renderer.clearTokenDragPreview(this._dragTokenId);
+      } else {
+        // Released before drag threshold — resolve as a click → single-select.
+        selectionState.select(this._dragTokenId);
       }
       this._mode = 'idle';
       this._dragPointerId = -1;
@@ -326,6 +372,15 @@ export class CanvasInputController {
   }
 
   private _handlePointerCancel(e: PointerEvent): void {
+    if (
+      this._mode === 'marqueeSelecting' &&
+      e.pointerId === this._marqueePointerId
+    ) {
+      this._renderer.setMarqueeRect(null);
+      this._mode = 'idle';
+      this._marqueePointerId = -1;
+      return;
+    }
     if (this._mode === 'panning' && e.pointerId === this._panPointerId) {
       this._mode = 'idle';
       this._panPointerId = -1;

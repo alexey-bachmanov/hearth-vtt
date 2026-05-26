@@ -28,6 +28,7 @@ function makeMockRenderer(hitTokenId: string | null = null) {
     hitTestToken: vi.fn((_x: number, _y: number) => hitTokenId),
     setTokenDragPreview: vi.fn(),
     clearTokenDragPreview: vi.fn(),
+    setMarqueeRect: vi.fn(),
   };
 }
 
