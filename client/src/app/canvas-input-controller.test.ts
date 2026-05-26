@@ -1,16 +1,24 @@
 /**
- * Tests for CanvasInputController.
+ * Integration tests for CanvasInputController.
  *
- * Uses singleton state instances (reset between tests) and a hand-rolled
- * mock renderer — no DOM rendering or PixiJS required.
+ * Tests operate at the boundary of observable outcomes — state mutations
+ * (viewportState, campaignState) and renderer calls — not internal
+ * implementation details (_mode, _dragStarted, etc.).
+ *
+ * This means the input system can be refactored freely as long as the
+ * end-to-end behaviours described here are preserved.
  *
  * Coverage:
  * - Wheel zoom: zoom level + panOffset anchor math
  * - Middle-click pan: cumulative delta applied to panOffset
- * - Left-click token drag: setTokenDragPreview called during drag,
- *   moveToken committed on release, snapToGrid applied
- * - Context menu: event prevented
+ * - Left-click token drag: drag preview shown above threshold,
+ *   position committed on release, snapToGrid applied
+ * - Context menu: event prevented, correct target reported
  * - Non-middle buttons do not pan
+ *
+ * NOTE: The controller uses e.offsetX/offsetY (canvas-relative) for all
+ * position tracking. Test helpers mirror clientX/Y into offsetX/Y so
+ * that the two are equivalent in the test environment (no viewport offset).
  */
 
 import { describe, it, expect, beforeEach, vi } from 'vitest';
@@ -80,7 +88,10 @@ type FakeElement = ReturnType<typeof makeElement>;
 // ---------------------------------------------------------------------------
 
 function ptr(overrides: Partial<PointerEvent> = {}): Partial<PointerEvent> {
-  return {
+  // Mirror clientX/Y into offsetX/Y. The controller uses offsetX/Y for all
+  // position tracking (canvas-relative coords). In tests there is no viewport
+  // offset, so the two coordinate systems are identical.
+  const base = {
     pointerId: 1,
     button: 0,
     buttons: 1,
@@ -88,10 +99,11 @@ function ptr(overrides: Partial<PointerEvent> = {}): Partial<PointerEvent> {
     clientY: 0,
     ...overrides,
   };
+  return { offsetX: base.clientX, offsetY: base.clientY, ...base };
 }
 
 function wheel(overrides: Partial<WheelEvent> = {}): Partial<WheelEvent> {
-  return {
+  const base = {
     clientX: 0,
     clientY: 0,
     deltaY: 0,
@@ -99,6 +111,7 @@ function wheel(overrides: Partial<WheelEvent> = {}): Partial<WheelEvent> {
     preventDefault: vi.fn(),
     ...overrides,
   };
+  return { offsetX: base.clientX, offsetY: base.clientY, ...base };
 }
 
 // ---------------------------------------------------------------------------

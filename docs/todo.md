@@ -113,6 +113,19 @@ Lightweight PlayerAccount model is the long-term direction (see [auth-join-flow.
 - [ ] **Hex grid** — `GridLayer` only draws square grids; `gridType: 'hex'` is accepted but silently falls back to no grid [GridLayer.ts](../client/src/render/pixi/layers/GridLayer.ts)
 - [ ] Several floating window and drawer components are placeholder stubs with hardcoded content: `CharacterSheet`, `DocumentReader`, `ItemInspector`, `InitiativeModal`, `CampaignPrepDrawer`, `GameSettingsDrawer`
 
+### Input System
+
+The current `CanvasInputController` works but was built incrementally and has known structural problems. It is good enough until tool modes or touch support are actually required.
+
+- [ ] **Redesign the input pipeline** as a proper three-layer system:
+  1. **Input sources** — `PointerSource`, `KeyboardSource`, `GamepadSource` (etc.) emit normalised raw signals. Each source is independent; adding a new device type does not touch existing code.
+  2. **Gesture recognisers** (stateful) — consume raw signals and emit named, normalised gestures: `tap`, `dragStart`, `pinchStart`, `longPress`, `wheelTick`, `keyPress`, etc. Gesture disambiguation (tap vs drag, one-finger pan vs two-finger pinch) lives entirely here.
+  3. **Binding table** — pure function `(gesture, uiState, hitTarget) → IntentName | null`. The single readable map of "what does this input do". Remapping right-click, adding tool-mode overrides, or supporting user-configurable keybinds are all one-line changes here.
+  4. **Handler registry** — `Map<IntentName, IntentHandler>`. Handlers own the full gesture lifecycle (start / move / end / cancel). Atomic actions are plain functions; multi-event gestures (pan, drag, marquee, measure) are small classes. Stub handlers allow intents to be declared before they are implemented.
+  - **Why not now:** touch and tool modes are not on the near-term roadmap. The refactor only pays for itself once one of those lands.
+  - **Constraint:** refactoring must not change any observable behaviour. The existing integration tests in `canvas-input-controller.test.ts` are the acceptance criteria.
+  - See [canvas-input-controller.ts](../client/src/app/canvas-input-controller.ts) and discussion in session notes for full design context.
+
 ### Renderer
 
 - [ ] **Token hit detection uses AABB bounds, not shape**: `TokenLayer.hitTestToken` uses `Sprite.getBounds()` (axis-aligned bounding box) for pointer events. This produces square hit areas for circular/non-rectangular tokens and incorrect hit areas for rotated tokens. Should be replaced with shape-accurate hit testing — either `Sprite.containsPoint()` (PixiJS inverse-transform point check, works for circles and rotation) or a polygon hull for non-convex cases. Note: `containsPoint` expects canvas-relative coordinates (`e.offsetX/Y`), not viewport-relative (`e.clientX/Y`). See [TokenLayer.ts](../client/src/render/pixi/layers/TokenLayer.ts#L120) and [canvas-input-controller.ts](../client/src/app/canvas-input-controller.ts).

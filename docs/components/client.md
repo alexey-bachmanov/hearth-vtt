@@ -156,14 +156,20 @@ Target: desktop and large-format tablets. Touch-friendly button sizes are a cons
 
 ### Canvas Input Model
 
-| Input                    | Action                                                           |
-| ------------------------ | ---------------------------------------------------------------- |
-| Left click on token      | Select token (future: open radial menu)                          |
-| Left click on empty map  | Deselect / current tool action                                   |
-| Left drag on token       | Drag token (permission-gated, with live preview broadcast)       |
-| Middle scroll wheel      | Zoom in/out toward cursor position                               |
-| Right click + drag       | Pan the map (context menu suppressed)                            |
-| Left click + tool active | Tool-specific interaction (measure point, draw annotation, etc.) |
+Current bindings (implemented in `CanvasInputController`):
+
+| Input                       | Action                                           |
+| --------------------------- | ------------------------------------------------ |
+| Left click on token         | Select token                                     |
+| Shift + left click on token | Add to selection                                 |
+| Left drag on token          | Move token (permission-gated, with live preview) |
+| Left drag on empty canvas   | Marquee multi-select                             |
+| Middle-click drag           | Pan                                              |
+| Scroll wheel                | Zoom in/out toward cursor position               |
+| Right click                 | Context menu (token or canvas)                   |
+| Escape                      | Deselect all                                     |
+
+**Known limitation:** the current controller handles all input logic directly in event handlers. Right-click and wheel are not routed through the binding table; tool-mode overrides and touch gestures are not supported. This is tracked in Tech Debt → Client → Input System and will be redesigned before those features are needed.
 
 ---
 
