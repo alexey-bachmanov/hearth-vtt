@@ -39,6 +39,7 @@
     "@hearth-vtt/shared": "*",
     "esbuild": "0.27.3",
     "lucide-svelte": "^0.563.0",
+    "pixi-filters": "^6.1.5",
     "pixi.js": "^8.18.1"
   }
 }

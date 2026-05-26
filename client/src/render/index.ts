@@ -12,7 +12,7 @@
  * Active interface (Phase A/B):
  *   init, dispose, setScene, updateTokens, setViewport,
  *   setTokenDragPreview, clearTokenDragPreview, hitTestToken, setOverlay,
- *   setMarqueeRect
+ *   setMarqueeRect, setSelection, setHover
  *
  * Deferred to later phases (fog, lighting, AoE, VFX, annotations, measurement):
  *   updateVisibilityMask, updateLights, addAoEEffect, removeAoEEffect,
@@ -88,6 +88,18 @@ export interface Renderer {
   setMarqueeRect(
     rect: { x: number; y: number; w: number; h: number } | null,
   ): void;
+
+  /**
+   * Highlight the given tokens as selected (accent-colour outline).
+   * Replaces the previous selection set.
+   */
+  setSelection(tokenIds: string[]): void;
+
+  /**
+   * Highlight the token under the pointer (hover outline).
+   * Pass `null` to clear the current hover highlight.
+   */
+  setHover(tokenId: string | null): void;
 }
 
 // ============================================================================
@@ -113,6 +125,8 @@ export class StubRenderer implements Renderer {
   setMarqueeRect(
     _rect: { x: number; y: number; w: number; h: number } | null,
   ): void {}
+  setSelection(_tokenIds: string[]): void {}
+  setHover(_tokenId: string | null): void {}
 }
 
 // ============================================================================

@@ -140,6 +140,14 @@ export class TokenLayer {
   }
 
   /**
+   * Return the sprite for a given token id, or null if it does not exist.
+   * Used by SelectionLayer to create and position ghost outline sprites.
+   */
+  getSprite(tokenId: string): Sprite | null {
+    return this._sprites.get(tokenId)?.sprite ?? null;
+  }
+
+  /**
    * Destroy all PixiJS resources held by this layer.
    */
   destroy(): void {

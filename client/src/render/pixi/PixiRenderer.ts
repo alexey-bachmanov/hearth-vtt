@@ -17,6 +17,7 @@ import { BackgroundLayer } from './layers/BackgroundLayer';
 import { GridLayer } from './layers/GridLayer';
 import { MarqueeLayer } from './layers/MarqueeLayer';
 import { OverlayLayer } from './layers/OverlayLayer';
+import { SelectionLayer } from './layers/SelectionLayer';
 import { TokenLayer } from './layers/TokenLayer';
 
 export class PixiRenderer implements Renderer {
@@ -25,6 +26,7 @@ export class PixiRenderer implements Renderer {
   private _background: BackgroundLayer | null = null;
   private _grid: GridLayer | null = null;
   private _tokens: TokenLayer | null = null;
+  private _selection: SelectionLayer | null = null;
   private _overlay: OverlayLayer | null = null;
   private _marquee: MarqueeLayer | null = null;
   private _resizeObserver: ResizeObserver | null = null;
@@ -70,11 +72,13 @@ export class PixiRenderer implements Renderer {
     this._background = new BackgroundLayer();
     this._grid = new GridLayer();
     this._tokens = new TokenLayer(app);
+    this._selection = new SelectionLayer();
     this._overlay = new OverlayLayer();
 
     world.addChild(this._background.container);
     world.addChild(this._grid.container);
     world.addChild(this._tokens.container);
+    world.addChild(this._selection.container);
     world.addChild(this._overlay.container);
 
     // Token overlay (drag ghosts) is screen-space: added directly to stage above world.
@@ -106,6 +110,7 @@ export class PixiRenderer implements Renderer {
     this._background?.destroy();
     this._grid?.destroy();
     this._tokens?.destroy();
+    this._selection?.destroy();
     this._overlay?.destroy();
     this._marquee?.destroy();
     this._app?.destroy(false, { children: true });
@@ -115,6 +120,7 @@ export class PixiRenderer implements Renderer {
     this._background = null;
     this._grid = null;
     this._tokens = null;
+    this._selection = null;
     this._overlay = null;
     this._marquee = null;
     this._resizeObserver = null;
@@ -142,6 +148,8 @@ export class PixiRenderer implements Renderer {
   updateTokens(tokens: Token[]): void {
     this._enqueue(() => {
       this._tokens!.updateTokens(tokens);
+      // Sync ghost outline positions after tokens move or are added/removed.
+      this._selection!.syncPositions((id) => this._tokens!.getSprite(id));
     });
   }
 
@@ -179,6 +187,20 @@ export class PixiRenderer implements Renderer {
     rect: { x: number; y: number; w: number; h: number } | null,
   ): void {
     this._marquee?.setRect(rect);
+  }
+
+  setSelection(tokenIds: string[]): void {
+    this._enqueue(() => {
+      this._selection!.setSelection(tokenIds, (id) =>
+        this._tokens!.getSprite(id),
+      );
+    });
+  }
+
+  setHover(tokenId: string | null): void {
+    this._enqueue(() => {
+      this._selection!.setHover(tokenId, (id) => this._tokens!.getSprite(id));
+    });
   }
 
   // ============================================================================
