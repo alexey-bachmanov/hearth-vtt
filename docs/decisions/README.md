@@ -73,11 +73,14 @@ Example:
 - [001: WebGL Rendering](001-webgl-rendering.md) — **Accepted**
 - [002: SQLite Storage](002-sqlite-storage.md) — **Accepted**
 - [003: Fastify Framework](003-fastify-framework.md) — **Accepted**
-- [004: GameEngine Class Architecture](004-gameengine-class-architecture.md) — **Accepted**
+- [004: GameEngine Class Architecture](004-gameengine-class-architecture.md) — **Accepted** _(partially superseded by 011)_
 - [005: Networking Management (Join Links + Cookie Sessions)](005-networking-management.md) — **Accepted**
 - [006: Svelte 5 Upgrade](006-svelte-5-upgrade.md) — **Accepted**
 - [007: Server-Level Admin Authentication](007-server-level-admin.md) — **Accepted**
 - [008: Licensing, Contributions, and Trademarks](008-licensing-and-contributions.md) — **Accepted**
+- [009: Combined SQLite DB](009-combined-sqlite-db.md) — **Accepted**
+- [010: Player Account Model](010-player-account-model.md) — **Accepted**
+- [011: Engine Facade and DSL Reversal](011-engine-facade-and-dsl-reversal.md) — **Accepted**
 
 ---
 

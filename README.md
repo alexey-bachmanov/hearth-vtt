@@ -41,7 +41,7 @@ Implemented or in active development:
 Planned (see [docs/todo.md](docs/todo.md) and [docs/implementation-strategy.md](docs/implementation-strategy.md)):
 
 - WebGL via PixiJS map renderer with per-user visibility masks and dynamic lighting
-- Ruleset engine: data-defined schemas, actions, UI templates, and a constrained DSL for action resolution
+- Ruleset engine: data-defined schemas, actions, UI panels, and a sandboxed ruleset runtime plugged in behind the engine facade (runtime form TBD per [ADR 011](docs/decisions/011-engine-facade-and-dsl-reversal.md))
 - Portable `.campaign`, `.tome`, `.ruleset`, and `.character` file formats
 - Effects as first-class entities (modifiers and durations)
 - Reactive client state, play UI scaffolding, and renderer integration points

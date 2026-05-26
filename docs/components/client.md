@@ -109,6 +109,25 @@ See [auth-join-flow.md](auth-join-flow.md), [ADR 005](../decisions/005-networkin
 
 ## UI Layout
 
+### Concerns vs. visible elements
+
+The client distinguishes between **concerns** (the data and action surfaces the SeatView exposes) and **visible elements** (one particular layout for rendering those concerns). The desktop / large-tablet UI described below is one such layout. A future mobile UI is expected to be substantially different in arrangement while consuming exactly the same `SeatView` and emitting exactly the same `EngineInput`s. The boundary is deliberate: per [ADR 011](../decisions/011-engine-facade-and-dsl-reversal.md), the engine has no opinion about layout.
+
+The concerns rendered by the current UI:
+
+| Concern                     | What it surfaces                                                                           |
+| --------------------------- | ------------------------------------------------------------------------------------------ |
+| **Map / canvas**            | Scene, tokens, drawings, fog, measurements, labels — the renderable world                  |
+| **Tools**                   | Built-in tools (dice, annotation, measurement, jukebox, etc.) + ruleset-contributed panels |
+| **Chat / event log**        | `recentEvents` plus the live event stream filtered for chat-like content                   |
+| **Notifications / prompts** | Ephemeral notifications + `activePrompts` from `SeatView`                                  |
+| **Actor status**            | Owned-actor pills, quick status overlay                                                    |
+| **Document container**      | Floating windows for character sheets, journals, item cards, handouts                      |
+
+Mobile, second-screen GM dashboards, and pop-out windows are all future _layouts_ over the same concerns. They are not parallel codebases.
+
+### Desktop / large-tablet layout
+
 The Play UI uses a 3-zone layout: left toolbar, central canvas with overlays, and right sidebar. All tool drawers, overlays, and notifications are layered on top of the canvas to maximize map real estate.
 
 Target: desktop and large-format tablets. Touch-friendly button sizes are a consideration but mobile-specific layout is deferred.
@@ -438,13 +457,16 @@ The left toolbar is a narrow vertical icon bar (42px wide) that replaces the pre
 
 ### Toolbar Layout
 
-Icons are arranged top-to-bottom in three sections separated by dividers. Each icon uses Lucide SVG icons with a custom `Tooltip` component for accessible hover labels.
+Icons are arranged top-to-bottom in four sections separated by dividers. Each icon uses Lucide SVG icons with a custom `Tooltip` component for accessible hover labels.
 
-| Section         | Visibility | Tools                                                                               |
-| --------------- | ---------- | ----------------------------------------------------------------------------------- |
-| **Quick Tools** | All seats  | Dice roller, Map annotation, Measurement, Initiative show/hide, Jukebox             |
-| **Big Tools**   | All seats  | Campaign journal, Player compendium, Settings                                       |
-| **GM Tools**    | GM only    | Lighting, Obstructions, Scene selector, Campaign prep, Token library, Game settings |
+| Section            | Visibility                                 | Tools                                                                               |
+| ------------------ | ------------------------------------------ | ----------------------------------------------------------------------------------- |
+| **Quick Tools**    | All seats                                  | Dice roller, Map annotation, Measurement, Jukebox                                   |
+| **Ruleset Panels** | All seats (panels gated by ruleset / seat) | One icon per `SeatView.rulesetPanels` entry whose `slot === 'toolbar'`              |
+| **Big Tools**      | All seats                                  | Campaign journal, Player compendium, Settings                                       |
+| **GM Tools**       | GM only                                    | Lighting, Obstructions, Scene selector, Campaign prep, Token library, Game settings |
+
+Ruleset-contributed panel icons render between Quick Tools and Big Tools. Their order follows `SeatView.rulesetPanels`; the ruleset decides title/icon. The declarative `content` shape inside each panel is **deferred** per [ADR 011](../decisions/011-engine-facade-and-dsl-reversal.md) (`PanelContent` is reserved as an opaque type in `shared/`).
 
 ### Drawer Behavior
 
@@ -457,14 +479,15 @@ Icons are arranged top-to-bottom in three sections separated by dividers. Each i
 
 ### Ruleset-Controlled Visibility
 
-The loaded Ruleset can hide specific toolbar icons. For example, a diceless game can hide the dice roller, a narrative game can hide initiative. Icons not enabled by the Ruleset are simply omitted from the toolbar.
+The loaded Ruleset can **hide** built-in toolbar icons from a seat's toolbar. The underlying engine functionality remains available (dice, chat, etc.) — only the default UI affordance disappears. This lets a ruleset replace, say, a built-in initiative tracker (which the baseline engine does **not** ship; see [ruleset-engine.md](ruleset-engine.md)) with its own panel without losing the underlying dice/chat tools.
+
+Icons not enabled by the Ruleset are simply omitted from the toolbar.
 
 ```ts
 // Example Ruleset UI config (structure TBD)
 {
   toolbar: {
     diceRoller: true,
-    initiativeTracker: true,
     measurementTool: true,
     jukebox: true,
     // ...
@@ -790,20 +813,46 @@ The `campaignState` store is the central source of truth for all game entity dat
 
 ```ts
 class CampaignState {
+  // Derived from the latest SeatView the client received; no attempt to mirror
+  // the server's CampaignState shape. See ADR 011.
   campaignId = $state<string | null>(null);
-  actors = $state<Map<string, Actor>>(new Map());
-  tokens = $state<Map<string, Token>>(new Map());
-  scenes = $state<Map<string, Scene>>(new Map());
+  seatId = $state<string | null>(null);
+  lastSeq = $state(0);
 
-  getActor(id: string): Actor | undefined;
-  getToken(id: string): Token | undefined;
-  getScene(id: string): Scene | undefined;
-  getPartyActors(): Actor[];
-  getActorsForSeat(seatId: string): Actor[];
-  setInitialState(bundle: SyncBundle): void;
-  applyDelta(delta: StateDelta): void;
+  scene = $state<SceneView | null>(null);
+  tokens = $state<Map<TokenId, TokenView>>(new Map());
+  actors = $state<Map<ActorId, ActorView>>(new Map());
+  drawings = $state<Map<string, DrawingView>>(new Map());
+  measurements = $state<Map<string, MeasurementView>>(new Map());
+  labels = $state<Map<string, LabelView>>(new Map());
+  fog = $state<{ explorationMask: unknown; litPolygon?: unknown } | null>(null);
+
+  capabilities = $state<Capabilities>({
+    globalActions: new Set(),
+    entityActions: new Map(),
+  });
+  rulesetPanels = $state<RulesetPanelDef[]>([]);
+
+  getActor(id: string): ActorView | undefined;
+  getToken(id: string): TokenView | undefined;
+  getPartyActors(): ActorView[];
+  getActorsForSeat(seatId: string): ActorView[];
+
+  /** Replace local state from a fresh SeatView (first connect, reconnect, resync). */
+  applyView(view: SeatView): void;
+
+  /** Apply a single incoming GameEvent to local derived state. */
+  applyEvent(event: GameEvent): void;
+
+  /** Apply an optimistic token-move locally; reverted by event-driven reconciliation if rejected. */
+  optimisticMoveToken(
+    tokenId: TokenId,
+    position: { x: number; y: number },
+  ): void;
 }
 ```
+
+> **Patches do not appear on the wire.** Per [ADR 011](../decisions/011-engine-facade-and-dsl-reversal.md), the client consumes a `SeatView` for resync and a stream of `GameEvent`s for steady-state play. The client does **not** apply patches; that is engine-internal.
 
 ### Seat Permissions (Derived)
 
@@ -820,11 +869,14 @@ const seatPermissions = $derived({
 
 ### Sync Flow
 
-1. On connect, server sends `sync.initial` with CampaignState + recent EventRecord
-2. Client calls `campaignState.setInitialState()` and `eventLogState.setEvents()`
-3. Server sends `sync.delta` (patches) and `event.new` (GameEvents) as changes occur
-4. Client calls `campaignState.applyDelta()`, `eventLogState.addEvent()`
-5. UI reactively updates based on store changes via `$derived` runes
+1. On WS connect, server sends `{ type: 'view', view: SeatView }` containing the seat's full visible projection plus a bounded `recentEvents` log and `activePrompts`.
+2. Client calls `campaignState.applyView(view)`. `lastSeq` is recorded.
+3. Server streams `{ type: 'event', event: GameEvent }` messages. Each carries a per-campaign `seq`.
+4. Client calls `campaignState.applyEvent(event)` and `eventLogState.addEvent(event)`. The client's `lastSeq` advances by exactly 1 on each event.
+5. If `event.seq !== lastSeq + 1`, the client requests a fresh `SeatView` from the server (`{ type: 'view.request' }`) and resumes from the new `lastSeq`.
+6. UI reactively updates via `$state` / `$derived`.
+
+For optimistic token moves: the client dispatches the action, applies the move locally, and waits. Server-confirm (`token.moved` event) matches the optimistic state and is a visual no-op. Server-reject (`token.move.rejected` event) snaps the token back; the lit-area overlay updates automatically because it's derived from token position.
 
 ---
 

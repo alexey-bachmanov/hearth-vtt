@@ -10,7 +10,7 @@ HearthVTT is a **homebrew-first**, **system-agnostic**, **self-hostable** virtua
 
 This document is the high-level map of how the major pieces fit together.
 
-> **Terminology:** See [shared-types.md](shared-types.md) for canonical definitions of Seat, Session, CampaignState, Snapshot, GameEvent, EventRecord, Action, Ruleset, GameEngine, RulesetRuntime, Tome, and Compendium.
+> **Terminology:** See [shared-types.md](shared-types.md) for canonical definitions of Seat, AuthSession, CampaignState, Snapshot, GameEvent, EventRecord, Action, EngineInput, DispatchResult, SeatView, Capabilities, Ruleset, GameEngine, Tome, and Compendium.
 
 ---
 
@@ -24,7 +24,7 @@ This authority extends beyond persistent campaign state to all **transient inter
 
 ### Rulesets are data-driven with safe execution
 
-Rulesets define schemas, actions, UI templates, and resolver logic using a constrained DSL over engine primitives. No arbitrary script execution in the UI.
+Rulesets define schemas and additional action types layered over the engine's baseline VTT-universal surface. The runtime form for ruleset code (TS module first; sandboxed scripting later) is deferred — see [ADR 011](decisions/011-engine-facade-and-dsl-reversal.md). There is no DSL.
 
 ### Manual play is ruleset responsibility
 
@@ -208,8 +208,8 @@ HearthVTT uses portable artifacts to avoid lock-in and enable sharing:
 - Defines:
   - entity schemas (PCs, monsters, items, effects)
   - action definitions and permissions
-  - resolver logic (DSL over primitives)
-  - UI templates + bindings (safe component tree)
+  - additional action types over baseline
+  - UI panels contributed back to the play UI (declarative, not arbitrary code)
 - May include controlled “scripts” only via a constrained runtime (no arbitrary DOM script).
 
 ### `.character` (portable character instance)
@@ -221,35 +221,47 @@ See: [`docs/components/data-model.md`](components/data-model.md), [`docs/compone
 
 ---
 
-## Realtime engine: actions, resolution, and events
+## Realtime engine: facade, SeatView, and events
 
-### GameEngine architecture
+### GameEngine is a facade
 
-**GameEngine** is a concrete class responsible for authoritative game logic orchestration. Key characteristics:
+**GameEngine** is a facade with a narrow public surface and a private interior. Outside code (HTTP routes, WebSocket transport, the client) talks only to the surface; the interior may be reorganized freely. See [components/ruleset-engine.md](components/ruleset-engine.md) and [ADR 011](decisions/011-engine-facade-and-dsl-reversal.md).
 
-- **One instance per active campaign**: CampaignManager creates GameEngine on first connection, destroys on inactivity/shutdown.
-- **State ownership**: Loads CampaignState in memory (from Snapshot + event replay), keeps synchronized with Storage.
-- **Sequential processing**: Internal AsyncQueue ensures actions process one-at-a-time per campaign.
-- **Embedded resolution**: RulesetRuntime (pure resolution engine) is a private member; transforms (Action + State) → Resolution.
-- **Side effect handling**: GameEngine handles all persistence (Storage), broadcasting (RealtimeHub), and ID generation (IdGenerator).
+Public surface:
+
+- `dispatch(input)` — the single mutation entry point.
+- `getView(seatId)` — returns a `SeatView` for first-connect / reconnect / explicit resync.
+- `subscribe(seatId, listener)` — per-seat event stream.
+- `close()` — lifecycle shutdown.
+
+Inside (private): the ruleset, CampaignState, patches, snapshots, RNG, sequence numbers, authorization. Outside callers see only `SeatView` projections and `GameEvent` streams.
+
+One engine instance per active campaign, managed by `CampaignManager`. State is loaded from Snapshot + event replay on open; final snapshot on close.
+
+### Wire protocol: events, with SeatView for resync
+
+- **Events** are the steady-state server→client stream.
+- **SeatView** is returned on first connect, requested again on sequence-number gap, or explicit resync.
+- **Patches do not appear on the wire.** They are engine-internal mutation machinery.
+
+Every event carries a per-campaign monotonic `seq`. Clients detect missed events by gap and request `getView`. Tail-checksum schemes were considered and deferred.
 
 ### Action pipeline
 
-An **Action** represents user intent (roll, attack, cast, move, apply effect). GameEngine resolves actions into:
+An **Action** represents user intent (`token.move`, `chat.send`, ruleset-specific types when loaded). The engine validates, resolves, persists, and broadcasts:
 
-- **Rolls** (deterministic via server-side rolling; clients may request/trigger)
-- **Prompts** (UI requests to specific seats)
-- **GameEvents** (immutable record of what happened; see [shared-types.md](shared-types.md))
-- **State patches** (validated updates to campaign state)
+- **Rolls** are deterministic; the RNG seed is derived from the action's `actionId = hash(campaignId, seq, actionType, canonicalJSON(payload))`.
+- **Prompts** are events with one target seat. Multi-target prompts emit multiple events; an internal workflow correlates the responses.
+- **GameEvents** are persisted before they are broadcast.
+- **Idempotency**: actions may carry an optional `clientRequestId`; replays return the original result without emitting a second event.
 
-### Why events + patches
+### Pause-and-resume is durable workflow state, not coroutines
 
-- Easy auditing / logs
-- Potential undo/redo later
-- Deterministic replay of session state
-- Efficient realtime sync (send deltas)
+Multi-step ruleset behavior across user input is modeled as an **explicit workflow state machine in campaign state**, not as host-language coroutines/promises. This is the durability constraint: a crash mid-workflow leaves the workflow row persisted; on engine reload the workflow resumes from its row. See [ADR 011](decisions/011-engine-facade-and-dsl-reversal.md).
 
-Rulesets govern which actions exist and how they resolve; GameEngine provides the primitive operations and orchestration.
+### Baseline engine (no ruleset loaded)
+
+The baseline engine implements only VTT-universal features: scenes, tokens, minimal actors, dice, chat, drawings, measurements, labels, and fog (one shared player-fog mask per scene). TTRPG-mechanical concepts (initiative, HP, attacks, saves, advantage, encounters, sanity, momentum, etc.) are **ruleset** concerns. Rulesets contribute action types, UI panels, and capability rules; they may also hide built-in tool UI without removing the underlying functionality.
 
 See: [`docs/components/ruleset-engine.md`](components/ruleset-engine.md)
 
@@ -257,15 +269,7 @@ See: [`docs/components/ruleset-engine.md`](components/ruleset-engine.md)
 
 ## Effects system
 
-Effects are first-class constructs to represent modifiers and timed conditions:
-
-- bonuses/penalties to derived values
-- advantage/disadvantage-like flags (system-specific)
-- resistances/vulnerabilities
-- duration rules (turn-based, time-based, “save ends”, etc.)
-- stacking rules (replace/stack/highest-only)
-
-Effects reduce the need for bespoke action logic and enable future automation.
+Effects (modifiers and timed conditions) are **ruleset-level concepts**, not part of the engine's baseline surface. Stacking rules, duration tracking, and modifier composition are deferred until at least one ruleset is being built. The baseline engine provides no effects.
 
 ---
 
@@ -278,11 +282,10 @@ Effects reduce the need for bespoke action logic and enable future automation.
 
 ### Visibility computation
 
-- **CPU computes visibility polygons** (typically in a Worker to avoid main-thread stalls).
-- **GPU composites visibility masks** for fog-of-war and lighting.
-- Per-user visibility masks are maintained, supporting union of multiple vision sources.
-
-Visibility computation should be abstracted behind a stable interface (e.g., `updateVisibility()`), so future implementations (e.g., different algorithms) do not require API breaks.
+- The pure geometry function `computeVisibility(...)` lives in `shared/visibility/`, callable from both server (engine) and client (renderer).
+- The **engine** owns the authoritative exploration mask and emits `fog.revealed` events.
+- The **client renderer** uses the same geometry function for an optimistic lit-area overlay that follows token-drag in real time. The exploration mask is _never_ updated optimistically.
+- The baseline uses one shared player-fog mask per scene. Per-seat / multi-source visibility (familiars, parties, hidden-from-allies) is a ruleset concern and deferred.
 
 See: [`docs/components/client.md`](components/client.md)
 
@@ -313,6 +316,6 @@ See: [`docs/components/server.md`](components/server.md)
 
 - `server/` — HTTP + WebSocket Secure (WSS) + persistence + serves client bundle
 - `client/` — web UI and renderer
-- `packages/` — shared libraries (types, protocol, dice, ruleset DSL runtime)
+- `packages/` — shared libraries (types, protocol, dice, visibility geometry)
 - `docs/` — source-of-truth design documents
 - `docs/decisions/` — ADRs capturing decisions and rationale

@@ -71,23 +71,24 @@ An event emitted either by user interactions (in the frontend) or by a Resolver 
 
 ### Ruleset
 
-A document that defines valid entity schemas and valid actions composed of primitives exposed by the GameEngine. Rulesets are data-driven; they do not contain arbitrary code.
+A bundle that defines game-specific entity schemas, action types, and resolution behavior, layered on top of the engine's baseline VTT-universal surface. The runtime form (TS module, sandboxed QuickJS/Lua, etc.) is **deferred** — see [ADR 011](decisions/011-engine-facade-and-dsl-reversal.md). There is no DSL.
 
 ### GameEngine
 
-A concrete class that provides authoritative game logic orchestration. Multiple aspects:
+A **facade** over campaign-state ownership, action dispatch, and ruleset execution. Public surface:
 
-1. **Lifecycle**: One instance exists per active campaign, created on first connection and destroyed on inactivity/shutdown.
-2. **State Management**: Owns CampaignState in memory (loaded from Snapshot + event replay), keeps it synchronized with Storage via transactional updates.
-3. **Action Processing**: Accepts emitted Actions, processes them sequentially via internal queue, uses embedded RulesetRuntime to resolve them into Resolutions (events/patches/prompts/workflows).
-4. **Side Effects**: Handles all persistence (Storage), broadcasting (RealtimeHub), and ID generation (IdGenerator).
-5. **Pure Core**: Embeds RulesetRuntime (pure resolution logic) as a private member.
+- `dispatch(input: EngineInput): Promise<DispatchResult>` — single entry point for mutation.
+- `getView(seatId): SeatView` — for first-connect / reconnect / explicit resync.
+- `subscribe(seatId, listener): Unsubscribe` — per-seat event stream.
+- `close(): Promise<void>` — lifecycle shutdown.
 
-GameEngine ships with the server. It does nothing without a Ruleset loaded into its RulesetRuntime.
+The engine owns CampaignState, the ruleset, snapshots, patches (internal), the RNG, sequence numbers, and authorization. Outside code does not see any of those directly — it sees `SeatView` projections and `GameEvent` streams. See [components/ruleset-engine.md](components/ruleset-engine.md) and [ADR 011](decisions/011-engine-facade-and-dsl-reversal.md).
+
+The **baseline engine** (no ruleset loaded) implements only VTT-universal features: scenes, tokens, minimal actors, dice, chat, drawings, measurements, labels, fog. TTRPG-mechanical concepts (initiative, HP, attacks, saves, etc.) are ruleset concerns.
 
 ### RulesetRuntime
 
-A pure resolution engine embedded within GameEngine. Takes CampaignState + Action + ResolveContext and produces a Resolution using the loaded Ruleset. **RulesetRuntime has zero side effects**—all persistence, broadcasting, and ID generation is handled by GameEngine. Not accessible outside GameEngine.
+Engine-internal concept. Not a public type. The mechanics of how the engine invokes ruleset code are private and **deferred** to the engine-interior design pass. Outside code never references RulesetRuntime.
 
 ### Tome
 
@@ -166,25 +167,95 @@ export type Audience = 'public' | 'gm' | 'blind' | 'private';
 
 ---
 
-## Patch Operations
+## ActionType
 
-Operations for modifying entity state. Patches are applied atomically within a transaction.
+A string brand identifying the kind of action being dispatched. Built-in baseline action types (`'token.move'`, `'chat.send'`, `'dice.roll'`, `'drawing.create'`, `'drawing.delete'`, `'measurement.start'`, `'measurement.update'`, `'measurement.end'`, `'label.create'`, `'label.delete'`) are defined by the engine. Rulesets contribute additional action types when loaded.
 
 ```ts
-export type PatchOp = 'add' | 'remove';
-
-export type Patch = {
-  target: { type: EntityType; id: string };
-  path: string; // JSON Pointer (e.g., "/resources/hp/current")
-  op: PatchOp;
-  value?: unknown; // Required for 'add', ignored for 'remove'
-};
+export type ActionType = string & { readonly __brand: 'ActionType' };
 ```
 
-| Op       | Description                                                                       |
-| -------- | --------------------------------------------------------------------------------- |
-| `add`    | Set or insert a value at the path. Creates intermediate objects/arrays as needed. |
-| `remove` | Delete the value at the path. No-op if path does not exist.                       |
+---
+
+## EngineInput / DispatchResult
+
+The envelope passed to `GameEngine.dispatch` and the result returned synchronously by the engine.
+
+```ts
+export interface EngineInput {
+  seatId: SeatId;
+  actionType: ActionType;
+  payload: unknown; // shape per actionType; validated inside the engine
+  clientRequestId?: string; // optional idempotency key per seat
+}
+
+export type DispatchResult =
+  | { accepted: true; seq: number; actionId: string }
+  | { accepted: false; reason: string };
+```
+
+`clientRequestId` is an idempotency key. The same `(seatId, clientRequestId)` pair processed twice returns the original `DispatchResult` and emits no second event. Absent `clientRequestId` means no idempotency.
+
+---
+
+## Capabilities
+
+What a seat is _currently_ allowed to do, surfaced in `SeatView`.
+
+```ts
+export interface Capabilities {
+  globalActions: ReadonlySet<ActionType>;
+  entityActions: ReadonlyMap<EntityId, ReadonlySet<ActionType>>;
+}
+```
+
+- **`globalActions`** — actions performable without an entity target (or with any entity), e.g. `'chat.send'`, `'dice.roll'`.
+- **`entityActions`** — per-entity overrides. Empty when role + ownership already answer the question.
+
+Semantic rule for consumers: if `capabilities` is empty for an entity, fall back to role + ownership. Otherwise, capabilities is authoritative. The **baseline engine** (no ruleset loaded) leaves both fields empty.
+
+---
+
+## SeatView
+
+The full projection of the campaign visible to one seat, returned by `GameEngine.getView(seatId)`. Used for first-connect, reconnect with sequence gap, and explicit resync — **not** for steady-state play.
+
+```ts
+export interface SeatView {
+  seatId: SeatId;
+  campaignId: CampaignId;
+  lastSeq: number; // last engine seq reflected in this view
+
+  scene: SceneView; // current scene, renderable state
+  tokens: ReadonlyArray<TokenView>;
+  actors: ReadonlyArray<ActorView>;
+
+  fog?: {
+    explorationMask: unknown; // shape per renderer; opaque to non-renderer consumers
+    litPolygon?: unknown; // derived; sometimes precomputed by server
+  };
+
+  drawings: ReadonlyArray<DrawingView>;
+  measurements: ReadonlyArray<MeasurementView>;
+  labels: ReadonlyArray<LabelView>;
+
+  recentEvents: ReadonlyArray<GameEvent>; // bounded log catch-up
+  activePrompts: ReadonlyArray<Prompt>; // prompts currently directed at this seat
+
+  capabilities: Capabilities;
+  rulesetPanels: ReadonlyArray<RulesetPanelDef>; // ruleset-contributed UI surfaces
+}
+```
+
+The per-field `*View` shapes (SceneView, TokenView, ActorView, etc.) are the public, audience-filtered projections of internal entities. They are the _only_ entity shapes outside code sees; the engine's internal entity shape is private.
+
+`RulesetPanelDef.content` is a declarative panel tree whose concrete shape is **deferred** to the ruleset-interior design pass; the field is reserved here.
+
+---
+
+## Patches (engine-internal)
+
+> **Patches are not a shared type.** They were previously part of the public surface; they are now strictly engine-internal mutation machinery. The wire protocol is events, not patches. The client never sees a patch. Consumers should not import patch types from `shared/`.
 
 ---
 
@@ -235,20 +306,25 @@ export type EntityRef = {
 
 ## GameEvent
 
-Immutable record of something that happened. Used for audit logs, event feeds, and potential replay.
+Immutable record of something that happened. The **steady-state wire protocol**: after a client receives an initial `SeatView`, the server streams `GameEvent`s until the connection closes.
 
 ```ts
 export type GameEvent<TData = unknown> = {
   id: EventId;
   campaignId: CampaignId;
-  type: string; // e.g., "roll.result", "damage.applied"
-  time: number; // Server timestamp (ms since epoch)
+  seq: number; // monotonically increasing per campaign; gap = client must resync
+  type: string; // e.g., "chat.posted", "token.moved", "fog.revealed", "prompt.shown"
+  time: number; // server timestamp (ms since epoch)
   audience: Audience;
   data: TData;
 };
 ```
 
-> **Note:** This replaces the previously separate `EventEnvelope` and `GameEvent` types. All event-related code should use this definition.
+Invariants:
+
+- One event = one audience. Multi-target prompts are multiple events.
+- `seq` is per-campaign, monotonic, and gap-free under normal operation. A client that sees a gap requests `getView` and resumes from the new `lastSeq`.
+- Events are persisted before they are broadcast.
 
 ---
 
@@ -279,21 +355,9 @@ export type Prompt = {
 
 ---
 
-## WorkflowState
+## WorkflowState (engine-internal)
 
-Durable state for multi-step resolutions (e.g., AoE targeting → saves → damage).
-
-```ts
-export type WorkflowState = {
-  id: WorkflowId;
-  campaignId: CampaignId;
-  ownerSeatId: SeatId; // Seat that initiated the workflow
-  kind: string; // e.g., "spell.fireball"
-  step: string; // e.g., "await-aoe" | "await-saves"
-  context: Record<string, unknown>;
-  expiresAt?: number;
-};
-```
+> **Not a shared type.** Workflows are engine-internal state machines that drive multi-step ruleset behavior across user prompts. Externally visible side effects are emitted as `GameEvent`s and `Prompt`s. Outside code does not see WorkflowState. Pause-and-resume across user input is durable workflow-state-machine, not host-language coroutines — see [ADR 011](decisions/011-engine-facade-and-dsl-reversal.md).
 
 ---
 
@@ -323,11 +387,8 @@ export type RollModifier = unknown; // TBD
 // Modifier applied to a stat based on effects
 export type StatModifier = unknown; // TBD
 
-// Reference to a compiled DSL resolver program
-export type ResolverProgramRef = unknown; // TBD
-
-// Initial state bundle sent to a client on connect
-export type SyncBundle = unknown; // TBD
+// (Removed) ResolverProgramRef — DSL was reversed; see ADR 011.
+// (Removed) SyncBundle — replaced by SeatView for connect/resync.
 
 // Interface for broadcasting realtime updates to connected clients
 export type RealtimeHub = unknown; // TBD

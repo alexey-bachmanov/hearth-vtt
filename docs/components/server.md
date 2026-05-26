@@ -100,7 +100,7 @@ At repo root:
 
 - `server/` — Fastify server source
 - `client/` — Svelte client source
-- `packages/` — shared libs (protocol/types/dice/DSL runtime)
+- `packages/` — shared libs (protocol/types/dice/visibility geometry)
 - `docs/` — design docs
 
 Within `server/` (current structure):
@@ -271,9 +271,15 @@ The client uses hash-based routing (`#/play`, `#/admin`, etc.) or history API ro
 
 ---
 
-## WebSocket Secure realtime (placeholder milestone)
+## Engine boundary (locked in by ADR 011)
 
-### Endpoint
+The server hosts the **GameEngine** behind a strict facade. Per [ADR 011](../decisions/011-engine-facade-and-dsl-reversal.md) and [components/ruleset-engine.md](ruleset-engine.md):
+
+- HTTP routes and the WebSocket handler are **outside** the boundary. They translate transport-level messages to `EngineInput` and forward `GameEvent`s back; they do not interpret game logic.
+- Storage is **outside** the boundary. It persists event rows, snapshot blobs, and prompt/workflow durability records, but does not know game concepts beyond opaque blobs.
+- The engine is **inside** the boundary along with the ruleset, CampaignState (entities, scenes, tokens, actors, drawings, visibility/exploration masks, measurements, labels), RNG, patches (engine-internal), and authorization.
+
+### Engine entry points used by the server\u2019s outer layers\n\n- `engine.dispatch(input)` \u2014 called by WS handler on each client action message and by HTTP routes that perform mutating operations.\n- `engine.getView(seatId)` \u2014 called on WS connect, on reconnect with a sequence gap, or on explicit resync requests.\n- `engine.subscribe(seatId, listener)` \u2014 called once per connected seat; the handler forwards each emitted `GameEvent` over the WebSocket as `{ type: 'event', event }`.\n- `engine.close()` \u2014 called by `CampaignManager` during inactivity unload or graceful shutdown.\n\n### Visibility geometry lives in `shared/`\n\nThe pure geometry function `computeVisibility(tokenPos, visionParams, walls, sceneBounds) \u2192 polygon` lives in `shared/visibility/` and is called by both the engine (to compute authoritative exploration updates and emit `fog.revealed`) and the client renderer (for an optimistic lit-area overlay during token drag). The engine owns _when_ to recompute and _where_ to store the persistent mask; the client never updates the exploration mask optimistically.\n\n---\n\n## WebSocket Secure realtime (placeholder milestone)\n\n### Endpoint
 
 - `wss://server.example.com/ws` (upgrade to secure WebSocket)
 - For local development: `ws://localhost:3000/ws` is acceptable
@@ -1222,7 +1228,9 @@ export class CampaignManager {
 
 ### GameEngine Class
 
-The GameEngine class is the authoritative game logic orchestration layer. One instance exists per active campaign. It owns CampaignState in memory, processes Actions sequentially, and delegates pure resolution logic to an embedded RulesetRuntime.
+> **Boundary note.** Per [ADR 011](../decisions/011-engine-facade-and-dsl-reversal.md), GameEngine is a **facade** with a narrow public surface (`dispatch`, `getView`, `subscribe`, `close`). Outside code (routes, WS handlers, storage, the client) does **not** consume the interior types shown below — they consume `EngineInput`, `DispatchResult`, `SeatView`, and `GameEvent`. The class snippet below illustrates a plausible interior; the actual interior (RulesetRuntime shape, queue mechanics, resolver invocation) is being redesigned and is **out of scope** for the current engine-boundary refactor sprint. See [components/ruleset-engine.md](ruleset-engine.md) for the boundary contract.
+
+The GameEngine class is the authoritative game logic orchestration layer. One instance exists per active campaign. It owns CampaignState in memory and processes dispatch calls sequentially. The interior delegation to ruleset code is private and deferred.
 
 ```typescript
 /**

@@ -8,7 +8,30 @@ As work completes, check off tasks.
 
 # Current Projects
 
-_(No active sprints. Promote an item from Tech Debt when ready.)_
+## Engine Boundary Refactor (Phase 2.5)
+
+**Authority:** [ADR 011 — Engine Facade and DSL Reversal](decisions/011-engine-facade-and-dsl-reversal.md)
+**Plan:** [implementation-strategy.md → Phase 2.5](implementation-strategy.md)
+
+Locks down the engine boundary before Phase 3 builds against it. Establishes events-as-wire-protocol, SeatView for resync, and a minimal placeholder engine. The engine **interior** (ruleset runtime, effects, workflows) stays explicitly deferred.
+
+### Steps
+
+- [ ] **Define facade interfaces.** `server/src/domain/engine/index.ts` exports `GameEngine` (`dispatch`, `getView`, `subscribe`, `close`). Internal `CampaignState` stays engine-private.
+- [ ] **Update `shared/` types.** Remove `Patch`, `PatchOp`, `applyPatches`, `WorkflowState`, `Resolution`, `ResolverProgramRef`, `SyncBundle` from the public surface. Add `SeatView`, `EngineInput`, `DispatchResult`, `Capabilities`, `ActionType`, `*View` projections. Add `seq: number` to `GameEvent`. Add `clientRequestId?: string` to dispatch envelopes.
+- [ ] **Shared visibility module.** `shared/visibility/computeVisibility(tokenPos, params, walls, bounds) → polygon`. Used by both server (mask owner) and client (optimistic overlay).
+- [ ] **Placeholder engine (~500 lines).** Baseline VTT-universal actions only: `token.move`, `chat.send`, `dice.roll`, `drawing.*`, `measurement.*`, `label.*`. Owns `CampaignState`. Assigns `seq` per event. Derives `actionId = hash(campaignId, seq, actionType, canonicalJSON(payload))`. Seeds RNG from `actionId`. Honors `clientRequestId` idempotency.
+- [ ] **WebSocket refactor.** Replace `sync.delta` / `sync.initial` with `{ type: 'view', view }` and `{ type: 'event', event }`. Add `view.request` for resync. Route inbound `dispatch` to the engine.
+- [ ] **Client refactor.** Drop `applyDelta`. Implement `applyView(view)` and `applyEvent(event)`. Track `lastSeq`. On gap, request `view.request`. Optimistic token-move uses the shared visibility function locally; snap back on rejection.
+- [ ] **Tests.** Boundary tests against the public surface: dispatch → events, getView shape, gap-resync, `clientRequestId` idempotency, deterministic dice via seeded RNG, optimistic-move accept/reject.
+- [ ] **Docs cleanup.** ADR 011 is accepted; verify ADR 004 is annotated as partially superseded.
+
+### Out of scope (deferred to its own design pass)
+
+- Ruleset runtime form (TS modules vs. QuickJS vs. Lua).
+- Effects/modifier stacking model.
+- Workflow state-machine schema.
+- Declarative `PanelContent` shape (panels are reserved opaque for now).
 
 ---
 

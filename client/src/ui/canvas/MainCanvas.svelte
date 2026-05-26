@@ -89,10 +89,12 @@ $effect(() => {
 });
 </script>
 
+<!-- svelte-ignore a11y_no_noninteractive_tabindex -->
+<!-- svelte-ignore a11y_no_noninteractive_element_interactions -->
 <div
   class="main-canvas-container"
   tabindex="0"
-  role="region"
+  role="application"
   aria-label="Game canvas"
   bind:this={containerElement}
   onkeydown={handleKeyDown}

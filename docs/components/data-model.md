@@ -2,7 +2,9 @@
 
 This document defines the core data structures, file formats, storage architecture, and schemas used throughout HearthVTT.
 
-> **Terminology:** See [shared-types.md](../shared-types.md) for canonical definitions of CampaignState, Snapshot, GameEvent, EventRecord, Tome, Ruleset, and other shared types.
+> **Terminology:** See [shared-types.md](../shared-types.md) for canonical definitions of CampaignState, Snapshot, GameEvent, EventRecord, Tome, Ruleset, SeatView, and other shared types.
+>
+> **Note on patches.** Per [ADR 011](../decisions/011-engine-facade-and-dsl-reversal.md), patches are **engine-internal** mutation machinery; they are not part of the persisted external surface. External durability is the snapshot chain + event record described below. Patches do not appear in `.campaign` exports and do not cross any network boundary.
 
 ---
 
@@ -102,6 +104,12 @@ interface Snapshot {
   scenes: Record<SceneId, Scene>;
   items: Record<ItemId, Item>;
   effects: Record<EffectId, Effect>;
+
+  // Canvas state (engine-owned, scene-scoped — see ruleset-engine.md baseline)
+  drawings: Record<string, Drawing>;
+  measurements: Record<string, Measurement>;
+  labels: Record<string, Label>;
+  explorationMasks: Record<SceneId, ExplorationMask>;
 
   // Campaign-level data
   seats: Record<SeatId, Seat>;

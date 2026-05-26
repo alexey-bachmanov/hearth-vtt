@@ -2,7 +2,21 @@
 
 ## Status
 
-Accepted
+Accepted — **partially superseded by [ADR 011](011-engine-facade-and-dsl-reversal.md)**.
+
+ADR 011 keeps:
+
+- one `GameEngine` instance per active campaign
+- `CampaignManager` lifecycle / lazy open / inactivity close
+- dependency injection of `Storage`, `RealtimeHub`, `IdGenerator`, `Clock`, `Logger`
+
+ADR 011 supersedes:
+
+- the `RulesetRuntime.resolve(action, ctx) → Resolution` shape and the pure-function framing of the runtime
+- the in-engine `applyPatches` model as a public concept (patches are now engine-internal)
+- the `SyncBundle` initial-sync envelope (replaced by `SeatView` + event stream with `seq`)
+
+The current document is preserved below for context. Treat anything that conflicts with ADR 011 as superseded.
 
 ## Context
 

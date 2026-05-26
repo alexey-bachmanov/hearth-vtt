@@ -46,20 +46,20 @@
 
 These are the 12 system boundaries where mocks/stubs allow independent development and testing. When building a component, mock everything across its boundary — don't reach into another component's internals.
 
-| #   | Surface                             |  Pure?  | Boundary Contract                                                                                       | Test Strategy                                                                            |
-| --- | ----------------------------------- | :-----: | ------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------- |
-| 1   | **Shared Types**                    |   Yes   | Type definitions + Zod schemas in `shared/`                                                             | Compile-time checks; schema round-trip tests                                             |
-| 2   | **StorageBackend**                  |   No    | `StorageBackend` interface ([`storage.ts`](../server/src/storage/storage.ts))                           | `InMemoryBackend` for unit/integration tests; `SqliteBackend` for storage-specific tests |
-| 3   | **CampaignState Applicator**        |   Yes   | `applyPatches(state, patches) → state` — shared pure function used by both server and client            | Unit tests with snapshot + patch fixtures                                                |
-| 4   | **RulesetRuntime**                  |   Yes   | `resolve(action, ctx) → Resolution` — zero side effects                                                 | Unit tests with fabricated state + actions; `MockRulesetRuntime` for engine tests        |
-| 5   | **Expression Evaluator**            |   Yes   | `evaluate(expr, context) → value` — standalone from DSL ops                                             | Exhaustive unit tests per operator/function                                              |
-| 6   | **DSL Operation Executor**          |   Yes   | `execute(program, ctx) → Resolution` — calls expression evaluator internally                            | Program-level integration tests with JSON fixtures                                       |
-| 7   | **GameEngine**                      |   No    | Orchestration shell; depends on Storage, RealtimeHub, RulesetRuntime, IdGenerator, Clock — all injected | Mock all deps; verify action→event flow                                                  |
-| 8   | **RealtimeHub** (WS protocol layer) |   No    | `broadcastEvents()`, `broadcastDeltas()`, `sendPrompts()`                                               | Mock WS connections; verify message serialization and audience filtering                 |
-| 9   | **Renderer**                        |   No    | `initRenderer()`, `setScene()`, `updateTokens()`, etc. — PixiJS hidden behind this API                  | Mock renderer for UI tests; visual regression for renderer                               |
-| 10  | **Canvas Input Controller**         | Yes-ish | Pointer events → typed domain intents (`pan`, `zoom`, `select`, `dragToken`)                            | Synthetic event tests                                                                    |
-| 11  | **HTTP API Client**                 |   No    | Typed methods per endpoint; returns typed responses                                                     | Mock fetch for client tests; integration tests against real server                       |
-| 12  | **Auth System**                     |   No    | Session interfaces; dev bypass mode for testing                                                         | Unit tests for crypto/session logic; dev bypass for all other tests                      |
+| #   | Surface                             |  Pure?  | Boundary Contract                                                                                            | Test Strategy                                                                            |
+| --- | ----------------------------------- | :-----: | ------------------------------------------------------------------------------------------------------------ | ---------------------------------------------------------------------------------------- |
+| 1   | **Shared Types**                    |   Yes   | Type definitions + Zod schemas in `shared/`                                                                  | Compile-time checks; schema round-trip tests                                             |
+| 2   | **StorageBackend**                  |   No    | `StorageBackend` interface ([`storage.ts`](../server/src/storage/storage.ts))                                | `InMemoryBackend` for unit/integration tests; `SqliteBackend` for storage-specific tests |
+| 3   | **SeatView projection**             |   Yes   | `engine.getView(seatId) → SeatView` — audience-filtered immutable snapshot                                   | Fixture-based: hand-build engine state, project for multiple seats, compare              |
+| 4   | **RulesetRuntime** _(deferred)_     |    —    | Interior of the engine; design pending per [ADR 011](decisions/011-engine-facade-and-dsl-reversal.md)        | Out of scope until design pass completes                                                 |
+| 5   | **Shared visibility geometry**      |   Yes   | `computeVisibility(tokenPos, params, walls, bounds) → polygon` in `shared/visibility/`                       | Property tests over scene fixtures; identical results server vs client                   |
+| 6   | _(reserved)_                        |    —    | —                                                                                                            | —                                                                                        |
+| 7   | **GameEngine (facade)**             |   No    | `dispatch`, `getView`, `subscribe`, `close` — per [ADR 011](decisions/011-engine-facade-and-dsl-reversal.md) | Boundary tests only; interior is engine-private                                          |
+| 8   | **RealtimeHub** (WS protocol layer) |   No    | Forwards `view` and `event` messages per seat; routes `dispatch` inbound                                     | Mock WS connections; verify audience filtering and gap-resync                            |
+| 9   | **Renderer**                        |   No    | `initRenderer()`, `setScene()`, `updateTokens()`, etc. — PixiJS hidden behind this API                       | Mock renderer for UI tests; visual regression for renderer                               |
+| 10  | **Canvas Input Controller**         | Yes-ish | Pointer events → typed domain intents (`pan`, `zoom`, `select`, `dragToken`)                                 | Synthetic event tests                                                                    |
+| 11  | **HTTP API Client**                 |   No    | Typed methods per endpoint; returns typed responses                                                          | Mock fetch for client tests; integration tests against real server                       |
+| 12  | **Auth System**                     |   No    | Session interfaces; dev bypass mode for testing                                                              | Unit tests for crypto/session logic; dev bypass for all other tests                      |
 
 ---
 
@@ -71,7 +71,7 @@ Work is organized into 3 tracks that a small team (2–3 contributors) can run c
 | ------------------------ | --------------------------------------------------- | ------------------------ |
 | **Track A — Backend**    | Server state, persistence, GameEngine, auth         | Server/systems dev       |
 | **Track B — Frontend**   | UI completion, renderer, client state, canvas input | UI/graphics dev          |
-| **Track C — Game Logic** | DSL, RulesetRuntime, rulesets, tomes                | Language/game design dev |
+| **Track C — Game Logic** | Ruleset runtime (deferred), rulesets, tomes         | Language/game design dev |
 
 Track C starts later (Phase 7) and is mocked until then. Tracks A and B converge at M1.
 
@@ -79,12 +79,12 @@ Track C starts later (Phase 7) and is mocked until then. Tracks A and B converge
 
 ## Milestones
 
-| Milestone | Description                                                           | Phases Required | What It Proves                                                                                      |
-| --------- | --------------------------------------------------------------------- | --------------- | --------------------------------------------------------------------------------------------------- |
-| **M1**    | Token moves on a map, synced between two clients                      | 0, 2, 3         | Rendering, WS sync, server state, and patch application all work end-to-end                         |
-| **M2**    | Actions flow through the GameEngine                                   | 0, 3, 4         | Engine pipeline (enqueue → resolve → persist → broadcast) works; chat and token moves go through it |
-| **M3**    | Multi-user campaign with real auth                                    | 0, 3, 4, 5      | Invite → claim → session → WS auth → see synced state; revoking sessions disconnects players        |
-| **M4**    | Full action cycle (pick target → roll → apply damage → see HP change) | 0, 3, 4, 7, 8   | DSL resolves real actions; multi-step workflows with prompts work; ruleset-driven UI                |
+| Milestone | Description                                                           | Phases Required | What It Proves                                                                               |
+| --------- | --------------------------------------------------------------------- | --------------- | -------------------------------------------------------------------------------------------- |
+| **M1**    | Token moves on a map, synced between two clients                      | 0, 2, 2.5, 3    | Rendering, WS sync, engine facade, server state, and event application all work end-to-end   |
+| **M2**    | Actions flow through the GameEngine facade                            | 0, 2.5, 3, 4    | Engine pipeline (dispatch → events → view-projection → broadcast) works for baseline actions |
+| **M3**    | Multi-user campaign with real auth                                    | 0, 3, 4, 5      | Invite → claim → session → WS auth → see synced state; revoking sessions disconnects players |
+| **M4**    | Full action cycle (pick target → roll → apply damage → see HP change) | 0, 3, 4, 7, 8   | Real ruleset resolves actions; multi-step workflows with prompts work; ruleset-driven UI     |
 
 ---
 
@@ -103,24 +103,26 @@ Everything else depends on this. Do first.
 1. **Vitest configuration.** Add `vitest.config.ts` to both `server/` and `client/`. Confirm `npm test` works with a trivial passing test in each package.
 
 2. **Shared types folder.** Create `shared/` at repo root (plain folder; both sides import via relative paths or TypeScript path aliases). Move/define canonical types from [`shared-types.md`](shared-types.md):
-   - `CampaignState`, `Snapshot`, `GameEvent`, `Patch`, `PatchOp`
-   - `Action`, `ActionEnvelope`, `Resolution`
-   - `Audience`, `EntityType`, `PromptKind`
-   - `Prompt`, `PromptAction`, `WorkflowState`, `WorkflowMutation`
+   - `CampaignState`, `Snapshot`, `GameEvent` (with `seq: number`)
+   - `EngineInput`, `DispatchResult`, `ActionType`, `Capabilities`
+   - `SeatView` and the `*View` projection types
+   - `Audience`, `EntityType`, `PromptKind`, `Prompt`, `PromptAction`
    - All branded ID types (`CampaignId`, `SeatId`, `ActorId`, `TokenId`, etc.)
    - Zod schemas for WS message validation (both directions)
+
+   Per [ADR 011](decisions/011-engine-facade-and-dsl-reversal.md), `Patch`, `PatchOp`, `applyPatches`, `WorkflowState`, `Resolution`, `ResolverProgramRef`, and `SyncBundle` are **engine-internal** and do **not** belong in `shared/`.
 
 3. **InMemoryStorageBackend.** Implement the `StorageBackend` interface as a pure in-memory Map-based store. This unlocks all server-side testing without SQLite.
 
 4. **Dev auth bypass.** Add a `DEV_BYPASS_AUTH=true` env flag. When set, WS upgrade skips cookie validation and assigns a hardcoded `seatId`/`campaignId`. HTTP routes skip session checks. Guarded with `if (process.env.NODE_ENV === 'production') throw` safety.
 
-5. **CampaignState Applicator.** Implement `applyPatches(state: CampaignState, patches: Patch[]) → CampaignState` as a pure function in `shared/`. This single function is used by both server and client to apply resolved events to state.
+5. **Shared visibility geometry.** Create `shared/visibility/` with `computeVisibility(tokenPos, params, walls, bounds) → polygon`. Both server and client import it.
 
 #### Verification
 
 - `npm test` passes in both packages.
 - `InMemoryBackend` passes the same interface tests that will later run against `SqliteBackend`.
-- `applyPatches` has 20+ test cases (add field, remove from array, nested path, invalid path → error).
+- `computeVisibility` has property-based tests over a small set of scene fixtures.
 
 ---
 
@@ -191,40 +193,74 @@ Replaces the stub `render/index.ts` with a real PixiJS-backed renderer. Builds t
 
 ---
 
+### Phase 2.5 — Engine Boundary Refactor
+
+> **Estimated effort:** ~1–2 weeks  
+> **Track:** A + B (small cross-cutting)  
+> **Dependencies:** Phase 0; Phase 2 complete  
+> **Authority:** [ADR 011](decisions/011-engine-facade-and-dsl-reversal.md)
+
+Locks down the engine boundary before Phase 3 builds against it. Replaces the previously-planned patches-on-wire model with events + SeatView. Inserts a minimal placeholder engine that exposes the boundary shape; the engine _interior_ (RulesetRuntime, ruleset scripting runtime, effects, workflows) remains deferred.
+
+#### Tasks
+
+1. **Define the engine facade in `server/src/domain/engine/`.** Interfaces only:
+   - `GameEngine` (`dispatch`, `getView`, `subscribe`, `close`)
+   - `EngineInput`, `DispatchResult` (re-exported from `shared/`)
+   - Internal `CampaignState` shape (not exported — engine-private)
+
+2. **Update `shared/` types.** Remove `Patch`, `PatchOp`, `applyPatches`, `WorkflowState`, `Resolution`, `ResolverProgramRef`, `SyncBundle` from the public surface. Add `SeatView`, `EngineInput`, `DispatchResult`, `Capabilities`, `ActionType`, and the `*View` projection types. Add `seq: number` to `GameEvent`. Add `clientRequestId?: string` to dispatch envelopes.
+
+3. **Shared visibility module.** Create `shared/visibility/` with the pure geometry function `computeVisibility(tokenPos, visionParams, walls, sceneBounds) → polygon`. Server and client both import from here.
+
+4. **Minimal placeholder engine (~500 lines of CRUD).** Implements only baseline VTT-universal actions: `token.move`, `chat.send`, `dice.roll`, `drawing.create`, `drawing.delete`, `measurement.*`, `label.*`. No ruleset loaded. Owns `CampaignState`, assigns `seq` per event, derives `actionId = hash(campaignId, seq, actionType, canonicalJSON(payload))`, seeds RNG from `actionId`, honors `clientRequestId` idempotency.
+
+5. **WebSocket handler refactor.** Replace `sync.delta` / `sync.initial` with `{ type: 'view', view }` and `{ type: 'event', event }`. Add `{ type: 'view.request' }` for resync. Route action messages to `engine.dispatch`.
+
+6. **Client refactor.** Drop `applyDelta`; introduce `applyView(view)` and `applyEvent(event)`. Track `lastSeq`. On gap, request `view.request`. Convert optimistic token-move to compute lit overlay locally via the shared visibility function.
+
+7. **Tests.** Boundary tests against the public surface only: dispatch → events flow, getView shape, gap-detection → resync, idempotency via `clientRequestId`, deterministic dice via seeded RNG, optimistic-move accept-and-reject paths.
+
+#### Verification
+
+- Server and client communicate only via `view` and `event` messages. No `Patch` import anywhere outside the engine interior.
+- Token drag in tab A appears in tab B (event-driven, not patch-driven).
+- Disconnecting and reconnecting a client receives a fresh `SeatView` and resumes the event stream without duplicate or missing events.
+- Sequence-gap detection is exercised in a unit test by dropping an event and observing the client re-request the view.
+
+---
+
 ### Phase 3 — Server CampaignState + Sync
 
 > **Estimated effort:** ~2–3 weeks  
 > **Track:** A (Backend)  
-> **Dependencies:** Phase 0; Phase 2 for M1 integration
+> **Dependencies:** Phase 2.5 (engine boundary)
 
-The backend half of M1. Builds real state management and WebSocket sync.
+The backend half of M1. Builds real state durability and wires the placeholder engine to storage. **All mutation now goes through `engine.dispatch`** — there are no "hardcoded built-in patch handlers" outside the engine.
 
 #### Tasks
 
-1. **Server CampaignState model.** Create `server/src/domain/campaign-state.ts`. In-memory `CampaignState` object using the shared `Snapshot` shape. Methods:
-   - `static fromSnapshot(snapshot: Snapshot): CampaignState`
-   - `applyPatches(patches: Patch[]): void` (delegates to shared applicator)
-   - `toSnapshot(): Snapshot`
+1. **Engine-internal `CampaignState` model.** Inside `server/src/domain/engine/`. Hydrates from snapshot + replayed events. Engine owns it; nothing outside imports its shape.
 
-2. **Event persistence.** Wire `Storage.appendEvent()` and `Storage.getEventsSinceSnapshot()` to the real `SqliteBackend`. The SQL schema already exists; the `TransactionStorage` entity/event methods that currently throw `'not implemented'` need completing.
+2. **Event persistence.** Wire `Storage.appendEvent()` and `Storage.getEventsSinceSnapshot()` to the real `SqliteBackend`. Engine writes events transactionally **before** broadcasting them.
 
-3. **Snapshot chain.** Implement `saveSnapshot()`, `getLatestSnapshot()`, `pruneOldSnapshots()` in SQLite. Implement the "every N events → create snapshot" trigger.
+3. **Snapshot chain.** Implement `saveSnapshot()`, `getLatestSnapshot()`, `pruneOldSnapshots()` in SQLite. Engine triggers snapshots every N events.
 
-4. **State recovery.** `loadCampaignState(campaignId)` → load latest snapshot → replay events since → return hydrated `CampaignState`. Test with InMemoryBackend: create snapshot, append 50 events, recover, verify state matches.
+4. **State recovery.** Engine `open(campaignId)` → load latest snapshot → replay events → ready for dispatch. Test with InMemoryBackend.
 
-5. **WebSocket initial sync.** On WS connection (with dev auth bypass), call `getInitialSync(seatId)` → serialize full `CampaignState` → send `sync.initial` message. Client receives it in `ws.ts` `handleSyncInitial` → calls `campaignState.setInitialState()`.
+5. **WebSocket `view.request` handler.** On WS connect or on client-side gap detection, server replies `{ type: 'view', view: engine.getView(seatId) }`.
 
-6. **Client `applyDelta()`.** Implement the currently-stub `applyDelta()` in `campaign.svelte.ts`. Receive `sync.delta` (JSON Patch with version number) → apply to local state. Handle version mismatch (request full sync if gap detected).
+6. **WebSocket event broadcasting.** Engine `subscribe(seatId, listener)` per connected seat; listener forwards as `{ type: 'event', event }`. Audience filtering happens before the listener fires.
 
-7. **Token move flow (hardcoded, no engine yet).** WS receives `token.move` from client → directly generates a `Patch` for `token.position` → appends event → applies to server state → broadcasts `sync.delta` to all connected clients. This is a built-in action that doesn't need RulesetRuntime.
+7. **Token-move dispatch path.** WS receives `{ type: 'dispatch', input }` from client → `engine.dispatch(input)` → engine validates, persists, emits `token.moved` + (if visibility changes) `fog.revealed` events. Rejected moves emit `token.move.rejected` to the originating seat only.
 
-8. **Token move preview.** Implement `token.move.preview` broadcast (throttled, no persistence) so other clients see ghost position during drag.
+8. **Optimistic move preview.** Either (a) drop the throttled preview channel for now in favor of round-trip dispatches, or (b) add a non-persisted `token.move.preview` event channel that bypasses storage but goes through `engine.dispatch` with a preview flag. Phase 3 picks (a); (b) is a Phase 10 polish task.
 
 #### Verification — M1
 
-> **Open two browser tabs. Both connect via WS, receive `sync.initial`, see the same map. Drag a token in tab A → tab B sees it move in real-time (preview ghost during drag, final position on drop). Server state persists — refresh a tab and token is in the new position.**
+> **Open two browser tabs. Both connect via WS, receive `SeatView`s, see the same map. Drag a token in tab A → tab B sees `token.moved` event in real-time. Server persists — refresh a tab, the token is in the new position.**
 
-**Test coverage:** CampaignState unit tests, snapshot/replay integration tests (InMemoryBackend), WS message serialization tests.
+**Test coverage:** Engine boundary integration tests (InMemoryBackend), snapshot/replay tests, WS message serialization tests.
 
 ---
 
@@ -329,40 +365,32 @@ Full GM workflow: create campaign → upload map → place tokens → invite pla
 
 ---
 
-### Phase 7 — DSL & RulesetRuntime
+### Phase 7 — Ruleset Runtime (deferred design)
 
-> **Estimated effort:** ~4–6 weeks  
-> **Track:** C (Game Logic — biggest piece)  
-> **Dependencies:** Phase 0 (for types/testing); Phase 4 (for integration)
+> **Estimated effort:** TBD; significant.  
+> **Track:** C (Game Logic)  
+> **Dependencies:** Phase 4 (engine present); explicit design pass before implementation.  
+> **Authority:** [ADR 011](decisions/011-engine-facade-and-dsl-reversal.md)
 
-This is where game mechanics become real. Parsing/evaluator work can begin as early as Phase 4, but integration with the engine happens here.
+The previous plan in this slot was "DSL & RulesetRuntime" — a custom JSON DSL with an EBNF expression language and a pure resolver compiler. **That plan has been reversed.** The DSL is gone. The replacement work splits into a design pass and an implementation pass, both deferred.
 
-#### Tasks
+#### Design pass (prerequisite)
 
-1. **Expression lexer/parser.** Implement the expression language from [`domain-specific-language.md`](components/domain-specific-language.md). Tokenizer → AST → evaluator. All pure functions. Target: 100+ unit tests covering every operator, function, and path reference pattern.
+1. **Choose the ruleset runtime form.** Options under consideration: direct TypeScript modules (first-party only); sandboxed QuickJS for untrusted distribution; Lua. The constraint that rules it: pause-and-resume across user input must be modeled as durable workflow state, **not** host-language coroutines or promises.
+2. **Design the Engine ↔ Ruleset interior contract.** How rulesets register action types, capabilities, schemas, and UI panels with the engine; how the engine invokes resolver code; how rulesets read campaign state without violating the boundary.
+3. **Design effects and modifier stacking.** Deferred until at least one ruleset is being built so the design has a concrete user.
+4. **Untangle Engine / Ruleset / Campaign / Tome.** This relationship is currently underspecified; the design pass produces an ADR or replacement for parts of ADR 004.
 
-2. **Dice roller.** Implement dice formula parser (`2d6+4`, `1d20kh2`, `4d6dl1`, `!`, `r<2`). `RngProvider` interface for deterministic testing. Returns `RollResult`.
+#### Implementation pass (after design)
 
-3. **DSL Operation Executor.** Implement each operation as a pure function `(op, ctx) → ctx'`:
-   - Core: `calc`, `roll`, `emit`, `patch`, `prompt`
-   - Control flow: `if`, `foreach`, `call`
-   - Targeting: `selectTargets`, `selectAoE`, `queryTargets`
-   - Effects: `applyEffect`, `removeEffect`, `queryEffects`
-   - Encounter: `encounter.create`, `encounter.collectInitiative`, `encounter.advanceTurn`
-   - Workflow: `awaitResponses`, `cancelPrompt`
-
-4. **Resolver compilation.** Load resolver JSON programs from `.ruleset` file → validate statically (variable refs, path validity, function whitelist) → compile to internal representation.
-
-5. **SchemaRegistry + TomeIndex.** Load entity schemas from ruleset. Index Tome entries for lookup. Wire to `RulesetRuntime.getEntityRef()`.
-
-6. **RulesetRuntime integration.** Wire expression evaluator + operation executor + schema registry + tome index into the `RulesetRuntime` class. Test end-to-end: fabricated state + action → expected Resolution.
-
-7. **Replace MockRulesetRuntime.** Swap the mock for the real `RulesetRuntime` in `GameEngine`. Existing engine tests still pass (they mock the runtime interface). New integration tests use a real minimal ruleset.
+1. Implement the chosen runtime form.
+2. Implement the in-engine bridge between the runtime and `CampaignState`.
+3. Implement workflow state machine persistence (already an engine-internal concern; ruleset code drives it).
+4. Replace the placeholder engine's empty ruleset slot with a real ruleset loader.
 
 #### Verification
 
-- Unit test suite: expressions (100+), dice (50+), operations (50+ per op), full resolver programs (20+).
-- Integration tests: load example ruleset → resolve actions → verify output events/patches.
+Deferred. Becomes meaningful when a real ruleset can be loaded and exercised.
 
 ---
 
@@ -529,7 +557,7 @@ These are locked architectural choices for this roadmap. Changes require an ADR.
 | Decision                                               | Rationale                                                                                                                                                                                                                                         |
 | ------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | **PixiJS over raw WebGL initially**                    | Faster time-to-productive-rendering. PixiJS uses WebGL under the hood (consistent with [ADR 001](decisions/001-webgl-rendering.md)). The `Renderer` interface means PixiJS can be swapped for a custom engine later without client-side breakage. |
-| **MockRulesetRuntime before real DSL**                 | Proves the entire action→event→sync pipeline works (M1, M2) before investing 4–6 weeks in DSL implementation. The `RulesetRuntime` interface is the isolation boundary.                                                                           |
+| **MockRulesetRuntime before real ruleset code**        | Proves the entire action→event→sync pipeline works (M1, M2) before any ruleset runtime is chosen. Per [ADR 011](decisions/011-engine-facade-and-dsl-reversal.md), the engine is a facade; the runtime form is deferred.                           |
 | **Dev auth bypass before real auth**                   | Unblocks all game mechanics and rendering development. Real auth is orthogonal and built in parallel (Phase 5).                                                                                                                                   |
 | **Shared folder over npm workspace package initially** | Avoids monorepo tooling complexity while types are still evolving rapidly. Promoted to `packages/shared` in Phase 12 when types stabilize.                                                                                                        |
 | **Built-in actions bypass the runtime**                | `token.move` and `chat.send` are engine-level primitives that can work without any ruleset. Ensures M1 and M2 are achievable before DSL work begins. Move validation will later be integrated in the game engine.                                 |

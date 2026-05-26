@@ -20,6 +20,8 @@ vi.mock('../../render', () => ({
     setScene: vi.fn(),
     updateTokens: vi.fn(),
     setViewport: vi.fn(),
+    setSelection: vi.fn(),
+    setHover: vi.fn(),
     setTokenDragPreview: vi.fn(),
     clearTokenDragPreview: vi.fn(),
     hitTestToken: vi.fn().mockReturnValue(null),
