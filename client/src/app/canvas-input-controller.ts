@@ -25,6 +25,8 @@
  * - **Shift + left-click on token** → `addToSelection` intent (wired in D2).
  * - **Left-click on empty canvas** → `marqueeSelect` intent (wired in D5).
  * - **Right-click** → `contextMenu` intent; native browser menu always suppressed.
+ * - **Pointer idle move** → `hover` intent (wired in D3); `selectionState.hoveredTokenId`
+ *   tracks the topmost token under the pointer, or null for empty canvas.
  * - **Escape key** → `deselectAll` intent (wired in D8).
  *
  * Out of scope (deferred to later phases):
@@ -231,6 +233,7 @@ export class CanvasInputController {
 
     switch (intent) {
       case 'pan':
+        selectionState.setHover(null);
         this._mode = 'panning';
         this._panPointerId = e.pointerId;
         this._panLastX = e.clientX;
@@ -240,6 +243,7 @@ export class CanvasInputController {
 
       case 'beginTokenDrag':
         if (tokenId && this._canDragToken(tokenId)) {
+          selectionState.setHover(null);
           this._mode = 'tokenDragging';
           this._dragPointerId = e.pointerId;
           this._dragTokenId = tokenId;
@@ -266,6 +270,12 @@ export class CanvasInputController {
   }
 
   private _handlePointerMove(e: PointerEvent): void {
+    if (this._mode === 'idle') {
+      const hovered = this._renderer.hitTestToken(e.clientX, e.clientY);
+      selectionState.setHover(hovered);
+      return;
+    }
+
     if (this._mode === 'panning' && e.pointerId === this._panPointerId) {
       const dx = e.clientX - this._panLastX;
       const dy = e.clientY - this._panLastY;
@@ -319,6 +329,7 @@ export class CanvasInputController {
     if (this._mode === 'panning' && e.pointerId === this._panPointerId) {
       this._mode = 'idle';
       this._panPointerId = -1;
+      selectionState.setHover(null);
       return;
     }
     if (this._mode === 'tokenDragging' && e.pointerId === this._dragPointerId) {
@@ -329,6 +340,7 @@ export class CanvasInputController {
       this._dragPointerId = -1;
       this._dragTokenId = '';
       this._dragStarted = false;
+      selectionState.setHover(null);
     }
   }
 
