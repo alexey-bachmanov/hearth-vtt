@@ -35,10 +35,12 @@ export class MarqueeLayer {
   setRect(rect: { x: number; y: number; w: number; h: number } | null): void {
     this._gfx.clear();
     if (!rect || rect.w === 0 || rect.h === 0) return;
-    this._gfx
-      .rect(rect.x, rect.y, rect.w, rect.h)
-      .fill({ color: ACCENT, alpha: 0.15 })
-      .stroke({ color: ACCENT, alpha: 0.8, width: 1 });
+    // In PixiJS v8, fill() consumes the current path. setStrokeStyle must be
+    // set before drawing the shape, and stroke() called after fill().
+    this._gfx.setStrokeStyle({ color: ACCENT, alpha: 0.8, width: 1 });
+    this._gfx.rect(rect.x, rect.y, rect.w, rect.h);
+    this._gfx.fill({ color: ACCENT, alpha: 0.15 });
+    this._gfx.stroke();
   }
 
   destroy(): void {

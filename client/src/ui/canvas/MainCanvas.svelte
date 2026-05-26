@@ -8,9 +8,11 @@
  *
  * Rendering state flow:
  *   campaignState / viewportState ($effect) → renderer.setScene / updateTokens / setViewport
+ *   selectionState ($effect) → renderer.setSelection / setHover
  *
  * Input state flow:
- *   canvas pointer/wheel events → CanvasInputController → viewportState / campaignState
+ *   canvas pointer/wheel events → CanvasInputController → viewportState / campaignState / selectionState
+ *   canvas keydown (Escape) → selectionState.clear
  */
 
 import { onMount } from 'svelte';
@@ -20,8 +22,10 @@ import { campaignState } from '../../state/campaign.svelte';
 import { viewportState } from '../../state/viewport.svelte';
 import { uiState } from '../../state/ui.svelte';
 import { seatPermissions } from '../../state/seatPermissions.svelte';
+import { selectionState } from '../../state/selection.svelte';
 
 let canvasElement: HTMLCanvasElement;
+let containerElement: HTMLDivElement;
 let renderer: Renderer | null = $state(null);
 
 onMount(() => {
@@ -39,6 +43,9 @@ onMount(() => {
       canDragToken: (tokenId) => seatPermissions.canDragToken(tokenId),
     });
     detach = ctl.attach(canvasElement);
+
+    // Focus the container so keyboard shortcuts work immediately after load.
+    containerElement.focus();
   })();
 
   return () => {
@@ -47,6 +54,12 @@ onMount(() => {
     renderer = null;
   };
 });
+
+function handleKeyDown(e: KeyboardEvent): void {
+  if (e.key === 'Escape') {
+    selectionState.clear();
+  }
+}
 
 // ---- Reactive bridges (state → renderer) ------------------------------------
 // Each $effect re-runs whenever its reactive dependencies change.
@@ -66,9 +79,24 @@ $effect(() => {
     panOffset: viewportState.panOffset,
   });
 });
+
+$effect(() => {
+  renderer?.setSelection([...selectionState.selectedTokenIds]);
+});
+
+$effect(() => {
+  renderer?.setHover(selectionState.hoveredTokenId);
+});
 </script>
 
-<div class="main-canvas-container">
+<div
+  class="main-canvas-container"
+  tabindex="0"
+  role="region"
+  aria-label="Game canvas"
+  bind:this={containerElement}
+  onkeydown={handleKeyDown}
+>
   <canvas bind:this={canvasElement} class="main-canvas"></canvas>
 </div>
 

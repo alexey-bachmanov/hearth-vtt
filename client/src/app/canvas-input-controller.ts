@@ -231,7 +231,7 @@ export class CanvasInputController {
 
     // Only hit-test on left-click; other buttons don't target tokens.
     const tokenId =
-      e.button === 0 ? this._renderer.hitTestToken(e.clientX, e.clientY) : null;
+      e.button === 0 ? this._renderer.hitTestToken(e.offsetX, e.offsetY) : null;
 
     const intent = resolvePointerDownIntent({
       button: e.button,
@@ -244,8 +244,8 @@ export class CanvasInputController {
         selectionState.setHover(null);
         this._mode = 'panning';
         this._panPointerId = e.pointerId;
-        this._panLastX = e.clientX;
-        this._panLastY = e.clientY;
+        this._panLastX = e.offsetX;
+        this._panLastY = e.offsetY;
         (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
         break;
 
@@ -255,8 +255,8 @@ export class CanvasInputController {
           this._mode = 'tokenDragging';
           this._dragPointerId = e.pointerId;
           this._dragTokenId = tokenId;
-          this._dragStartX = e.clientX;
-          this._dragStartY = e.clientY;
+          this._dragStartX = e.offsetX;
+          this._dragStartY = e.offsetY;
           this._dragStarted = false;
           (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
         }
@@ -271,8 +271,8 @@ export class CanvasInputController {
       case 'marqueeSelect':
         this._mode = 'marqueeSelecting';
         this._marqueePointerId = e.pointerId;
-        this._marqueeStartX = e.clientX;
-        this._marqueeStartY = e.clientY;
+        this._marqueeStartX = e.offsetX;
+        this._marqueeStartY = e.offsetY;
         (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
         break;
 
@@ -283,23 +283,23 @@ export class CanvasInputController {
 
   private _handlePointerMove(e: PointerEvent): void {
     if (this._mode === 'idle') {
-      const hovered = this._renderer.hitTestToken(e.clientX, e.clientY);
+      const hovered = this._renderer.hitTestToken(e.offsetX, e.offsetY);
       selectionState.setHover(hovered);
       return;
     }
 
     if (this._mode === 'panning' && e.pointerId === this._panPointerId) {
-      const dx = e.clientX - this._panLastX;
-      const dy = e.clientY - this._panLastY;
-      this._panLastX = e.clientX;
-      this._panLastY = e.clientY;
+      const dx = e.offsetX - this._panLastX;
+      const dy = e.offsetY - this._panLastY;
+      this._panLastX = e.offsetX;
+      this._panLastY = e.offsetY;
       this._viewport.panBy(dx, dy);
       return;
     }
 
     if (this._mode === 'tokenDragging' && e.pointerId === this._dragPointerId) {
-      const dx = e.clientX - this._dragStartX;
-      const dy = e.clientY - this._dragStartY;
+      const dx = e.offsetX - this._dragStartX;
+      const dy = e.offsetY - this._dragStartY;
 
       // Cross the drag threshold before showing preview
       if (!this._dragStarted) {
@@ -307,8 +307,19 @@ export class CanvasInputController {
         this._dragStarted = true;
       }
 
-      const worldPos = this._screenToWorld(e.clientX, e.clientY);
+      const worldPos = this._screenToWorld(e.offsetX, e.offsetY);
       this._renderer.setTokenDragPreview(this._dragTokenId, worldPos);
+    }
+
+    if (
+      this._mode === 'marqueeSelecting' &&
+      e.pointerId === this._marqueePointerId
+    ) {
+      const x = Math.min(this._marqueeStartX, e.offsetX);
+      const y = Math.min(this._marqueeStartY, e.offsetY);
+      const w = Math.abs(e.offsetX - this._marqueeStartX);
+      const h = Math.abs(e.offsetY - this._marqueeStartY);
+      this._renderer.setMarqueeRect({ x, y, w, h });
     }
   }
 
@@ -320,7 +331,7 @@ export class CanvasInputController {
       // Convert screen rect to world space and find all tokens whose position
       // falls within it. Replaces the current selection.
       const p1 = this._screenToWorld(this._marqueeStartX, this._marqueeStartY);
-      const p2 = this._screenToWorld(e.clientX, e.clientY);
+      const p2 = this._screenToWorld(e.offsetX, e.offsetY);
       const minX = Math.min(p1.x, p2.x);
       const maxX = Math.max(p1.x, p2.x);
       const minY = Math.min(p1.y, p2.y);
@@ -354,7 +365,7 @@ export class CanvasInputController {
       if (this._dragStarted) {
         // Commit new position to local state.
         // TODO (Phase 3): replace with server action dispatch.
-        let worldPos = this._screenToWorld(e.clientX, e.clientY);
+        let worldPos = this._screenToWorld(e.offsetX, e.offsetY);
         if (this._viewport.snapToGrid) {
           worldPos = this._snapToGrid(worldPos);
         }
@@ -402,7 +413,7 @@ export class CanvasInputController {
   private _handleContextMenu(e: MouseEvent): void {
     // Always prevent the browser's native context menu on the canvas.
     e.preventDefault();
-    const tokenId = this._renderer.hitTestToken(e.clientX, e.clientY);
+    const tokenId = this._renderer.hitTestToken(e.offsetX, e.offsetY);
     const target: ContextMenuTarget = tokenId
       ? { kind: 'token', tokenId, screenX: e.clientX, screenY: e.clientY }
       : { kind: 'canvas', screenX: e.clientX, screenY: e.clientY };
@@ -426,12 +437,12 @@ export class CanvasInputController {
     );
 
     // Cursor world-space position (must stay fixed after zoom).
-    const worldX = (e.clientX - panOffset.x) / oldZoom;
-    const worldY = (e.clientY - panOffset.y) / oldZoom;
+    const worldX = (e.offsetX - panOffset.x) / oldZoom;
+    const worldY = (e.offsetY - panOffset.y) / oldZoom;
 
     // New pan that keeps the world point under the cursor.
-    const newPanX = e.clientX - worldX * newZoom;
-    const newPanY = e.clientY - worldY * newZoom;
+    const newPanX = e.offsetX - worldX * newZoom;
+    const newPanY = e.offsetY - worldY * newZoom;
 
     this._viewport.setZoom(newZoom);
     this._viewport.setPan(newPanX, newPanY);
