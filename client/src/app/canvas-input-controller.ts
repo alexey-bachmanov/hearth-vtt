@@ -36,6 +36,7 @@ import type { Renderer } from '../render';
 import type { CampaignState } from '../state/campaign.svelte';
 import type { ViewportState } from '../state/viewport.svelte';
 import type { ContextMenuTarget } from '../state/ui.svelte';
+import { selectionState } from '../state/selection.svelte';
 
 // Pixels of pointer movement required before a left-click becomes a drag.
 const DRAG_THRESHOLD = 4;
@@ -250,7 +251,9 @@ export class CanvasInputController {
         break;
 
       case 'addToSelection':
-        // Wired in D2 (selection store).
+        if (tokenId) {
+          selectionState.addToSelection(tokenId);
+        }
         break;
 
       case 'marqueeSelect':
