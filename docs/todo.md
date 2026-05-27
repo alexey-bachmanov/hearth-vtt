@@ -41,7 +41,7 @@ Each step is intended to leave the build green and tests passing. Step 11 is the
 
 #### Server engine (`server/src/domain/engine/`)
 
-- [ ] **5. Define `GameEngine` facade interface.** `dispatch`, `getView`, `subscribe`, `close`. Re-export shared types. Engine-internal `CampaignState` shape is module-local and never exported.
+- [x] **5. Define `GameEngine` facade interface.** `dispatch`, `getView`, `subscribe`, `close`. Re-export shared types. Engine-internal `CampaignState` shape is module-local and never exported.
 - [ ] **6. Implement `PlaceholderEngine`.** Implements `token.move`, `chat.send`, `dice.roll` only. Takes `Storage` from day one (InMemory in tests). Assigns per-campaign `seq`. Derives `actionId = hash(campaignId, seq, actionType, canonicalJSON(payload))`. Seeds RNG from `actionId`. Emits real events to in-audience seats and redacted placeholders to out-of-audience seats so per-campaign seq stays gapless per-seat.
 
 #### Server transport (`server/src/routes/ws.ts`)
