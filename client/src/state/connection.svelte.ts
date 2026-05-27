@@ -26,6 +26,7 @@ class ConnectionState {
   protocolVersion = $state<string | null>(null);
   seatId = $state<string | null>(null);
   seatRole = $state<SeatRole | null>(null);
+  campaignId = $state<string | null>(null);
   reconnectAttempts = $state<number>(0);
 
   /**
@@ -50,6 +51,7 @@ class ConnectionState {
     this.serverVersion = data.version || null;
     this.seatId = data.seatId || null;
     this.seatRole = data.seatRole ?? null;
+    this.campaignId = data.campaignId || null;
     this.status = 'connected';
     console.log('[ConnectionState] Welcome received', data);
   }
@@ -78,6 +80,7 @@ class ConnectionState {
     this.protocolVersion = null;
     this.seatId = null;
     this.seatRole = null;
+    this.campaignId = null;
     this.reconnectAttempts = 0;
   }
 }

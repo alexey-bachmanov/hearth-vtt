@@ -7,7 +7,14 @@
  */
 
 import { SvelteMap } from 'svelte/reactivity';
-import type { Actor, Token, Scene, Position } from '@hearth-vtt/shared';
+import type {
+  Actor,
+  Token,
+  Scene,
+  Position,
+  SeatView,
+  GameEvent as SharedGameEvent,
+} from '@hearth-vtt/shared';
 import { viewportState } from './viewport.svelte';
 import { notificationState } from './notifications.svelte';
 
@@ -70,6 +77,12 @@ export class CampaignState {
   events = $state<GameEvent[]>([]); // Recent events for chat log
 
   maxEvents = $state<number>(200); // Configurable
+
+  /**
+   * Token IDs that have been moved optimistically and their original positions.
+   * Used to snap back if the server rejects the move action.
+   */
+  pendingMoveOriginals = new Map<string, Position>();
 
   // ============================================================================
   // Accessor Methods
@@ -143,15 +156,34 @@ export class CampaignState {
   // ============================================================================
 
   /**
-   * Update a token's position locally (client-optimistic).
+   * Move a token optimistically on the client before the server confirms.
    *
-   * TODO (Phase 3): Replace direct mutation with a server action dispatch.
-   * The server will confirm the new position and broadcast a delta to all clients.
+   * Saves the original position so that `revertOptimisticMoves()` can
+   * snap back if the server rejects the action.
    */
-  moveToken(tokenId: string, position: Position) {
+  moveTokenOptimistic(tokenId: string, position: Position) {
     const token = this.tokens.get(tokenId);
     if (!token) return;
+    // Only record the original position on the first pending move for a token.
+    if (!this.pendingMoveOriginals.has(tokenId)) {
+      this.pendingMoveOriginals.set(tokenId, token.position);
+    }
     this.tokens.set(tokenId, { ...token, position });
+  }
+
+  /**
+   * Revert all pending optimistic token moves.
+   *
+   * Called when the server returns an ACTION_REJECTED or DISPATCH_ERROR.
+   */
+  revertOptimisticMoves() {
+    for (const [tokenId, originalPosition] of this.pendingMoveOriginals) {
+      const token = this.tokens.get(tokenId);
+      if (token) {
+        this.tokens.set(tokenId, { ...token, position: originalPosition });
+      }
+    }
+    this.pendingMoveOriginals.clear();
   }
 
   // ============================================================================
@@ -187,9 +219,96 @@ export class CampaignState {
   // ============================================================================
 
   /**
+   * Apply a full SeatView snapshot received from the server.
+   *
+   * Called on initial connect, reconnect after a seq gap, or explicit
+   * `view.request`. Replaces all local state from the audience-filtered view.
+   */
+  applyView(view: SeatView) {
+    this.campaignId = view.campaignId;
+    this.pendingMoveOriginals.clear();
+
+    // Scene
+    this.scenes.clear();
+    if (view.scene) {
+      this.scenes.set(view.scene.id, view.scene);
+      this.activeSceneId = view.scene.id;
+    } else {
+      this.activeSceneId = null;
+    }
+
+    // Tokens visible to this seat
+    this.tokens.clear();
+    view.tokens.forEach((t) => this.tokens.set(t.id, t));
+
+    // Actors this seat can access
+    this.actors.clear();
+    view.actors.forEach((a) => this.actors.set(a.id, a));
+
+    // Rebuild event log from recent events in the view
+    this.events = view.recentEvents
+      .slice(-this.maxEvents)
+      .map((e) => this.#toUIEvent(e));
+
+    console.log(
+      '[CampaignState] View applied',
+      view.campaignId,
+      'seq',
+      view.lastSeq,
+    );
+  }
+
+  /**
+   * Apply an authoritative full GameEvent received from the server.
+   *
+   * Redacted events are handled by the WS client (seq advance only); this
+   * method receives only full events.
+   */
+  applyEvent(event: SharedGameEvent) {
+    switch (event.type) {
+      case 'token.moved': {
+        const d = event.data as { tokenId: string; to: Position };
+        const token = this.tokens.get(d.tokenId);
+        if (token) {
+          this.tokens.set(d.tokenId, { ...token, position: d.to });
+        }
+        // Clear pending optimistic move for this token; server position is now authoritative.
+        this.pendingMoveOriginals.delete(d.tokenId);
+        break;
+      }
+
+      case 'chat.sent': {
+        this.appendEvent(this.#toUIEvent(event));
+        break;
+      }
+
+      case 'dice.rolled': {
+        this.appendEvent(this.#toUIEvent(event));
+        break;
+      }
+
+      case 'fog.revealed': {
+        // Only authoritative fog events update the exploration mask.
+        const d = event.data as { polygon: unknown };
+        viewportState.visibilityMask = d.polygon;
+        break;
+      }
+
+      default:
+        // Unknown event types are logged but do not cause errors.
+        console.log(
+          '[CampaignState] Unhandled event type:',
+          event.type,
+          event.id,
+        );
+    }
+  }
+
+  /**
    * Set the entire campaign state (e.g., on initial sync).
    *
-   * TODO: Wire to real server sync messages.
+   * @deprecated Use `applyView` instead. Kept for backward compatibility
+   *   with mock-data population. Will be removed in the cleanup step.
    */
   setInitialState(data: {
     campaignId: string;
@@ -227,7 +346,8 @@ export class CampaignState {
   /**
    * Apply a delta patch from the server.
    *
-   * TODO: Implement delta application logic (JSON Patch or similar).
+   * @deprecated Superseded by `applyEvent`. Kept until old protocol types are
+   *   removed in the cleanup step.
    */
   applyDelta(delta: unknown) {
     console.log('[CampaignState] Delta applied (stub)', delta);
@@ -245,6 +365,51 @@ export class CampaignState {
     this.scenes.clear();
     this.effects.clear();
     this.events = [];
+    this.pendingMoveOriginals.clear();
+  }
+
+  // ============================================================================
+  // Private Helpers
+  // ============================================================================
+
+  /**
+   * Transform a shared `GameEvent` from the server protocol into the
+   * client-side UI event format used by the chat log and notification area.
+   */
+  #toUIEvent(e: SharedGameEvent): GameEvent {
+    const base = { id: e.id, timestamp: Date.parse(e.time) };
+
+    switch (e.type) {
+      case 'chat.sent': {
+        const d = e.data as { text: string; displayName: string };
+        return {
+          ...base,
+          type: 'chat.message',
+          message: d.text,
+          actorName: d.displayName,
+        };
+      }
+      case 'dice.rolled': {
+        const d = e.data as {
+          count: number;
+          sides: number;
+          rolls: number[];
+          total: number;
+          formula: string;
+          displayName: string;
+        };
+        return {
+          ...base,
+          type: 'roll.result',
+          actorName: d.displayName,
+          formula: d.formula,
+          total: d.total,
+          dice: d.rolls.map((r) => ({ sides: d.sides, result: r })),
+        };
+      }
+      default:
+        return { ...base, type: 'system', message: `[${e.type}]` };
+    }
   }
 
   // ============================================================================

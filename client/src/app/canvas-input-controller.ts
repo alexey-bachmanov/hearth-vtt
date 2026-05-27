@@ -369,7 +369,7 @@ export class CanvasInputController {
         if (this._viewport.snapToGrid) {
           worldPos = this._snapToGrid(worldPos);
         }
-        this._campaign.moveToken(this._dragTokenId, worldPos);
+        this._campaign.moveTokenOptimistic(this._dragTokenId, worldPos);
         this._renderer.clearTokenDragPreview(this._dragTokenId);
       } else {
         // Released before drag threshold — resolve as a click → single-select.

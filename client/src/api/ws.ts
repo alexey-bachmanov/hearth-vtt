@@ -17,10 +17,16 @@
  */
 
 import { connectionState } from '../state/connection.svelte';
+import { campaignState } from '../state/campaign.svelte';
+import { notificationState } from '../state/notifications.svelte';
 import {
   serverMessageSchema,
   type ServerMessage,
   type ClientMessage,
+  type ViewMessage,
+  type WireEvent,
+  type EngineInput,
+  type GameEvent as SharedGameEvent,
 } from '@hearth-vtt/shared';
 
 /**
@@ -37,6 +43,8 @@ export class WebSocketClient {
   private pingIntervalMs = 30000; // Ping every 30 seconds
   private url: string;
   private shouldReconnect = true;
+  /** Campaign ID appended as `?campaign=<id>` on each connect. */
+  private campaignId: string | null = null;
 
   constructor(url = '/ws') {
     // Convert relative URL to absolute wss:// or ws://
@@ -53,8 +61,15 @@ export class WebSocketClient {
    * Connect to the WebSocket server.
    *
    * Initiates connection, sets up event handlers, and starts keepalive.
+   *
+   * @param campaignId - Campaign to join. Appended as `?campaign=<id>`.
+   *   Persisted so reconnects re-join the same campaign automatically.
    */
-  connect(): void {
+  connect(campaignId?: string): void {
+    if (campaignId) {
+      this.campaignId = campaignId;
+    }
+
     if (
       this.ws?.readyState === WebSocket.OPEN ||
       this.ws?.readyState === WebSocket.CONNECTING
@@ -63,11 +78,15 @@ export class WebSocketClient {
       return;
     }
 
-    console.log('[WebSocketClient] Connecting to', this.url);
+    const connectUrl = this.campaignId
+      ? `${this.url}?campaign=${encodeURIComponent(this.campaignId)}`
+      : this.url;
+
+    console.log('[WebSocketClient] Connecting to', connectUrl);
     connectionState.setStatus('connecting');
 
     try {
-      this.ws = new WebSocket(this.url);
+      this.ws = new WebSocket(connectUrl);
 
       this.ws.addEventListener('open', this.handleOpen.bind(this));
       this.ws.addEventListener('message', this.handleMessage.bind(this));
@@ -117,6 +136,31 @@ export class WebSocketClient {
   }
 
   /**
+   * Dispatch an engine action to the server.
+   *
+   * The server overrides `seatId` and `campaignId` from the authenticated
+   * session, so the values from connection state are sent as hints only.
+   *
+   * @param actionType - Ruleset-defined action type token (e.g. `'token.move'`)
+   * @param payload    - Action-specific payload (validated by the ruleset)
+   * @returns The `clientRequestId` sent with the action (for correlation)
+   */
+  dispatch(actionType: EngineInput['actionType'], payload: unknown): string {
+    const clientRequestId = `req-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 7)}`;
+    this.send({
+      type: 'dispatch',
+      input: {
+        seatId: connectionState.seatId ?? '',
+        campaignId: connectionState.campaignId ?? '',
+        actionType,
+        payload,
+        clientRequestId,
+      },
+    });
+    return clientRequestId;
+  }
+
+  /**
    * Handle WebSocket open event.
    */
   private handleOpen(): void {
@@ -161,16 +205,26 @@ export class WebSocketClient {
         this.handleWelcome(message);
         break;
 
+      // ── New engine boundary protocol ─────────────────────────────────────
+      case 'view':
+        this.handleView(message as ViewMessage);
+        break;
+
+      case 'event':
+        this.handleEvent(message.event);
+        break;
+
+      // ── Deprecated message types (pre-Phase-2.5 protocol) ───────────────
       case 'sync.initial':
-        this.handleSyncInitial(message.payload);
+        console.warn('[WebSocketClient] Received deprecated sync.initial');
         break;
 
       case 'sync.delta':
-        this.handleSyncDelta(message.payload);
+        console.warn('[WebSocketClient] Received deprecated sync.delta');
         break;
 
       case 'event.new':
-        this.handleEventNew(message.payload);
+        console.warn('[WebSocketClient] Received deprecated event.new');
         break;
 
       case 'prompt.create':
@@ -222,35 +276,45 @@ export class WebSocketClient {
   }
 
   /**
-   * Handle initial sync message.
+   * Handle a full SeatView snapshot from the server.
+   *
+   * Received on initial connect, after a seq gap resync, or on explicit
+   * `view.request`. Applies the snapshot to campaign state and updates
+   * `lastSeq`.
    */
-  private handleSyncInitial(payload: unknown): void {
-    console.log('[WebSocketClient] Initial sync - stub', payload);
-    // TODO: Parse payload and update stores
-    // campaignState.setInitialState(payload.campaignState);
-    // eventLogState.appendEvents(payload.recentEvents);
+  private handleView(message: ViewMessage): void {
+    campaignState.applyView(message.view);
+    connectionState.updateLastEventSeq(message.view.lastSeq);
   }
 
   /**
-   * Handle sync delta message.
+   * Handle a WireEvent from the server.
+   *
+   * Advances `lastSeq`, detects gaps (requesting a resync), and applies
+   * full events to campaign state. Redacted events advance the counter only.
    */
-  private handleSyncDelta(payload: unknown): void {
-    console.log('[WebSocketClient] Sync delta - stub', payload);
-    // TODO: Apply delta patch to campaign state
-    // campaignState.applyDelta(payload.patch);
-  }
+  private handleEvent(wireEvent: WireEvent): void {
+    const seq = wireEvent.kind === 'full' ? wireEvent.event.seq : wireEvent.seq;
 
-  /**
-   * Handle new event message.
-   */
-  private handleEventNew(payload: unknown): void {
-    console.log('[WebSocketClient] Event new - stub', payload);
-    // TODO: Add event to log
-    // eventLogState.appendEvent(payload.record);
-    // Update lastEventSeq
-    // if (payload.record.seq) {
-    //   connectionState.updateLastEventSeq(payload.record.seq);
-    // }
+    // Detect a gap in the sequence; a missing event means we may be out of
+    // sync. Request a full view resync and discard this event.
+    const expected = connectionState.lastEventSeq + 1;
+    if (connectionState.lastEventSeq > 0 && seq > expected) {
+      console.warn(
+        `[WebSocketClient] Seq gap: expected ${expected}, got ${seq}. Requesting view resync.`,
+      );
+      this.send({ type: 'view.request' });
+      return;
+    }
+
+    connectionState.updateLastEventSeq(seq);
+
+    if (wireEvent.kind === 'full') {
+      // Safe assertion: the event is Zod-validated on receipt; `data` is
+      // present at runtime even though Zod infers it as optional (`z.unknown()`).
+      campaignState.applyEvent(wireEvent.event as SharedGameEvent);
+    }
+    // Redacted events: seq is advanced above; nothing else to do.
   }
 
   /**
@@ -298,7 +362,16 @@ export class WebSocketClient {
    */
   private handleServerError(payload: { code: string; message: string }): void {
     console.error('[WebSocketClient] Server error:', payload);
-    // TODO: Display error notification
+
+    if (
+      payload.code === 'ACTION_REJECTED' ||
+      payload.code === 'DISPATCH_ERROR'
+    ) {
+      // Snap back any pending optimistic token moves.
+      campaignState.revertOptimisticMoves();
+    }
+
+    notificationState.error(payload.message);
   }
 
   /**
