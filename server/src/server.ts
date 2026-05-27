@@ -214,7 +214,7 @@ export async function buildServer(
   await seatRoutes(server, { storage: options.storage });
   await inviteRoutes(server, { storage: options.storage });
   await sessionRoutes(server);
-  await wsRoutes(server);
+  await wsRoutes(server, { storage: options.storage });
 
   // Serve static files from client/dist (only in production)
   // In development, Vite serves the client on a separate port
