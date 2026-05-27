@@ -18,6 +18,16 @@ export const gameEventSchema = z.object({
   type: z.string(),
   /** ISO 8601 timestamp of when the event was created on the server. */
   time: z.string(),
+  /**
+   * Per-campaign monotonic sequence number. Assigned by the engine.
+   *
+   * The client tracks `lastSeq` to detect gaps in the event stream. A gap
+   * triggers a `view.request` resync. Seats that do not receive a particular
+   * event due to audience filtering still receive a `{ kind: 'redacted' }`
+   * placeholder carrying the `seq` so that per-campaign numbering stays
+   * gapless from every seat's perspective.
+   */
+  seq: z.number().int().nonnegative(),
   /** Visibility policy controlling which seats receive this event. */
   audience: audienceSchema,
   /** Ruleset-specific payload. Opaque at the protocol layer. */
@@ -39,6 +49,7 @@ export type GameEvent<TData = unknown> = {
   campaignId: string;
   type: string;
   time: string;
+  seq: number;
   audience: z.infer<typeof audienceSchema>;
   data: TData;
 };

@@ -24,6 +24,14 @@ export {
   type ServerMessage,
   clientMessageSchema,
   type ClientMessage,
+  // New event-stream types
+  redactedEventSchema,
+  type RedactedEvent,
+  fullEventEnvelopeSchema,
+  type FullEventEnvelope,
+  wireEventSchema,
+  type WireEvent,
+  type ViewMessage,
 } from './protocol/ws';
 
 export type {
@@ -84,3 +92,28 @@ export {
   sourceRefSchema,
   type SourceRef,
 } from './refs';
+
+// ── Engine boundary types (Phase 2.5) ────────────────────────────────────────
+
+export {
+  capabilitiesSchema,
+  type Capabilities,
+  type ActionType,
+  type SceneView,
+  type TokenView,
+  type ActorView,
+  type SeatView,
+  engineInputSchema,
+  type EngineInput,
+  type DispatchResult,
+} from './engine';
+
+// ── Shared visibility geometry (Phase 2.5) ───────────────────────────────────
+
+export {
+  computeVisibility,
+  type VisibilityPolygon,
+  type Wall,
+  type SceneBounds,
+  type VisionParams,
+} from './visibility/index';

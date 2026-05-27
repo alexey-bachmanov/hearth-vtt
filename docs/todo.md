@@ -34,10 +34,10 @@ Each step is intended to leave the build green and tests passing. Step 11 is the
 
 #### Shared types (`shared/`)
 
-- [ ] **1. Add new types additively.** `SeatView`, `EngineInput`, `DispatchResult`, `ActionType` (branded string), `Capabilities` (wire format above), `*View` projections. Add `seq: number` to `GameEvent`. Add optional `clientRequestId?: string` to dispatch envelopes. Add `redactedEventSchema` sibling to the full event schema.
-- [ ] **2. Add new WS message variants.** `{ type: 'view', view }`, `{ type: 'event', event }`, `{ type: 'view.request' }`, `{ type: 'dispatch', input }`. Keep the old variants (`sync.*`, `event.new`, `prompt.*`, `workflow.update`, `token.move.preview`) in the schema for now so both sides still build.
-- [ ] **3. Add notification type.** `{ id, origin: 'server' | 'client', lifetime: 'persistent' | 'ephemeral', /* presentation fields */ }`. Promote out of client-only state into `shared/` if appropriate.
-- [ ] **4. Add `shared/visibility/computeVisibility(tokenPos, params, walls, bounds) → polygon`.** Pure function. Property-tested over a small set of scene fixtures.
+- [x] **1. Add new types additively.** `SeatView`, `EngineInput`, `DispatchResult`, `ActionType` (branded string), `Capabilities` (wire format above), `*View` projections. Add `seq: number` to `GameEvent`. Add optional `clientRequestId?: string` to dispatch envelopes. Add `redactedEventSchema` sibling to the full event schema.
+- [x] **2. Add new WS message variants.** `{ type: 'view', view }`, `{ type: 'event', event }`, `{ type: 'view.request' }`, `{ type: 'dispatch', input }`. Keep the old variants (`sync.*`, `event.new`, `prompt.*`, `workflow.update`, `token.move.preview`) in the schema for now so both sides still build.
+- [x] **3. Add notification type.** `{ id, origin: 'server' | 'client', lifetime: 'persistent' | 'ephemeral', /* presentation fields */ }`. Promote out of client-only state into `shared/` if appropriate.
+- [x] **4. Add `shared/visibility/computeVisibility(tokenPos, params, walls, bounds) → polygon`.** Pure function. Property-tested over a small set of scene fixtures.
 
 #### Server engine (`server/src/domain/engine/`)
 
