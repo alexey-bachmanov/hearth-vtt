@@ -57,8 +57,8 @@ Each step is intended to leave the build green and tests passing. Step 11 is the
 #### Tests and cleanup
 
 - [x] **11. Boundary tests.** Against the public engine surface only: dispatch → events, `getView` shape per seat (including audience filtering), gap detection triggers `view.request`, redacted placeholders advance seq without resync, `clientRequestId` idempotency, deterministic dice via seeded RNG, optimistic-move accept/reject paths. **Before writing e2e (Playwright) tests against the WS endpoint:** remove the `NODE_ENV !== 'production'` dev-bypass in `server/src/routes/ws.ts` (or replace it with a dev-only session endpoint — see discussion in conversation history). The bypass hardcodes a single seat and blocks multi-seat and GM-vs-player scenarios. Integration tests for WS should create real `AuthSession` records in `InMemoryBackend` before connecting.
-- [ ] **12. Cleanup commit (deliberately-breaking).** Remove from `shared/`: `Patch`, `PatchOp`, `applyPatches`, `WorkflowState`, `Resolution`, `ResolverProgramRef`, `SyncBundle`, stub `CampaignState`, stub `Snapshot`. Remove old WS message variants (`sync.*`, `event.new`, `prompt.*`, `workflow.update`, `token.move.preview`). Confirm both packages still build and tests pass.
-- [ ] **13. Docs cleanup.** Verify ADR 004 is annotated as partially superseded. Update [shared-types.md](shared-types.md) and [realtime-ws.md](protocols/realtime-ws.md) to match the new shape.
+- [x] **12. Cleanup commit (deliberately-breaking).** Remove from `shared/`: `Patch`, `PatchOp`, `applyPatches`, `WorkflowState`, `Resolution`, `ResolverProgramRef`, `SyncBundle`, stub `CampaignState`, stub `Snapshot`. Remove old WS message variants (`sync.*`, `event.new`, `prompt.*`, `workflow.update`, `token.move.preview`). Confirm both packages still build and tests pass.
+- [x] **13. Docs cleanup.** Verify ADR 004 is annotated as partially superseded. Update [shared-types.md](shared-types.md) and [realtime-ws.md](protocols/realtime-ws.md) to match the new shape.
 
 ### Out of scope (deferred to its own design pass)
 

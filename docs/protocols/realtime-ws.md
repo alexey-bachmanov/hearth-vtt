@@ -16,8 +16,8 @@ The WebSocket connection uses **WSS (WebSocket Secure)** for encrypted, secure c
 
 The WebSocket connection provides:
 
-- **Server → Client:** State sync, GameEvents, Prompts, workflow updates, token movement previews
-- **Client → Server:** Actions, workflow inputs, token movement (live and final)
+- **Server → Client:** `view` (full `SeatView` snapshots on connect/resync), `event` (incremental `WireEvent` stream during play), `pong`, `error`
+- **Client → Server:** `dispatch` (engine actions), `view.request` (explicit resync), `resume` (reconnect after gap), `ping`
 
 All messages are JSON-encoded. Binary protocols (e.g., MessagePack) may be considered for performance optimization later.
 
@@ -35,7 +35,7 @@ wss://server.example.com/ws
 
 For local development, the connection may use `ws://localhost:3000/ws`, but production deployments **must** use WSS with valid TLS certificates.
 
-**Authentication**: Session cookies (refresh token) are automatically sent by the browser during WebSocket upgrade. The connection URL includes the campaign ID as a query parameter (`?campaignId=<id>`) to select which seat the connection is for, since one PlayerAccount may hold seats in multiple campaigns on the same server. The server:
+**Authentication**: Session cookies (refresh token) are automatically sent by the browser during WebSocket upgrade. The connection URL includes the campaign ID as a query parameter (`?campaign=<id>`) to select which seat the connection is for, since one PlayerAccount may hold seats in multiple campaigns on the same server. The server:
 
 1. Reads cookies from the upgrade request headers
 2. Validates the AuthSession → PlayerAccount
@@ -61,39 +61,41 @@ Server sends `welcome` immediately after successful authentication:
 }
 ```
 
-Then server sends `sync.initial` with full state:
+Then server sends a `view` message with the full `SeatView` for this seat:
 
 ```json
 {
-  "type": "sync.initial",
-  "payload": {
-    "campaignState": {
-      /* full CampaignState */
-    },
-    "recentEvents": [
-      /* last N EventRecords */
-    ],
-    "activePrompts": [
-      /* Prompts awaiting this seat */
-    ],
-    "activeWorkflows": [
-      /* WorkflowStates involving this seat */
-    ]
+  "type": "view",
+  "view": {
+    "campaignId": "campaign-xyz789",
+    "seatId": "seat-abc123",
+    "seatRole": "player",
+    "scene": { "/* SceneView */": "..." },
+    "tokens": [],
+    "actors": [],
+    "recentEvents": [],
+    "activePrompts": [],
+    "capabilities": { "globalActions": [], "entityActions": {} },
+    "rulesetPanels": [],
+    "lastSeq": 42
   }
 }
 ```
 
 ### 3. Steady State
 
-After initial sync, server sends incremental updates. Client sends actions and inputs.
+After the initial `view`, the server streams incremental `event` messages as actions are dispatched and resolved. The client applies each `WireEvent` to its local state mirror and advances `lastSeq`.
+
+If the client detects a gap in `seq` (i.e. `event.seq > lastSeq + 1`), it sends `{ "type": "view.request" }` and the server responds with a fresh `view`.
 
 ### 4. Reconnect
 
-On disconnect, client should attempt reconnection with exponential backoff. On reconnect:
+On disconnect, the client attempts reconnection with exponential backoff. On reconnect:
 
-- Client sends `{ type: "resume", lastEventSeq }` after receiving `welcome`
-- Server replies with event backlog since `lastEventSeq` or full `sync.initial` if too stale
-- Server re-sends any outstanding prompts for that seat
+- Client sends `{ "type": "resume", "lastEventSeq": 42 }` after receiving `welcome`
+- Server responds with a full `view` message
+
+> **Future optimization:** When the gap is small the server may replay only the events since `lastEventSeq`. For now a full `view` is always sent.
 
 ### 5. Disconnect
 
@@ -128,13 +130,11 @@ Actions referencing a prompt or workflow step **must be idempotent against stale
 
 Optimistic UI updates (e.g., live token drag preview) stay **on the originating connection only**. They are NOT broadcast to the originating account's other connections. Other devices see only server-confirmed positions.
 
-The `token.move.preview` channel (described below) is for broadcasting _other seats'_ drags to this seat, not for broadcasting this seat's drags back to itself. The originating device renders its own preview locally; the server only sends `token.move.preview` to other seats' connections.
-
 ### Reconnect is cheap
 
 Because all state is server-owned, opening a new connection on a new device requires only:
 
-1. Send current `sync.initial` (campaign state, recent events, pending prompts, active workflows).
+1. Server sends `welcome` then a full `view` (current scene, tokens, actors, recent events, active prompts).
 2. New connection joins the broadcast set.
 
 There is no per-device session state to migrate.
@@ -145,35 +145,28 @@ There is no per-device session state to migrate.
 
 ### Server → Client
 
-| Type                     | Description                                             |
-| ------------------------ | ------------------------------------------------------- |
-| `welcome`                | Sent after successful auth; includes seat/campaign info |
-| `sync.initial`           | Full state on connect                                   |
-| `sync.delta`             | JSON Patch to CampaignState                             |
-| `event.new`              | New GameEvent to display in chat                        |
-| `prompt.create`          | New Prompt for this seat                                |
-| `prompt.cancel`          | Prompt cancelled (timeout, superseded)                  |
-| `workflow.update`        | WorkflowState changed                                   |
-| `token.move.preview`     | Another seat is dragging a token (ghost position)       |
-| `token.move.preview.end` | Token drag ended (clear ghost)                          |
-| `error`                  | Error message (validation failure, etc.)                |
+| Type      | Description                                                         |
+| --------- | ------------------------------------------------------------------- |
+| `welcome` | Sent after successful auth; includes seat/campaign info             |
+| `view`    | Full `SeatView` snapshot — on connect, resync, or gap repair        |
+| `event`   | Incremental `WireEvent` (full or redacted) during steady-state play |
+| `pong`    | Keepalive response to client `ping`                                 |
+| `error`   | Protocol error or rejected action (`code` + `message`)              |
 
 ### Client → Server
 
-| Type                 | Description                             |
-| -------------------- | --------------------------------------- |
-| `resume`             | Request reconnect with event backlog    |
-| `action`             | Dispatch an Action for resolution       |
-| `workflow.input`     | Respond to a Prompt within a workflow   |
-| `token.move.preview` | Live token drag position (throttled)    |
-| `token.move`         | Final token position (drop)             |
-| `ping`               | Keepalive (server responds with `pong`) |
+| Type           | Description                                  |
+| -------------- | -------------------------------------------- |
+| `dispatch`     | Dispatch an engine action                    |
+| `view.request` | Request a full `SeatView` resync             |
+| `resume`       | Reconnect; server replies with a full `view` |
+| `ping`         | Keepalive (server responds with `pong`)      |
 
 ---
 
 ## Message Schemas
 
-### `welcome`
+### `welcome` (Server → Client)
 
 ```ts
 interface WelcomeMessage {
@@ -181,190 +174,105 @@ interface WelcomeMessage {
   protocolVersion: string; // e.g., "1.0"
   serverVersion: string; // e.g., "0.1.0"
   seatId: string;
+  seatRole: 'gm' | 'player' | 'spectator';
   campaignId: string;
 }
 ```
 
-### `resume`
+### `view` (Server → Client)
+
+Delivers a full audience-filtered `SeatView` snapshot. Sent after `welcome`, after a `resume`, and after a `view.request`.
 
 ```ts
-interface ResumeMessage {
-  type: 'resume';
-  lastEventSeq: number; // Last event sequence number client received
+interface ViewMessage {
+  type: 'view';
+  view: SeatView; // see shared-types.md → SeatView
 }
 ```
 
-### `sync.initial`
+### `event` (Server → Client)
+
+A single incremental `WireEvent` during steady-state play. Discriminate on `event.kind`:
 
 ```ts
-interface SyncInitialMessage {
-  type: 'sync.initial';
-  payload: {
-    campaignState: CampaignState;
-    recentEvents: EventRecord[];
-    activePrompts: Prompt[];
-    activeWorkflows: WorkflowState[];
-    seat: Seat; // This client's seat info
-  };
+type WireEvent =
+  | { kind: 'full'; event: GameEvent } // full event; apply to state
+  | { kind: 'redacted'; seq: number }; // audience-filtered; advance lastSeq only
+
+interface EventMessage {
+  type: 'event';
+  event: WireEvent;
 }
 ```
 
-### `sync.delta`
+### `pong` (Server → Client)
 
 ```ts
-interface SyncDeltaMessage {
-  type: 'sync.delta';
-  payload: {
-    patch: JsonPatch[]; // RFC 6902 JSON Patch
-    version: number; // State version for ordering
-  };
+interface PongMessage {
+  type: 'pong';
 }
 ```
 
-### `event.new`
-
-```ts
-interface EventNewMessage {
-  type: 'event.new';
-  payload: {
-    event: GameEvent;
-    record: EventRecord; // Includes ID, timestamp
-  };
-}
-```
-
-### `prompt.create`
-
-```ts
-interface PromptCreateMessage {
-  type: 'prompt.create';
-  payload: {
-    prompt: Prompt;
-    workflowId?: string; // If part of a workflow
-  };
-}
-```
-
-### `prompt.cancel`
-
-```ts
-interface PromptCancelMessage {
-  type: 'prompt.cancel';
-  payload: {
-    promptId: string;
-    reason: 'timeout' | 'superseded' | 'cancelled';
-  };
-}
-```
-
-### `workflow.update`
-
-```ts
-interface WorkflowUpdateMessage {
-  type: 'workflow.update';
-  payload: {
-    workflowId: string;
-    state: WorkflowState;
-  };
-}
-```
-
-### `token.move.preview` (Server → Client)
-
-```ts
-interface TokenMovePreviewMessage {
-  type: 'token.move.preview';
-  payload: {
-    tokenId: TokenId;
-    position: Position;
-    seatId: string; // Who is dragging
-  };
-}
-```
-
-### `token.move.preview.end`
-
-```ts
-interface TokenMovePreviewEndMessage {
-  type: 'token.move.preview.end';
-  payload: {
-    tokenId: TokenId;
-  };
-}
-```
-
-### `error`
+### `error` (Server → Client)
 
 ```ts
 interface ErrorMessage {
   type: 'error';
   payload: {
-    code: string;
+    code: string; // e.g., 'ACTION_REJECTED', 'INVALID_MESSAGE', 'DISPATCH_ERROR'
     message: string;
-    correlationId?: string; // Matches client request if applicable
   };
 }
 ```
 
-### `action` (Client → Server)
+### `dispatch` (Client → Server)
+
+Single entry point for all mutations. Replaces the old `action` and `token.move` types.
 
 ```ts
-interface ActionMessage {
-  type: 'action';
-  payload: {
-    action: Action;
-    correlationId?: string; // Optional, for tracking responses
-  };
+interface DispatchMessage {
+  type: 'dispatch';
+  input: EngineInput; // see shared-types.md → EngineInput
 }
 ```
 
-### `workflow.input` (Client → Server)
+`EngineInput.clientRequestId` is an optional idempotency key. Sending the same `clientRequestId` twice on the same connection is a silent no-op.
+
+### `view.request` (Client → Server)
+
+Triggered automatically by the client when it detects a gap in the event sequence (`event.seq > lastSeq + 1`). Can also be sent manually for an explicit resync.
 
 ```ts
-interface WorkflowInputMessage {
-  type: 'workflow.input';
-  payload: {
-    workflowId: string;
-    promptId: string;
-    actionIndex: number; // Which PromptAction was selected
-    data?: unknown; // Additional data (target selection, etc.)
-  };
+interface ViewRequestMessage {
+  type: 'view.request';
 }
 ```
 
-### `token.move.preview` (Client → Server)
+### `resume` (Client → Server)
+
+Sent after `welcome` on reconnect. Server replies with a full `view`.
 
 ```ts
-interface TokenMovePreviewClientMessage {
-  type: 'token.move.preview';
-  payload: {
-    tokenId: TokenId;
-    position: Position;
-  };
+interface ResumeMessage {
+  type: 'resume';
+  lastEventSeq: number; // last seq the client processed before disconnect
 }
 ```
 
-### `token.move` (Client → Server)
+### `ping` / `pong` (Client → Server / Server → Client)
 
 ```ts
-interface TokenMoveMessage {
-  type: 'token.move';
-  payload: {
-    tokenId: TokenId;
-    position: Position;
-  };
+interface PingMessage {
+  type: 'ping';
+}
+interface PongMessage {
+  type: 'pong';
 }
 ```
 
 ---
 
 ## Throttling and Rate Limits
-
-### Token Movement Previews
-
-- Client sends at most **15-20 messages/sec** during drag
-- Server broadcasts to other seats without validation (preview only)
-- Excessive rate triggers rate-limit warning, then disconnect
 
 ### Actions
 
@@ -417,20 +325,10 @@ Client should reconcile local state (e.g., snap token back).
 
 On reconnect:
 
-1. Client opens new WSS connection
-2. Server sends `sync.initial` with current state
-3. Client reconciles — any local changes made during disconnect are lost
-4. Active prompts/workflows are re-sent if still valid
-
----
-
-## State Versioning
-
-Each `sync.delta` includes a `version` number. If client receives out-of-order patches:
-
-1. If `version` is sequential, apply patch
-2. If `version` is ahead (missed patches), request full sync via HTTP fallback
-3. If `version` is behind (duplicate), ignore
+1. Client opens a new WSS connection
+2. Server sends `welcome` then a full `view` with current state
+3. Client applies the view snapshot; any un-acknowledged optimistic changes are discarded
+4. Active prompts directed at this seat are included in the `view.activePrompts` field
 
 ---
 

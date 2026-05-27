@@ -82,7 +82,7 @@ export class CampaignState {
    * Token IDs that have been moved optimistically and their original positions.
    * Used to snap back if the server rejects the move action.
    */
-  pendingMoveOriginals = new Map<string, Position>();
+  pendingMoveOriginals = new SvelteMap<string, Position>();
 
   // ============================================================================
   // Accessor Methods
@@ -305,10 +305,10 @@ export class CampaignState {
   }
 
   /**
-   * Set the entire campaign state (e.g., on initial sync).
+   * Set the entire campaign state from a plain fixture object.
    *
-   * @deprecated Use `applyView` instead. Kept for backward compatibility
-   *   with mock-data population. Will be removed in the cleanup step.
+   * Convenience helper used by tests to pre-populate state without needing a
+   * full {@link SeatView}. Not called by production code.
    */
   setInitialState(data: {
     campaignId: string;
@@ -341,16 +341,6 @@ export class CampaignState {
     }
 
     console.log('[CampaignState] Initial state set', data);
-  }
-
-  /**
-   * Apply a delta patch from the server.
-   *
-   * @deprecated Superseded by `applyEvent`. Kept until old protocol types are
-   *   removed in the cleanup step.
-   */
-  applyDelta(delta: unknown) {
-    console.log('[CampaignState] Delta applied (stub)', delta);
   }
 
   /**

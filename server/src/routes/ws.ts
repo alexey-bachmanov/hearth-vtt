@@ -293,10 +293,6 @@ export async function wsRoutes(
 
         return;
       }
-
-      // Remaining message types are deprecated; log and ignore so old clients
-      // don't hard-fail before they are updated.
-      server.log.warn('Received deprecated message type=%s', message.type);
     });
 
     // ── Close handler ─────────────────────────────────────────────────────

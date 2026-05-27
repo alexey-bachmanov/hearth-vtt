@@ -57,24 +57,6 @@ export {
   type PromptKind,
 } from './enums';
 
-export type {
-  CampaignState,
-  Snapshot,
-  Action,
-  ActionEnvelope,
-  Resolution,
-  SyncBundle,
-} from './stubs';
-
-export {
-  PatchError,
-  patchOpSchema,
-  type PatchOp,
-  patchSchema,
-  type Patch,
-  applyPatches,
-} from './patch';
-
 export { gameEventSchema, type GameEvent } from './event';
 
 export {
@@ -83,8 +65,6 @@ export {
   promptSchema,
   type Prompt,
 } from './prompt';
-
-export { workflowStateSchema, type WorkflowState } from './workflow';
 
 export {
   entityRefSchema,

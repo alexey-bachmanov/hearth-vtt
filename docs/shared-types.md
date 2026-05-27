@@ -51,11 +51,11 @@ Invites are created and managed by admin seat holders. See [auth-join-flow.md](c
 
 ### CampaignState
 
-The combined, current state of all entities, effects, the latest Snapshot, etc. This is what gets saved in a Snapshot. CampaignState = Snapshot + all GameEvents in the EventRecord since that Snapshot.
+> **Engine-internal.** `CampaignState` is owned by the engine facade. Outside code sees `SeatView` projections via `GameEngine.getView()`, not `CampaignState` directly. The term is used informally in design discussions but is not a public shared type.
 
 ### Snapshot
 
-A saved version of a CampaignState, with all GameEvents since the previous Snapshot rolled into it. Snapshots are made periodically to keep event logs from growing to insane lengths.
+> **Engine-internal.** A Snapshot is a point-in-time checkpoint of `CampaignState`, used by the engine to bound EventRecord growth. Outside code never sees or constructs snapshots.
 
 ### GameEvent
 
@@ -67,7 +67,7 @@ A sequence of GameEvents, kept in memory and in the connected database. A Snapsh
 
 ### Action
 
-An event emitted either by user interactions (in the frontend) or by a Resolver as it resolves chain reactions. Actions represent intent; they are resolved into GameEvents.
+> **Engine-internal concept.** An intent produced by a resolver chain reaction or a canonical engine op. Outside code does not dispatch `Action` directly — the public entry point is `EngineInput` (see `GameEngine.dispatch()`). Actions are resolved into `GameEvent`s inside the engine.
 
 ### Ruleset
 
@@ -221,35 +221,38 @@ Semantic rule for consumers: if `capabilities` is empty for an entity, fall back
 The full projection of the campaign visible to one seat, returned by `GameEngine.getView(seatId)`. Used for first-connect, reconnect with sequence gap, and explicit resync — **not** for steady-state play.
 
 ```ts
-export interface SeatView {
-  seatId: SeatId;
+export type SeatView = {
   campaignId: CampaignId;
-  lastSeq: number; // last engine seq reflected in this view
-
-  scene: SceneView; // current scene, renderable state
-  tokens: ReadonlyArray<TokenView>;
-  actors: ReadonlyArray<ActorView>;
-
-  fog?: {
-    explorationMask: unknown; // shape per renderer; opaque to non-renderer consumers
-    litPolygon?: unknown; // derived; sometimes precomputed by server
-  };
-
-  drawings: ReadonlyArray<DrawingView>;
-  measurements: ReadonlyArray<MeasurementView>;
-  labels: ReadonlyArray<LabelView>;
-
-  recentEvents: ReadonlyArray<GameEvent>; // bounded log catch-up
-  activePrompts: ReadonlyArray<Prompt>; // prompts currently directed at this seat
-
+  seatId: SeatId;
+  seatRole: SeatRole;
+  /** Currently active scene, or null if none is set. Audience-filtered. */
+  scene: SceneView | null;
+  /** Tokens visible to this seat in the active scene. */
+  tokens: TokenView[];
+  /** Actors this seat has read or control access to. */
+  actors: ActorView[];
+  /** Recent events visible to this seat (chat, roll results, etc.). */
+  recentEvents: GameEvent[];
+  /** Prompts targeting this seat that are still awaiting a response. */
+  activePrompts: Prompt[];
+  /**
+   * Action capabilities. Empty until a ruleset is loaded.
+   * Client wraps arrays in Set/Map after receipt.
+   */
   capabilities: Capabilities;
-  rulesetPanels: ReadonlyArray<RulesetPanelDef>; // ruleset-contributed UI surfaces
-}
+  /**
+   * Ruleset-contributed panel definitions (toolbar, etc.).
+   * Shape is deliberately opaque and deferred. Treat as unknown[].
+   */
+  rulesetPanels: unknown[];
+  /** Sequence number of the most recent event reflected in this view. */
+  lastSeq: number;
+};
 ```
 
-The per-field `*View` shapes (SceneView, TokenView, ActorView, etc.) are the public, audience-filtered projections of internal entities. They are the _only_ entity shapes outside code sees; the engine's internal entity shape is private.
+The per-field `*View` shapes (SceneView, TokenView, ActorView) are the public, audience-filtered projections of internal entities — the _only_ entity shapes outside code sees.
 
-`RulesetPanelDef.content` is a declarative panel tree whose concrete shape is **deferred** to the ruleset-interior design pass; the field is reserved here.
+> **Deferred fields.** `fog`, `drawings`, `measurements`, and `labels` will be added to `SeatView` once those sub-systems are implemented. Until then they are absent from the type.
 
 ---
 

@@ -132,7 +132,7 @@ async function buildTestWorld(): Promise<TestWorld> {
 function collectEvents(
   engine: PlaceholderEngine,
   seatId: string,
-  count: number,
+  _count: number,
 ): { events: WireEvent[]; unsubscribe: () => void } {
   const events: WireEvent[] = [];
   const unsubscribe = engine.subscribe(seatId, (ev) => {
@@ -373,10 +373,6 @@ describe('PlaceholderEngine', () => {
 
       // The view should reflect the updated position.
       const view = engine.getView(gmSeatId);
-      const token = view.tokens.find((t) => {
-        const td = t as unknown as { actorId?: string };
-        return td.actorId !== undefined; // find any token
-      });
       // Find the hero token by checking the engine view
       const heroToken = view.tokens.find((t) => {
         // tokens are indexed by entity id; check position
@@ -655,7 +651,12 @@ describe('PlaceholderEngine', () => {
     });
 
     it('GM sees all tokens in the active scene', () => {
-      const { engine, gmSeatId, heroTokenId, monsterTokenId } = world;
+      const {
+        engine,
+        gmSeatId,
+        heroTokenId: _heroTokenId,
+        monsterTokenId: _monsterTokenId,
+      } = world;
       const view = engine.getView(gmSeatId);
 
       // Engine uses entity DB id as map key → token data has actorId/sceneId/etc.
@@ -736,7 +737,7 @@ describe('PlaceholderEngine', () => {
 
     it('player sees only actors they have seatPermissions for', () => {
       // heroActor has seatPermissions[playerSeat] = 'control'; monsterActor has none.
-      const { engine, playerSeatId, heroActorId } = world;
+      const { engine, playerSeatId, heroActorId: _heroActorId } = world;
       const view = engine.getView(playerSeatId);
       expect(view.actors).toHaveLength(1);
       // The one actor should be the hero (accessed via its engine-map key = heroActorId).

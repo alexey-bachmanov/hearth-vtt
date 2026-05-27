@@ -205,46 +205,12 @@ export class WebSocketClient {
         this.handleWelcome(message);
         break;
 
-      // ── New engine boundary protocol ─────────────────────────────────────
       case 'view':
         this.handleView(message as ViewMessage);
         break;
 
       case 'event':
         this.handleEvent(message.event);
-        break;
-
-      // ── Deprecated message types (pre-Phase-2.5 protocol) ───────────────
-      case 'sync.initial':
-        console.warn('[WebSocketClient] Received deprecated sync.initial');
-        break;
-
-      case 'sync.delta':
-        console.warn('[WebSocketClient] Received deprecated sync.delta');
-        break;
-
-      case 'event.new':
-        console.warn('[WebSocketClient] Received deprecated event.new');
-        break;
-
-      case 'prompt.create':
-        this.handlePromptCreate(message.payload);
-        break;
-
-      case 'prompt.cancel':
-        this.handlePromptCancel(message.payload);
-        break;
-
-      case 'workflow.update':
-        this.handleWorkflowUpdate(message.payload);
-        break;
-
-      case 'token.move.preview':
-        this.handleTokenMovePreview(message.payload);
-        break;
-
-      case 'token.move.preview.end':
-        this.handleTokenMovePreviewEnd(message.payload);
         break;
 
       case 'pong':
@@ -315,46 +281,6 @@ export class WebSocketClient {
       campaignState.applyEvent(wireEvent.event as SharedGameEvent);
     }
     // Redacted events: seq is advanced above; nothing else to do.
-  }
-
-  /**
-   * Handle prompt create message.
-   */
-  private handlePromptCreate(payload: unknown): void {
-    console.log('[WebSocketClient] Prompt create - stub', payload);
-    // TODO: Display prompt UI
-  }
-
-  /**
-   * Handle prompt cancel message.
-   */
-  private handlePromptCancel(payload: unknown): void {
-    console.log('[WebSocketClient] Prompt cancel - stub', payload);
-    // TODO: Remove prompt from UI
-  }
-
-  /**
-   * Handle workflow update message.
-   */
-  private handleWorkflowUpdate(payload: unknown): void {
-    console.log('[WebSocketClient] Workflow update - stub', payload);
-    // TODO: Update workflow state
-  }
-
-  /**
-   * Handle token move preview message.
-   */
-  private handleTokenMovePreview(payload: unknown): void {
-    console.log('[WebSocketClient] Token move preview - stub', payload);
-    // TODO: Update renderer with ghost position
-  }
-
-  /**
-   * Handle token move preview end message.
-   */
-  private handleTokenMovePreviewEnd(payload: unknown): void {
-    console.log('[WebSocketClient] Token move preview end - stub', payload);
-    // TODO: Clear ghost position from renderer
   }
 
   /**

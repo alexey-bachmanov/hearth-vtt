@@ -5,29 +5,12 @@
  * over the realtime WebSocket connection. Both directions are discriminated
  * unions on the `type` field.
  *
- * ## Migration status
- *
- * The following message types are **deprecated** and will be removed in the
- * Phase 2.5 cleanup commit once all consumers have migrated to the new
- * event-stream model:
- *
- * - Server → Client: `sync.initial`, `sync.delta`, `event.new`,
- *   `prompt.create`, `prompt.cancel`, `workflow.update`,
- *   `token.move.preview`, `token.move.preview.end`
- * - Client → Server: `action`, `workflow.input`, `token.move.preview`,
- *   `token.move`
- *
- * Use `view`, `event` (server → client) and `dispatch`, `view.request`
- * (client → server) for all new code.
- *
  * @see docs/protocols/realtime-ws.md
  * @see docs/decisions/011-engine-facade-and-dsl-reversal.md
  */
 
 import { z } from 'zod';
 import { seatRoleSchema } from '../seat';
-import { promptSchema } from '../prompt';
-import { workflowStateSchema } from '../workflow';
 import { gameEventSchema } from '../event';
 import { engineInputSchema } from '../engine';
 import type { SeatView } from '../engine';
@@ -111,54 +94,6 @@ const eventMessageSchema = z.object({
   event: wireEventSchema,
 });
 
-/** @deprecated Use `view` instead. */
-const syncInitialSchema = z.object({
-  type: z.literal('sync.initial'),
-  payload: z.unknown(),
-});
-
-/** @deprecated Use `event` instead. */
-const syncDeltaSchema = z.object({
-  type: z.literal('sync.delta'),
-  payload: z.unknown(),
-});
-
-/** @deprecated Use `event` instead. */
-const eventNewSchema = z.object({
-  type: z.literal('event.new'),
-  payload: z.unknown(),
-});
-
-/** @deprecated Prompts flow as GameEvents in the new model. */
-const promptCreateSchema = z.object({
-  type: z.literal('prompt.create'),
-  payload: promptSchema,
-});
-
-/** @deprecated Prompts flow as GameEvents in the new model. */
-const promptCancelSchema = z.object({
-  type: z.literal('prompt.cancel'),
-  payload: z.object({ id: z.string() }),
-});
-
-/** @deprecated Workflow state is engine-internal. */
-const workflowUpdateSchema = z.object({
-  type: z.literal('workflow.update'),
-  payload: workflowStateSchema,
-});
-
-/** @deprecated Token preview is superseded by optimistic client-side rendering. */
-const tokenMovePreviewServerSchema = z.object({
-  type: z.literal('token.move.preview'),
-  payload: z.unknown(),
-});
-
-/** @deprecated Token preview is superseded by optimistic client-side rendering. */
-const tokenMovePreviewEndSchema = z.object({
-  type: z.literal('token.move.preview.end'),
-  payload: z.unknown(),
-});
-
 const pongSchema = z.object({
   type: z.literal('pong'),
 });
@@ -178,14 +113,6 @@ export const serverMessageSchema = z.discriminatedUnion('type', [
   welcomeSchema,
   viewMessageSchema,
   eventMessageSchema,
-  syncInitialSchema,
-  syncDeltaSchema,
-  eventNewSchema,
-  promptCreateSchema,
-  promptCancelSchema,
-  workflowUpdateSchema,
-  tokenMovePreviewServerSchema,
-  tokenMovePreviewEndSchema,
   pongSchema,
   serverErrorSchema,
 ]);
@@ -229,30 +156,6 @@ const resumeSchema = z.object({
   lastEventSeq: z.number(),
 });
 
-/** @deprecated Use `dispatch` instead. */
-const actionSchema = z.object({
-  type: z.literal('action'),
-  payload: z.unknown(),
-});
-
-/** @deprecated Workflow input flows through `dispatch` in the new model. */
-const workflowInputSchema = z.object({
-  type: z.literal('workflow.input'),
-  payload: z.unknown(),
-});
-
-/** @deprecated Token preview is superseded by optimistic client-side rendering. */
-const tokenMovePreviewClientSchema = z.object({
-  type: z.literal('token.move.preview'),
-  payload: z.unknown(),
-});
-
-/** @deprecated Use `dispatch` with `actionType: 'token.move'` instead. */
-const tokenMoveSchema = z.object({
-  type: z.literal('token.move'),
-  payload: z.unknown(),
-});
-
 const pingSchema = z.object({
   type: z.literal('ping'),
 });
@@ -264,10 +167,6 @@ export const clientMessageSchema = z.discriminatedUnion('type', [
   dispatchMessageSchema,
   viewRequestMessageSchema,
   resumeSchema,
-  actionSchema,
-  workflowInputSchema,
-  tokenMovePreviewClientSchema,
-  tokenMoveSchema,
   pingSchema,
 ]);
 
