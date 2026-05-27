@@ -187,5 +187,5 @@ export type EngineInput = z.infer<typeof engineInputSchema>;
  * audience policy permits receipt. Rejected dispatches emit no events.
  */
 export type DispatchResult =
-  | { accepted: true; seq: number }
+  | { accepted: true; seq: number; actionId: string }
   | { accepted: false; reason: string };

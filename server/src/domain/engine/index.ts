@@ -36,9 +36,13 @@ export interface GameEngine {
   close(): Promise<void>;
 }
 
+// PlaceholderEngine is the only concrete implementation for Phase 2.5.
+export { PlaceholderEngine } from './placeholder.js';
+
 // Re-export shared boundary types for server-side engine consumers.
 export type {
   ActionType,
+  SeatId,
   Capabilities,
   DispatchResult,
   EngineInput,
