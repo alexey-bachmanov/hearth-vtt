@@ -14,8 +14,13 @@
 
 import { createHash } from 'node:crypto';
 import type { FastifyInstance, FastifyRequest } from 'fastify';
-import { clientMessageSchema, type ServerMessage } from '@hearth-vtt/shared';
+import {
+  clientMessageSchema,
+  type ServerMessage,
+  type ViewMessage,
+} from '@hearth-vtt/shared';
 import type { Storage } from '../storage/index.js';
+import type { CampaignManager } from '../domain/engine/index.js';
 
 // ── Dev-bypass fallback identifiers ──────────────────────────────────────────
 
@@ -69,7 +74,7 @@ async function resolveAuthSession(
 
 export async function wsRoutes(
   server: FastifyInstance,
-  options: { storage: Storage },
+  options: { storage: Storage; campaignManager: CampaignManager },
 ) {
   /**
    * GET /ws?campaign=<campaignId> - WebSocket upgrade endpoint
@@ -124,13 +129,41 @@ export async function wsRoutes(
       return;
     }
 
+    // ── Acquire engine ────────────────────────────────────────────────────
+
+    let engine;
+    try {
+      engine = await options.campaignManager.acquire(connection.campaignId);
+    } catch (err) {
+      server.log.error(
+        { err },
+        'Failed to open engine for campaign=%s',
+        connection.campaignId,
+      );
+      socket.close(4500, 'Engine unavailable');
+      return;
+    }
+
     server.log.info(
       'WebSocket client connected — campaign=%s seat=%s',
       connection.campaignId,
       connection.seatId,
     );
 
-    // Send welcome message
+    // ── Subscribe to per-seat event stream ────────────────────────────────
+    //
+    // Listener is synchronous by contract (GameEngine.subscribe spec).
+    // Guard with readyState so we don't write to a socket that is closing.
+
+    const unsubscribe = engine.subscribe(connection.seatId, (event) => {
+      if (socket.readyState === socket.OPEN) {
+        const msg: ServerMessage = { type: 'event', event };
+        socket.send(JSON.stringify(msg));
+      }
+    });
+
+    // ── Send welcome ──────────────────────────────────────────────────────
+
     const welcome: ServerMessage = {
       type: 'welcome',
       protocolVersion: '1.0',
@@ -140,6 +173,15 @@ export async function wsRoutes(
       campaignId: connection.campaignId,
     };
     socket.send(JSON.stringify(welcome));
+
+    // ── Per-connection clientRequestId dedup ──────────────────────────────
+    //
+    // Scoped to this WS connection; not durable across reconnects.
+    // Prevents double-dispatch when a client retries on the same socket.
+
+    const seenRequestIds = new Set<string>();
+
+    // ── Message handler ───────────────────────────────────────────────────
 
     socket.on('message', (raw) => {
       let parsed: unknown;
@@ -177,21 +219,96 @@ export async function wsRoutes(
       if (message.type === 'ping') {
         const pong: ServerMessage = { type: 'pong' };
         socket.send(JSON.stringify(pong));
+        return;
       }
 
-      if (message.type === 'resume') {
-        server.log.info('Client resuming from event: %d', message.lastEventSeq);
-        // Stub: In a real implementation, send event backlog or sync.initial
+      if (message.type === 'view.request' || message.type === 'resume') {
+        // Both result in a full SeatView being sent.
+        // For 'resume', a future optimisation could send only events since
+        // lastEventSeq from the engine's recentEvents window. For now we
+        // always send the full view.
+        if (message.type === 'resume') {
+          server.log.info(
+            'Client resume from seq=%d — sending full view',
+            message.lastEventSeq,
+          );
+        }
+        const view = engine.getView(connection.seatId);
+        const msg: ViewMessage = { type: 'view', view };
+        socket.send(JSON.stringify(msg));
+        return;
       }
 
-      if (message.type === 'action') {
-        server.log.info('Received action: %s', JSON.stringify(message.payload));
-        // Stub: In a real implementation, dispatch to GameEngine
+      if (message.type === 'dispatch') {
+        // Dedup: silently ignore retried clientRequestIds on the same connection.
+        const { clientRequestId } = message.input;
+        if (clientRequestId !== undefined) {
+          if (seenRequestIds.has(clientRequestId)) {
+            server.log.warn(
+              'Duplicate clientRequestId=%s ignored',
+              clientRequestId,
+            );
+            return;
+          }
+          seenRequestIds.add(clientRequestId);
+        }
+
+        // Override client-supplied seatId/campaignId with server-resolved values.
+        // This enforces the transport→engine boundary: engine never sees auth.
+        const engineInput = {
+          ...message.input,
+          seatId: connection.seatId,
+          campaignId: connection.campaignId,
+        };
+
+        void engine
+          .dispatch(engineInput)
+          .then((dispatchResult) => {
+            if (!dispatchResult.accepted && socket.readyState === socket.OPEN) {
+              const err: ServerMessage = {
+                type: 'error',
+                payload: {
+                  code: 'ACTION_REJECTED',
+                  message: dispatchResult.reason,
+                },
+              };
+              socket.send(JSON.stringify(err));
+            }
+            // Accepted: event is broadcast to all seat subscribers by the
+            // engine's append-before-broadcast step; no separate ack needed.
+          })
+          .catch((err) => {
+            server.log.error({ err }, 'engine.dispatch threw unexpectedly');
+            if (socket.readyState === socket.OPEN) {
+              const errMsg: ServerMessage = {
+                type: 'error',
+                payload: {
+                  code: 'DISPATCH_ERROR',
+                  message: 'Internal error processing action',
+                },
+              };
+              socket.send(JSON.stringify(errMsg));
+            }
+          });
+
+        return;
       }
+
+      // Remaining message types are deprecated; log and ignore so old clients
+      // don't hard-fail before they are updated.
+      server.log.warn('Received deprecated message type=%s', message.type);
     });
 
+    // ── Close handler ─────────────────────────────────────────────────────
+
     socket.on('close', () => {
-      server.log.info('WebSocket client disconnected');
+      unsubscribe();
+      options.campaignManager.release(connection.campaignId);
+      server.log.info(
+        'WebSocket client disconnected — campaign=%s seat=%s',
+        connection.campaignId,
+        connection.seatId,
+      );
     });
   });
 }

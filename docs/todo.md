@@ -47,7 +47,7 @@ Each step is intended to leave the build green and tests passing. Step 11 is the
 #### Server transport (`server/src/routes/ws.ts`)
 
 - [x] **7. Accept `?campaign=<id>` on WS upgrade.** Resolve `(authPrincipal, campaignId) → seatId` via storage. Dev-bypass keeps existing hardcoded seat.
-- [ ] **8. `CampaignManager`.** One engine per active campaign. Lazy-open on first WS connect; idle-timeout close on last disconnect.
+- [x] **8. `CampaignManager`.** One engine per active campaign. Lazy-open on first WS connect; idle-timeout close on last disconnect.
 - [ ] **9. Wire dispatch and broadcast.** Inbound `{ type: 'dispatch', input }` → `engine.dispatch`. Subscribe per seat; forward engine events as `{ type: 'event', event }`. `{ type: 'view.request' }` returns `{ type: 'view', view: engine.getView(seatId) }`. Per-WS `clientRequestId` dedup Map lives in the WS handler.
 
 #### Client

@@ -15,6 +15,7 @@ import { seatRoutes } from './routes/seats.js';
 import { inviteRoutes } from './routes/invites.js';
 import { sessionRoutes } from './routes/sessions.js';
 import { wsRoutes } from './routes/ws.js';
+import { CampaignManager } from './domain/engine/index.js';
 
 // Handle both ESM (development) and CJS (bundled) environments
 const currentDir =
@@ -214,7 +215,12 @@ export async function buildServer(
   await seatRoutes(server, { storage: options.storage });
   await inviteRoutes(server, { storage: options.storage });
   await sessionRoutes(server);
-  await wsRoutes(server, { storage: options.storage });
+  const campaignManager = new CampaignManager(options.storage, server.log);
+  server.addHook('onClose', async () => {
+    await campaignManager.closeAll();
+  });
+
+  await wsRoutes(server, { storage: options.storage, campaignManager });
 
   // Serve static files from client/dist (only in production)
   // In development, Vite serves the client on a separate port
