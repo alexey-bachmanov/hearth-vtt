@@ -15,16 +15,50 @@ As work completes, check off tasks.
 
 Locks down the engine boundary before Phase 3 builds against it. Establishes events-as-wire-protocol, SeatView for resync, and a minimal placeholder engine. The engine **interior** (ruleset runtime, effects, workflows) stays explicitly deferred.
 
+### Locked design decisions (from adversarial review)
+
+- **Sequence numbers are per-campaign**, gapless from each seat's perspective via **redacted placeholder events** (`{ type: 'event', event: { seq, kind: 'redacted' } }`) sent to seats whose audience filter excludes the real event. Existence-leak (a seat learns "something happened at seq N that wasn't for me") is accepted as a non-software problem.
+- **`clientRequestId` dedup scope = per-WS connection, in-memory**, maintained by the WS handler (not the engine). Not durable across reconnects; client must not retry across reconnects.
+- **WS upgrade accepts `?campaign=<id>`** and resolves `(authPrincipal, campaignId) → seatId` via storage (dev-bypass fallback). This makes the `/play/<campaignId>` picker sprint a no-op at the transport layer.
+- **`fog.revealed` events carry server-authoritative polygons.** The shared `computeVisibility` is used client-side **only for the local lit-area overlay** (derived from current token position). Server↔client output does not need to be bit-identical; only the local lit overlay depends on it. This decouples shared visibility from state correctness.
+- **Placeholder engine takes a `Storage` dependency from day one** (InMemoryBackend in tests; SqliteBackend wired in but new event tables land in Phase 3). Append-before-broadcast invariant is established now.
+- **Baseline placeholder actions cut to `token.move`, `chat.send`, `dice.roll`** for this sprint. `drawing.*`, `measurement.*`, `label.*` ship in a follow-on mini-sprint (see Tech Debt → Engine baseline actions).
+- **`Capabilities` wire format** is `{ globalActions: string[]; entityActions: Record<EntityId, string[]> }`; client wraps in `Set`/`Map` on receipt.
+- **`engine.subscribe` listener is synchronous.** Engine does not await it. Transport owns buffering. Backpressure is a Phase 12 concern.
+- **`EngineInput` carries no auth fields.** Transport translates principal → seatId before calling `dispatch`. Account-refactor-safe.
+- **Notification model is a 2×2:** `origin: 'server' | 'client'` × `lifetime: 'persistent' | 'ephemeral'`. Prompts are `(server, persistent)` and the client stores **references** to prompt state by `promptId`, not copies — the prompt list is the single source of truth on the client.
+
 ### Steps
 
-- [ ] **Define facade interfaces.** `server/src/domain/engine/index.ts` exports `GameEngine` (`dispatch`, `getView`, `subscribe`, `close`). Internal `CampaignState` stays engine-private.
-- [ ] **Update `shared/` types.** Remove `Patch`, `PatchOp`, `applyPatches`, `WorkflowState`, `Resolution`, `ResolverProgramRef`, `SyncBundle` from the public surface. Add `SeatView`, `EngineInput`, `DispatchResult`, `Capabilities`, `ActionType`, `*View` projections. Add `seq: number` to `GameEvent`. Add `clientRequestId?: string` to dispatch envelopes.
-- [ ] **Shared visibility module.** `shared/visibility/computeVisibility(tokenPos, params, walls, bounds) → polygon`. Used by both server (mask owner) and client (optimistic overlay).
-- [ ] **Placeholder engine (~500 lines).** Baseline VTT-universal actions only: `token.move`, `chat.send`, `dice.roll`, `drawing.*`, `measurement.*`, `label.*`. Owns `CampaignState`. Assigns `seq` per event. Derives `actionId = hash(campaignId, seq, actionType, canonicalJSON(payload))`. Seeds RNG from `actionId`. Honors `clientRequestId` idempotency.
-- [ ] **WebSocket refactor.** Replace `sync.delta` / `sync.initial` with `{ type: 'view', view }` and `{ type: 'event', event }`. Add `view.request` for resync. Route inbound `dispatch` to the engine.
-- [ ] **Client refactor.** Drop `applyDelta`. Implement `applyView(view)` and `applyEvent(event)`. Track `lastSeq`. On gap, request `view.request`. Optimistic token-move uses the shared visibility function locally; snap back on rejection.
-- [ ] **Tests.** Boundary tests against the public surface: dispatch → events, getView shape, gap-resync, `clientRequestId` idempotency, deterministic dice via seeded RNG, optimistic-move accept/reject.
-- [ ] **Docs cleanup.** ADR 011 is accepted; verify ADR 004 is annotated as partially superseded.
+Each step is intended to leave the build green and tests passing. Step 11 is the only deliberately-breaking commit; it removes deprecated types after all consumers have migrated.
+
+#### Shared types (`shared/`)
+
+- [ ] **1. Add new types additively.** `SeatView`, `EngineInput`, `DispatchResult`, `ActionType` (branded string), `Capabilities` (wire format above), `*View` projections. Add `seq: number` to `GameEvent`. Add optional `clientRequestId?: string` to dispatch envelopes. Add `redactedEventSchema` sibling to the full event schema.
+- [ ] **2. Add new WS message variants.** `{ type: 'view', view }`, `{ type: 'event', event }`, `{ type: 'view.request' }`, `{ type: 'dispatch', input }`. Keep the old variants (`sync.*`, `event.new`, `prompt.*`, `workflow.update`, `token.move.preview`) in the schema for now so both sides still build.
+- [ ] **3. Add notification type.** `{ id, origin: 'server' | 'client', lifetime: 'persistent' | 'ephemeral', /* presentation fields */ }`. Promote out of client-only state into `shared/` if appropriate.
+- [ ] **4. Add `shared/visibility/computeVisibility(tokenPos, params, walls, bounds) → polygon`.** Pure function. Property-tested over a small set of scene fixtures.
+
+#### Server engine (`server/src/domain/engine/`)
+
+- [ ] **5. Define `GameEngine` facade interface.** `dispatch`, `getView`, `subscribe`, `close`. Re-export shared types. Engine-internal `CampaignState` shape is module-local and never exported.
+- [ ] **6. Implement `PlaceholderEngine`.** Implements `token.move`, `chat.send`, `dice.roll` only. Takes `Storage` from day one (InMemory in tests). Assigns per-campaign `seq`. Derives `actionId = hash(campaignId, seq, actionType, canonicalJSON(payload))`. Seeds RNG from `actionId`. Emits real events to in-audience seats and redacted placeholders to out-of-audience seats so per-campaign seq stays gapless per-seat.
+
+#### Server transport (`server/src/routes/ws.ts`)
+
+- [ ] **7. Accept `?campaign=<id>` on WS upgrade.** Resolve `(authPrincipal, campaignId) → seatId` via storage. Dev-bypass keeps existing hardcoded seat.
+- [ ] **8. `CampaignManager`.** One engine per active campaign. Lazy-open on first WS connect; idle-timeout close on last disconnect.
+- [ ] **9. Wire dispatch and broadcast.** Inbound `{ type: 'dispatch', input }` → `engine.dispatch`. Subscribe per seat; forward engine events as `{ type: 'event', event }`. `{ type: 'view.request' }` returns `{ type: 'view', view: engine.getView(seatId) }`. Per-WS `clientRequestId` dedup Map lives in the WS handler.
+
+#### Client
+
+- [ ] **10. Replace sync handlers with view/event handlers.** Implement `applyView(view)` and `applyEvent(event)`. Track `lastSeq`. Redacted events advance the counter without further action; a real seq gap triggers `view.request`. Adopt the 2×2 notification model; prompts wire by reference to prompt state, not as standalone notifications. Optimistic token-move recomputes local lit overlay via shared visibility; snap-back on rejection updates overlay automatically. Exploration mask updates only on authoritative `fog.revealed`.
+
+#### Tests and cleanup
+
+- [ ] **11. Boundary tests.** Against the public engine surface only: dispatch → events, `getView` shape per seat (including audience filtering), gap detection triggers `view.request`, redacted placeholders advance seq without resync, `clientRequestId` idempotency, deterministic dice via seeded RNG, optimistic-move accept/reject paths.
+- [ ] **12. Cleanup commit (deliberately-breaking).** Remove from `shared/`: `Patch`, `PatchOp`, `applyPatches`, `WorkflowState`, `Resolution`, `ResolverProgramRef`, `SyncBundle`, stub `CampaignState`, stub `Snapshot`. Remove old WS message variants (`sync.*`, `event.new`, `prompt.*`, `workflow.update`, `token.move.preview`). Confirm both packages still build and tests pass.
+- [ ] **13. Docs cleanup.** Verify ADR 004 is annotated as partially superseded. Update [shared-types.md](shared-types.md) and [realtime-ws.md](protocols/realtime-ws.md) to match the new shape.
 
 ### Out of scope (deferred to its own design pass)
 
@@ -32,6 +66,10 @@ Locks down the engine boundary before Phase 3 builds against it. Establishes eve
 - Effects/modifier stacking model.
 - Workflow state-machine schema.
 - Declarative `PanelContent` shape (panels are reserved opaque for now).
+- `drawing.*`, `measurement.*`, `label.*` baseline engine actions (see Tech Debt).
+- Snapshot chain / replay-from-snapshot (Phase 3).
+- Account-based auth refactor (no engine collision; tracked separately).
+- Admin UI account overhaul (no engine collision; tracked separately).
 
 ---
 
@@ -40,6 +78,18 @@ Locks down the engine boundary before Phase 3 builds against it. Establishes eve
 Known issues organized by area. Items here can be promoted to "Current Projects" when prioritized.
 
 ## Server
+
+### Engine baseline actions (deferred from Phase 2.5)
+
+Follow-on mini-sprint after the engine boundary is locked. Adds the remaining VTT-universal action types to the placeholder engine. Each item is the wire schema in `shared/`, the engine handler, and the renderer/UI affordance.
+
+- [ ] **`drawing.*`** — create/update/delete persistent and ephemeral drawings (lines, shapes, freehand). Render layer in `client/src/render/pixi/layers/`.
+- [ ] **`measurement.*`** — private and shared ruler/AoE measurements. Audience filter: private = originating seat only; shared = everyone.
+- [ ] **`label.*`** — text labels pinned to the scene.
+
+### Snapshot chain (deferred to Phase 3)
+
+- [ ] **Snapshot creation, replay, pruning.** Engine `open(campaignId)` loads latest snapshot, replays events since. Snapshot triggered every N events. Implemented in SqliteBackend; wired through the existing `Storage` dependency on the engine.
 
 ### Security (Not in Current Sprint)
 
@@ -155,7 +205,7 @@ The current `CanvasInputController` works but was built incrementally and has kn
 
 ### Notifications
 
-- [ ] **Explicit `kind` field on notifications**: split into `kind: 'prompt' | 'ephemeral'`. Prompt-kind notifications are projections of server-owned `Prompt` state (survive reconnect; resolved by server response). Ephemeral-kind notifications are client-local (toasts, banners; do not survive reconnect). The current implicit ephemeral/blocking split should become an explicit, type-checked field. See [auth-join-flow.md Open Issues](../docs/components/auth-join-flow.md#open-issues-deferred-for-later-design).
+- [ ] **Notification 2×2 model (handled in Phase 2.5)**: `origin: 'server' | 'client'` × `lifetime: 'persistent' | 'ephemeral'`. Prompts are `(server, persistent)` and the client stores references to prompt state by `promptId`, not copies. Toasts are `(client, ephemeral)`. Server-driven feed entries ("X attacked Y") are `(server, ephemeral)`. The `(client, persistent)` cell is reserved (offline indicators, app errors). See [Engine Boundary Refactor](#engine-boundary-refactor-phase-25) for the locked decision and [auth-join-flow.md Open Issues](../docs/components/auth-join-flow.md#open-issues-deferred-for-later-design).
 
 ### Console Logging
 
