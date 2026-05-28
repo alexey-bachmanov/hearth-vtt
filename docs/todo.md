@@ -8,68 +8,94 @@ As work completes, check off tasks.
 
 # Current Projects
 
-## Engine Boundary Refactor (Phase 2.5)
+## UX Glue + Admin UI Overhaul (Phase 2.6)
 
-**Authority:** [ADR 011 — Engine Facade and DSL Reversal](decisions/011-engine-facade-and-dsl-reversal.md)
-**Plan:** [implementation-strategy.md → Phase 2.5](implementation-strategy.md)
+**Authority:** [ADR 010 — Per-Server PlayerAccount Model](decisions/010-player-account-model.md)
 
-Locks down the engine boundary before Phase 3 builds against it. Establishes events-as-wire-protocol, SeatView for resync, and a minimal placeholder engine. The engine **interior** (ruleset runtime, effects, workflows) stays explicitly deferred.
+Brings client routing in line with the PlayerAccount model, adds UX-glue pages (splash, login, campaign picker, account placeholder), restructures the admin UI as a tabbed SPA with a wired Accounts tab, and lands a minimal PlayerAccount backend slice.
 
-### Locked design decisions (from adversarial review)
+### Locked design decisions
 
-- **Sequence numbers are per-campaign**, gapless from each seat's perspective via **redacted placeholder events** (`{ type: 'event', event: { seq, kind: 'redacted' } }`) sent to seats whose audience filter excludes the real event. Existence-leak (a seat learns "something happened at seq N that wasn't for me") is accepted as a non-software problem.
-- **`clientRequestId` dedup scope = per-WS connection, in-memory**, maintained by the WS handler (not the engine). Not durable across reconnects; client must not retry across reconnects.
-- **WS upgrade accepts `?campaign=<id>`** and resolves `(authPrincipal, campaignId) → seatId` via storage (dev-bypass fallback). This makes the `/play/<campaignId>` picker sprint a no-op at the transport layer.
-- **`fog.revealed` events carry server-authoritative polygons.** The shared `computeVisibility` is used client-side **only for the local lit-area overlay** (derived from current token position). Server↔client output does not need to be bit-identical; only the local lit overlay depends on it. This decouples shared visibility from state correctness.
-- **Placeholder engine takes a `Storage` dependency from day one** (InMemoryBackend in tests; SqliteBackend wired in but new event tables land in Phase 3). Append-before-broadcast invariant is established now.
-- **Baseline placeholder actions cut to `token.move`, `chat.send`, `dice.roll`** for this sprint. `drawing.*`, `measurement.*`, `label.*` ship in a follow-on mini-sprint (see Tech Debt → Engine baseline actions).
-- **`Capabilities` wire format** is `{ globalActions: string[]; entityActions: Record<EntityId, string[]> }`; client wraps in `Set`/`Map` on receipt.
-- **`engine.subscribe` listener is synchronous.** Engine does not await it. Transport owns buffering. Backpressure is a Phase 12 concern.
-- **`EngineInput` carries no auth fields.** Transport translates principal → seatId before calling `dispatch`. Account-refactor-safe.
-- **Notification model is a 2×2:** `origin: 'server' | 'client'` × `lifetime: 'persistent' | 'ephemeral'`. Prompts are `(server, persistent)` and the client stores **references** to prompt state by `promptId`, not copies — the prompt list is the single source of truth on the client.
+- **Route shape:** `/` splash (3 buttons, no auto-redirect), `/join/<inviteToken>`, `/play` (campaign picker), `/play/login` (accepts `?returnTo=<same-origin-path>`), `/play/account` (placeholder), `/play/<campaignId>` (game UI), `/admin` (tabbed SPA), `/admin/login`, `/admin/setup`.
+- **Logout destination:** splash (`/`).
+- **`returnTo` is a hard contract**, validated to same-origin pathname only (guards against open-redirect).
+- **`/play/<campaignId>` not found or no-access → 404 page** with "Back to /play" button.
+- **Auth guard** calls `GET /api/auth/me` per protected-route mount; on 401 redirects to `/play/login?returnTo=<currentPath>`.
+- **Admin tab state** is component-local; URL stays `/admin`. Refresh always lands on Campaigns tab.
+- **Account Settings in SettingsDrawer** opens `/play/account` in a new tab (`target="_blank"`).
+- **Dev DB is disposable** — schema changes require deleting `server/data/db/hearth.db`. No migration scaffolding.
 
-### Steps
+### Phase 1 — Shared types + protocol updates
 
-Each step is intended to leave the build green and tests passing. Step 11 is the only deliberately-breaking commit; it removes deprecated types after all consumers have migrated.
+- [ ] **1. Player auth schemas.** Add to `shared/src/protocol/http.ts`: request/response schemas for `POST /api/auth/login`, `POST /api/auth/logout`, `POST /api/auth/refresh`, `GET /api/auth/me`, and updated `POST /api/auth/claim-invite` (add `mode: 'login' | 'register'` field). Define `MeResponse = { accountId, username, seats: Array<{ campaignId, campaignName, seatId, role }> }`.
+- [ ] **2. Admin account schemas.** Add schemas for `GET /api/admin/accounts`, `POST /api/admin/accounts/:id/reset-password`, `POST /api/admin/accounts/:id/revoke-sessions`.
+- [ ] **3. `PlayerAccount` type.** Add `{ id, username, mustChangePassword, createdAt, lastLoginAt }` to `shared/src/entities.ts` (or new `shared/src/accounts.ts`). Update `docs/shared-types.md`.
 
-#### Shared types (`shared/`)
+**Verification:** `npm test --workspace=shared`; `tsc --noEmit` from root.
 
-- [x] **1. Add new types additively.** `SeatView`, `EngineInput`, `DispatchResult`, `ActionType` (branded string), `Capabilities` (wire format above), `*View` projections. Add `seq: number` to `GameEvent`. Add optional `clientRequestId?: string` to dispatch envelopes. Add `redactedEventSchema` sibling to the full event schema.
-- [x] **2. Add new WS message variants.** `{ type: 'view', view }`, `{ type: 'event', event }`, `{ type: 'view.request' }`, `{ type: 'dispatch', input }`. Keep the old variants (`sync.*`, `event.new`, `prompt.*`, `workflow.update`, `token.move.preview`) in the schema for now so both sides still build.
-- [x] **3. Add notification type.** `{ id, origin: 'server' | 'client', lifetime: 'persistent' | 'ephemeral', /* presentation fields */ }`. Promote out of client-only state into `shared/` if appropriate.
-- [x] **4. Add `shared/visibility/computeVisibility(tokenPos, params, walls, bounds) → polygon`.** Pure function. Property-tested over a small set of scene fixtures.
+### Phase 2 — Server backend slice
 
-#### Server engine (`server/src/domain/engine/`)
+_Depends on Phase 1._
 
-- [x] **5. Define `GameEngine` facade interface.** `dispatch`, `getView`, `subscribe`, `close`. Re-export shared types. Engine-internal `CampaignState` shape is module-local and never exported.
-- [x] **6. Implement `PlaceholderEngine`.** Implements `token.move`, `chat.send`, `dice.roll` only. Takes `Storage` from day one (InMemory in tests). Assigns per-campaign `seq`. Derives `actionId = hash(campaignId, seq, actionType, canonicalJSON(payload))`. Seeds RNG from `actionId`. Emits real events to in-audience seats and redacted placeholders to out-of-audience seats so per-campaign seq stays gapless per-seat.
+- [ ] **4. Schema.** Add `player_accounts` table to `hearth.db` schema. Add `account_id` FK on `seats`. Rebind `auth_sessions` to `account_id` (was `seat_id`). Delete `server/data/db/hearth.db` before testing.
+- [ ] **5. Accounts repo.** Extend storage interface (`server/src/storage/index.ts`) with `accounts` repo: `getByUsername`, `create`, `updateLastLogin`, `setMustChangePassword`, `listAll`. Implement in `server/src/storage/sqlite/accounts.ts`. Reuse scrypt utility from admin auth.
+- [ ] **6. Domain helpers.** Add `server/src/domain/auth/account.ts`: `createAccount`, `verifyPassword`, `bindSeat`, `unbindSeat`.
+- [ ] **7. Rewrite `server/src/routes/auth.ts`.** `POST /api/auth/claim-invite` — accept `mode`, branch login vs register, bind seat, create AuthSession bound to `account_id`. `POST /api/auth/login` — username+password, per-IP rate-limit (in-memory bucket; productionization is Tech Debt), return `MeResponse`. `POST /api/auth/logout` — revoke session, clear cookie. `POST /api/auth/refresh` — stable refresh (no rotation), reuse-detection on revoked tokens. `GET /api/auth/me` — return `MeResponse` (JOIN seats + campaigns for names).
+- [ ] **8. Admin accounts routes.** Add `server/src/routes/admin-accounts.ts`: `GET /api/admin/accounts` (list with seat count + lastLoginAt), `POST /api/admin/accounts/:id/reset-password` (set temp password, set `must_change_password`, revoke all sessions), `POST /api/admin/accounts/:id/revoke-sessions`.
+- [ ] **9. WS seat-resolve.** Update `(authPrincipal, campaignId) → seatId` resolver in `server/src/routes/ws.ts` to follow `account_id` linkage.
 
-#### Server transport (`server/src/routes/ws.ts`)
+**Verification:** Unit tests for accounts repo + domain helpers. Integration tests: register-via-claim → login → me → logout → login-fails-after-logout; stable refresh; revoked-token detection. Manual: claim invite via curl → `GET /api/auth/me` returns seat.
 
-- [x] **7. Accept `?campaign=<id>` on WS upgrade.** Resolve `(authPrincipal, campaignId) → seatId` via storage. Dev-bypass keeps existing hardcoded seat.
-- [x] **8. `CampaignManager`.** One engine per active campaign. Lazy-open on first WS connect; idle-timeout close on last disconnect.
-- [x] **9. Wire dispatch and broadcast.** Inbound `{ type: 'dispatch', input }` → `engine.dispatch`. Subscribe per seat; forward engine events as `{ type: 'event', event }`. `{ type: 'view.request' }` returns `{ type: 'view', view: engine.getView(seatId) }`. Per-WS `clientRequestId` dedup Map lives in the WS handler.
+### Phase 3 — Client routing + auth guard + UX pages
 
-#### Client
+_Depends on Phase 1. Can run in parallel with Phase 2 against typed mocks._
 
-- [x] **10. Replace sync handlers with view/event handlers.** Implement `applyView(view)` and `applyEvent(event)`. Track `lastSeq`. Redacted events advance the counter without further action; a real seq gap triggers `view.request`. Adopt the 2×2 notification model; prompts wire by reference to prompt state, not as standalone notifications. Optimistic token-move recomputes local lit overlay via shared visibility; snap-back on rejection updates overlay automatically. Exploration mask updates only on authoritative `fog.revealed`.
+- [ ] **10. Update `client/src/app/routes.ts`.** Extend `Route` union: `{ type: 'splash' }`, `{ type: 'play-login'; returnTo: string | null }`, `{ type: 'play-account' }`, `{ type: 'play-campaign'; campaignId: string }`, `{ type: 'not-found' }`. Drop `not-logged-in`. `parseRoute(pathname, search)` handles `/`, `/play/login` (extract + validate `returnTo`), `/play/account`, `/play/<id>`, fallthrough → `not-found`. Add `navigateWithReturnTo(path, returnTo?)` helper.
+- [ ] **11. Auth state store.** New `client/src/state/auth.svelte.ts`: `me: MeResponse | null`, `loading: boolean`. `loadMe()` calls `GET /api/auth/me`. `logout()` calls `POST /api/auth/logout` then navigates to `/`.
+- [ ] **12. Wire `AuthApi`.** Replace stubs in `client/src/api/http.ts` with real implementations: `login`, `logout`, `refresh`, `me`, `claimInvite` (with `mode` field).
+- [ ] **13. Update Router.svelte.** Add branches for new routes. Protected routes (`play`, `play-account`, `play-campaign`) call `authState.loadMe()` on mount; on 401 redirect to `/play/login?returnTo=<currentPath>`.
+- [ ] **14. New UX pages.** `SplashPage.svelte` (logo + 3 buttons: Play / Account / Admin; replaces `NotLoggedInPage.svelte`). `PlayLoginPage.svelte` (login form; `returnTo` redirect; "I forgot my password" → "Ask your admin" modal). `PlayAccountPage.svelte` (username, "Settings coming soon", Logout, link back to `/play`). `CampaignPickerPage.svelte` (list `me.seats`; empty state: "You are not signed up for any campaigns"). `NotFoundPage.svelte` (404 + "Back to /play").
+- [ ] **15. Update `JoinPage.svelte`.** Add login/register mode toggle + username/password fields per ADR-010 claim flow. On success navigate to `/play/<campaignId>`.
+- [ ] **16. Settings drawer affordance.** Add "Account Settings" link in `SettingsDrawer.svelte` that opens `/play/account` in a new tab.
 
-#### Tests and cleanup
+**Verification:** Unit tests for `parseRoute` (new routes + `returnTo` same-origin validation). Unit tests for `auth.svelte.ts` state transitions. Component tests for `PlayLoginPage` (returnTo flow) and `CampaignPickerPage` (empty + populated). Manual: splash → play → login → picker → campaign; logout → splash.
 
-- [x] **11. Boundary tests.** Against the public engine surface only: dispatch → events, `getView` shape per seat (including audience filtering), gap detection triggers `view.request`, redacted placeholders advance seq without resync, `clientRequestId` idempotency, deterministic dice via seeded RNG, optimistic-move accept/reject paths. **Before writing e2e (Playwright) tests against the WS endpoint:** remove the `NODE_ENV !== 'production'` dev-bypass in `server/src/routes/ws.ts` (or replace it with a dev-only session endpoint — see discussion in conversation history). The bypass hardcodes a single seat and blocks multi-seat and GM-vs-player scenarios. Integration tests for WS should create real `AuthSession` records in `InMemoryBackend` before connecting.
-- [x] **12. Cleanup commit (deliberately-breaking).** Remove from `shared/`: `Patch`, `PatchOp`, `applyPatches`, `WorkflowState`, `Resolution`, `ResolverProgramRef`, `SyncBundle`, stub `CampaignState`, stub `Snapshot`. Remove old WS message variants (`sync.*`, `event.new`, `prompt.*`, `workflow.update`, `token.move.preview`). Confirm both packages still build and tests pass.
-- [x] **13. Docs cleanup.** Verify ADR 004 is annotated as partially superseded. Update [shared-types.md](shared-types.md) and [realtime-ws.md](protocols/realtime-ws.md) to match the new shape.
+### Phase 4 — Admin UI overhaul
 
-### Out of scope (deferred to its own design pass)
+_Shell restructure can begin immediately; Accounts tab wiring depends on Phase 2._
 
-- Ruleset runtime form (TS modules vs. QuickJS vs. Lua).
-- Effects/modifier stacking model.
-- Workflow state-machine schema.
-- Declarative `PanelContent` shape (panels are reserved opaque for now).
-- `drawing.*`, `measurement.*`, `label.*` baseline engine actions (see Tech Debt).
-- Snapshot chain / replay-from-snapshot (Phase 3).
-- Account-based auth refactor (no engine collision; tracked separately).
-- Admin UI account overhaul (no engine collision; tracked separately).
+- [ ] **17. Tab shell.** Restructure `AdminLayout.svelte` into a tabbed SPA: tab bar with **Campaigns** | **Accounts** | **Server**. Tab state in component-local `$state`. Existing auth-guard logic unchanged.
+- [ ] **18. Campaigns tab.** Wrap `AdminTree` + `CampaignDetail` + `SeatSettings` in `CampaignsTab.svelte`. No behavior change; mock data preserved.
+- [ ] **19. Accounts tab.** New `AccountsTab.svelte` + `AccountsList.svelte` + `AccountDetail.svelte`. List wired to `GET /api/admin/accounts` (username, lastLoginAt, seat count). Detail: "Reset password" (prompts for temp password, shows result) and "Revoke all sessions" (with confirmation). Loading + error states match existing admin patterns.
+- [ ] **20. Server tab.** Wrap `ServerSettings.svelte` in `ServerTab.svelte`. No behavior change.
+- [ ] **21. Consolidate admin CSS.** Merge duplicate `.btn`, form, error-banner, and spinner styles into `client/src/styles/admin.css`. Update all admin components to use shared styles.
+
+**Verification:** Component tests for `AccountsList` + `AccountDetail` against mocked endpoints. Tab switching works. Manual: 3 tabs visible; Accounts tab lists players; reset-password forces re-login; revoke-sessions kicks active player.
+
+### Phase 5 — Docs + todo
+
+_Depends on Phases 1–4._
+
+- [ ] **22. Update `docs/components/auth-join-flow.md`.** Revise URL routes section: add `/play/login`, `/play/account`, `/` splash, `returnTo` query contract.
+- [ ] **23. Add ADR-012.** `docs/decisions/012-client-route-shape.md`: final route shape, `returnTo` contract, splash-not-redirecting, admin-as-tabbed-SPA, Account Settings in new tab from drawer.
+- [ ] **24. Update `docs/components/client.md`.** Route table and auth-guard pattern.
+- [ ] **25. Promote completed Tech Debt items + remove this sprint from Current Projects.**
+
+### Cross-cutting verification
+
+- E2E (Playwright): fresh DB → admin setup → create campaign + invite → `/join/<token>` register → land on `/play/<id>`. Clear cookies → revisit `/play/<id>` → bounced to `/play/login?returnTo=...` → login → back at `/play/<id>`.
+- Admin smoke: 3 tabs; Accounts tab lists the player; reset-password forces re-login; revoke-sessions kicks active player.
+- `npm run lint` + `npm test` green from root.
+
+### Out of scope (explicit)
+
+- Multi-device active-sessions UI.
+- Self-service password reset / email recovery.
+- "No access to campaign" friendly error page (redirects to `/play`).
+- `must_change_password` enforcement on login.
+- Admin audit log UI.
+- Wiring real campaign/seat/invite APIs in admin Campaigns tab (mock data stays).
+- Discord-preview optimization for `/join/<token>`.
 
 ---
 
@@ -121,19 +147,12 @@ Follow-on mini-sprint after the engine boundary is locked. Adds the remaining VT
 
 ### Auth & Sessions
 
-Lightweight PlayerAccount model is the long-term direction (see [auth-join-flow.md](../docs/components/auth-join-flow.md)). Current implementation predates this decision. Promote to a sprint when ready.
-
-- [ ] **PlayerAccount schema**: add `player_accounts` table (id, username, password_hash, must_change_password, created_at, last_login_at). Add `account_id` FK on `seats`. Move `auth_sessions` to bind to `account_id` instead of `seat_id`.
-- [ ] **Claim flow update**: `POST /api/auth/claim-invite` accepts `mode: 'login' | 'register'` plus `{ username, password }`. Existing single-step claim is replaced.
-- [ ] **Login route**: add `POST /api/auth/login` (username + password) and the corresponding `/play` login page UI.
-- [ ] **Campaign picker UI**: `/play` becomes a campaign picker for accounts with multiple seats; `/play/<campaignId>` is the per-campaign play URL.
-- [ ] **Stable refresh token, rotating access token**: refresh token does not rotate on every use (multi-tab safety). Reuse detection still applies to revoked tokens.
-- [ ] **Silent refresh on WS auth close**: client attempts one `/api/auth/refresh` before falling back to the login UI.
-- [ ] **Admin password reset via filesystem flag**: `DATA_DIR/admin-reset.flag` triggers re-running initial setup on next startup. Admin login page exposes "I forgot my password" with instructions.
-- [ ] **Admin can reset PlayerAccount passwords**: `PATCH /api/admin/accounts/:id/reset-password` sets a temporary password, revokes all sessions, sets `must_change_password`.
+- [ ] **`must_change_password` enforcement**: Phase 2.6 sets the flag when admin resets a player password, but the login flow does not enforce a forced-change screen. Enforce at `POST /api/auth/login` (and on WS connect as a secondary check).
+- [ ] **Silent refresh on WS auth close**: client attempts one `POST /api/auth/refresh` before falling back to `/play/login`.
+- [ ] **Admin password reset via filesystem flag**: `DATA_DIR/admin-reset.flag` triggers re-running initial setup on next startup. Admin login page should expose "I forgot my password" with instructions.
 - [ ] **PIN cooldown change**: per-invite PIN cooldown is 60s (not "until expiry") so a typo'd PIN doesn't dead-end the invite.
-- [ ] **Rate-limit failed logins by IP, not by account**: account-level lockout is a DoS vector.
-- [ ] **Audit log surface**: claims, login failures, password resets, revocations should be visible in admin UI.
+- [ ] **Rate-limit productionization**: Phase 2.6 lands a simple in-memory rate-limit bucket on `POST /api/auth/login`. Replace with `@fastify/rate-limit` for persistence across restarts and distributed deployments.
+- [ ] **Audit log surface**: claims, login failures, password resets, and session revocations should be visible in the admin Accounts tab.
 
 ### Code Quality
 
@@ -150,10 +169,6 @@ Lightweight PlayerAccount model is the long-term direction (see [auth-join-flow.
 - [ ] Seat role accepts any string instead of enum validation
 
 ## Client
-
-### CSS & Styling
-
-- [ ] Shared button styles (`.btn` variants), form inputs, error banners, and spinner animations still duplicated across admin components — consolidate when Admin UI Overhaul is promoted
 
 ### API Layer
 
@@ -221,16 +236,12 @@ These play UI features were deferred from the Play UI Overhaul sprint, pending i
 - [ ] **Drag-and-drop from drawers** — drag actors from Token Library to map; drag Compendium items onto character sheets; defer until renderer + character sheet system exist
 - [ ] **OverlayLayer content** — the world-container slot above tokens ([OverlayLayer.ts](../client/src/render/pixi/layers/OverlayLayer.ts)) is reserved but empty; decide what goes here (rain/snow/particle emitters, AoE fog, etc.) and implement when the effect system is designed
 
-## Admin UI Overhaul (Future Sprint)
+### Auth & Account UI (deferred from Phase 2.6)
 
-The admin UI predates the Play UI Overhaul and is due for a similar pass. Items are already tracked individually in the Accessibility, API Layer, and Error Handling sections above. When promoted to a sprint, consolidate into a phased plan covering:
-
-- Lucide icon replacement throughout (AdminTree, ServerSettings, CampaignDetail, AdminLayout, NotLoggedInPage, JoinPage)
-- ARIA tree roles, focus traps, and `aria-label` on icon-only buttons
-- Wire admin components to the API layer (remove raw `fetch()` from AdminLogin, AdminSetup, JoinPage)
-- Error handling robustness (`try/catch` on `response.json()` in AdminLogin, AdminSetup)
-- **PlayerAccount management surface** (depends on the Auth & Sessions migration): list accounts on this server, view per-account seat list across all campaigns, reset password, revoke all sessions, view audit log entries per account. Re-bind seat to a different account (player roster change).
-- **Player-facing `/account` route** (self-host only): change password, list own seats, log out everywhere. Cloud-hosted deployments hide this route; account UX is provided by the platform.
+- [ ] **`/play/account` real settings UI**: password change, active sessions list (view and revoke devices), change-username. Placeholder page ships in Phase 2.6.
+- [ ] **`/play/login` forgot-password flow**: support admin-configured contact info in the "Ask your admin" modal instead of a generic message. Requires a server-side contact-info setting.
+- [ ] **`/play/<campaignId>` no-access page**: friendly error when the authenticated user has no seat in the requested campaign, instead of silently redirecting to `/play`.
+- [ ] **Discord/Slack preview optimization for `/join/<token>`**: bot user-agents fetch the URL on paste. Serve a lightweight meta-tag HTML page for bots; deliver the SPA shell for real browsers.
 
 ## Documentation
 
