@@ -7,6 +7,7 @@
  * upgrade to every call site automatically.
  */
 
+export type AccountId = string;
 export type CampaignId = string;
 export type SeatId = string;
 export type ActorId = string;

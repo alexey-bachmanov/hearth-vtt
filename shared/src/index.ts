@@ -18,6 +18,8 @@ export {
   type ActorSeatPermission,
   actorSchema,
   type Actor,
+  playerAccountSchema,
+  type PlayerAccount,
 } from './entities';
 export {
   serverMessageSchema,
@@ -46,6 +48,7 @@ export type {
   EventId,
   PromptId,
   WorkflowId,
+  AccountId,
 } from './ids';
 
 export {
@@ -97,3 +100,28 @@ export {
   type SceneBounds,
   type VisionParams,
 } from './visibility/index';
+
+// ── HTTP API schemas (Phase 2.6) ─────────────────────────────────────────────
+
+export {
+  seatSummarySchema,
+  type SeatSummary,
+  meResponseSchema,
+  type MeResponse,
+  loginRequestSchema,
+  type LoginRequest,
+  loginResponseSchema,
+  type LoginResponse,
+  refreshResponseSchema,
+  type RefreshResponse,
+  claimInviteRequestSchema,
+  type ClaimInviteRequest,
+  claimInviteResponseSchema,
+  type ClaimInviteResponse,
+  adminAccountSummarySchema,
+  type AdminAccountSummary,
+  adminAccountsResponseSchema,
+  type AdminAccountsResponse,
+  adminResetPasswordRequestSchema,
+  type AdminResetPasswordRequest,
+} from './protocol/http';

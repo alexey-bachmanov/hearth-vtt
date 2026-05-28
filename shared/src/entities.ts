@@ -191,3 +191,40 @@ export const actorSchema = z.object({
  * presence on a scene is represented by one or more Token objects.
  */
 export type Actor = z.infer<typeof actorSchema>;
+
+// ============================================================================
+// PlayerAccount
+// ============================================================================
+
+export const playerAccountSchema = z.object({
+  /** Unique account identifier. */
+  id: z.string(),
+  /**
+   * Username chosen by the player at registration time.
+   *
+   * Case-insensitive unique per server. ASCII alphanumeric + `_-.`, 2–32 chars.
+   */
+  username: z.string(),
+  /**
+   * When true, the player must change their password on next login.
+   *
+   * Set by admin when issuing a temporary password via
+   * `POST /api/admin/accounts/:id/reset-password`.
+   */
+  mustChangePassword: z.boolean(),
+  /** ISO-8601 timestamp of account creation. */
+  createdAt: z.string(),
+  /** ISO-8601 timestamp of last successful login, or null if never logged in. */
+  lastLoginAt: z.string().nullable(),
+});
+
+/**
+ * A server-local player identity.
+ *
+ * A PlayerAccount is not tied to any single campaign; it can hold seats across
+ * multiple campaigns on the same server. It is the unit of authentication
+ * (username + password), session ownership, and admin management.
+ *
+ * See ADR-010 and docs/components/auth-join-flow.md for the full model.
+ */
+export type PlayerAccount = z.infer<typeof playerAccountSchema>;

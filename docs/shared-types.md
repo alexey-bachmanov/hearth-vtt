@@ -105,6 +105,7 @@ A collection of Tomes and underlying Ruleset. This is ephemeral—created at the
 All identifiers are opaque strings (typically UUIDs). Components should not parse or interpret identifier contents.
 
 ```ts
+type AccountId = string; // server-local player identity
 type CampaignId = string;
 type SeatId = string;
 type ActorId = string;
@@ -416,3 +417,96 @@ export interface Clock {
 ```
 
 See [todo.md](todo.md) for tracking the definition of these types.
+
+---
+
+## PlayerAccount
+
+A server-local player identity. One `PlayerAccount` per username per server. A PlayerAccount can hold seats across multiple campaigns.
+
+Defined in `shared/src/entities.ts`. See [ADR-010](decisions/010-player-account-model.md) and [auth-join-flow.md](components/auth-join-flow.md) for the full model.
+
+```ts
+export type PlayerAccount = {
+  id: AccountId;
+  username: string;
+  mustChangePassword: boolean;
+  createdAt: string; // ISO-8601
+  lastLoginAt: string | null; // ISO-8601, null if never logged in
+};
+```
+
+`mustChangePassword` is set `true` when an admin issues a temporary password via `POST /api/admin/accounts/:id/reset-password`. UI enforcement (forced change screen on next login) is deferred — see Tech Debt.
+
+---
+
+## HTTP Auth Types (Phase 2.6)
+
+Defined in `shared/src/protocol/http.ts`. Used by the server to validate request bodies and by the client to type API responses.
+
+### SeatSummary
+
+A compact seat entry returned inside `MeResponse`.
+
+```ts
+export type SeatSummary = {
+  campaignId: CampaignId;
+  campaignName: string;
+  seatId: SeatId;
+  role: SeatRole;
+};
+```
+
+### MeResponse
+
+Returned by `GET /api/auth/me`. Used by the client auth guard on protected routes and by the campaign picker.
+
+```ts
+export type MeResponse = {
+  accountId: AccountId;
+  username: string;
+  seats: SeatSummary[];
+};
+```
+
+### LoginRequest / LoginResponse
+
+`POST /api/auth/login` accepts `{ username, password }` and returns `MeResponse` on success (plus sets the `hearth_refresh` HttpOnly cookie).
+
+### RefreshResponse
+
+`POST /api/auth/refresh` returns `{ accessToken: string }`. The refresh token is **not** rotated on use (stable refresh per ADR-010).
+
+### ClaimInviteRequest / ClaimInviteResponse
+
+`POST /api/auth/claim-invite` accepts a discriminated union on `mode`:
+
+```ts
+type ClaimInviteRequest =
+  | {
+      mode: 'register';
+      inviteToken: string;
+      pin: string;
+      username: string;
+      password: string;
+    }
+  | {
+      mode: 'login';
+      inviteToken: string;
+      pin: string;
+      username: string;
+      password: string;
+    };
+```
+
+Response: `{ accountId, campaignId, seatId, role }` plus the `hearth_refresh` cookie.
+
+### AdminAccountSummary / AdminAccountsResponse
+
+`GET /api/admin/accounts` returns `{ accounts: AdminAccountSummary[] }` where each entry includes `{ id, username, seatCount, mustChangePassword, createdAt, lastLoginAt }`.
+
+### AdminResetPasswordRequest
+
+`POST /api/admin/accounts/:id/reset-password` accepts `{ temporaryPassword: string }`. Sets `mustChangePassword = true` and revokes all of the account's sessions. Returns 204.
+
+`POST /api/admin/accounts/:id/revoke-sessions` has no request body. Revokes all sessions for the account. Returns 204.
