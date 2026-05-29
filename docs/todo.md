@@ -20,12 +20,12 @@ As work completes, check off tasks.
 
 ### Phase A — Storage primitives
 
-- [ ] **A1.** Add `seq INTEGER NOT NULL` column to the `events` table CREATE statement in [`sqlite-storage.ts`](../server/src/storage/sqlite-storage.ts). Update `appendEvent` to accept + persist `seq`; update `getEvents` to return it. Mirror in [`in-memory-storage.ts`](../server/src/storage/in-memory-storage.ts).
-- [ ] **A2.** Add `getMaxEventSeq(campaignId): Promise<number>` to `StorageBackend` and `Storage` facade, returning `0` for empty campaigns. Implement in both backends.
-- [ ] **A3.** Add `afterSeq` filter option to `getEvents(campaignId, {afterSeq?: number})` in the interface and both backends. Used by `open()` to replay only events after the snapshot.
-- [ ] **A4.** Add `snapshots` table to SQLite schema: `(campaign_id TEXT PRIMARY KEY, seq INTEGER NOT NULL, data_json TEXT NOT NULL, created_at INTEGER NOT NULL)`. Single-row-per-campaign; write replaces the existing row.
-- [ ] **A5.** Add `getLatestSnapshot(campaignId): Promise<{seq: number, blob: unknown} | null>` and `putSnapshot(campaignId, seq, blob): Promise<void>` to `StorageBackend`, `Storage` facade, and both backends.
-- [ ] **A6.** Tests in [`sqlite-storage.test.ts`](../server/src/storage/sqlite-storage.test.ts): snapshot put/get round-trip; `seq` persistence on events; `getMaxEventSeq` for empty + populated campaigns; `afterSeq` filter; each new method covered in `InMemoryBackend` as well.
+- [x] **A1.** Add `seq INTEGER NOT NULL` column to the `events` table CREATE statement in [`sqlite-storage.ts`](../server/src/storage/sqlite-storage.ts). Update `appendEvent` to accept + persist `seq`; update `getEvents` to return it. Mirror in [`in-memory-storage.ts`](../server/src/storage/in-memory-storage.ts).
+- [x] **A2.** Add `getMaxEventSeq(campaignId): Promise<number>` to `StorageBackend` and `Storage` facade, returning `0` for empty campaigns. Implement in both backends.
+- [x] **A3.** Add `afterSeq` filter option to `getEvents(campaignId, {afterSeq?: number})` in the interface and both backends. Used by `open()` to replay only events after the snapshot.
+- [x] **A4.** Add `snapshots` table to SQLite schema: `(campaign_id TEXT PRIMARY KEY, seq INTEGER NOT NULL, data_json TEXT NOT NULL, created_at INTEGER NOT NULL)`. Single-row-per-campaign; write replaces the existing row.
+- [x] **A5.** Add `getLatestSnapshot(campaignId): Promise<{seq: number, blob: unknown} | null>` and `putSnapshot(campaignId, seq, blob): Promise<void>` to `StorageBackend`, `Storage` facade, and both backends.
+- [x] **A6.** Tests in [`sqlite-storage.test.ts`](../server/src/storage/sqlite-storage.test.ts): snapshot put/get round-trip; `seq` persistence on events; `getMaxEventSeq` for empty + populated campaigns; `afterSeq` filter; each new method covered in `InMemoryBackend` as well.
 
 ---
 

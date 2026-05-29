@@ -28,6 +28,8 @@ export interface Event {
   entityId: string | null;
   type: string;
   data: Record<string, unknown>;
+  /** Per-campaign monotonic sequence number. Assigned by appendEvent. */
+  seq: number;
   timestamp: number;
 }
 
@@ -167,21 +169,38 @@ export interface StorageBackend {
 
   /**
    * Event log operations
-   * TODO: Implement these methods
    */
   appendEvent(
     campaignId: string,
-    event: Omit<Event, 'id' | 'timestamp'>,
+    event: Omit<Event, 'id' | 'seq' | 'timestamp'>,
   ): Promise<Event>;
   getEvents(
     campaignId: string,
     options?: {
       afterTimestamp?: number;
+      afterSeq?: number;
       entityId?: string;
       type?: string;
       limit?: number;
     },
   ): Promise<Event[]>;
+  /**
+   * Returns the maximum `seq` value stored for the campaign, or 0 if no
+   * events exist. Used by the engine to resume seq numbering after a restart.
+   */
+  getMaxEventSeq(campaignId: string): Promise<number>;
+
+  /**
+   * Snapshot operations
+   *
+   * The engine writes one snapshot per campaign (single-row replace semantics).
+   * Auto-snapshot triggering and multi-snapshot retention are deferred —
+   * see todo.md "Snapshot chain (auto-trigger + pruning)".
+   */
+  getLatestSnapshot(
+    campaignId: string,
+  ): Promise<{ seq: number; blob: unknown } | null>;
+  putSnapshot(campaignId: string, seq: number, blob: unknown): Promise<void>;
 
   /**
    * Transaction support
@@ -392,7 +411,7 @@ export class Storage {
    */
   async appendEvent(
     campaignId: string,
-    event: Omit<Event, 'id' | 'timestamp'>,
+    event: Omit<Event, 'id' | 'seq' | 'timestamp'>,
   ): Promise<Event> {
     return this.backend.appendEvent(campaignId, event);
   }
@@ -401,12 +420,31 @@ export class Storage {
     campaignId: string,
     options?: {
       afterTimestamp?: number;
+      afterSeq?: number;
       entityId?: string;
       type?: string;
       limit?: number;
     },
   ): Promise<Event[]> {
     return this.backend.getEvents(campaignId, options);
+  }
+
+  async getMaxEventSeq(campaignId: string): Promise<number> {
+    return this.backend.getMaxEventSeq(campaignId);
+  }
+
+  async getLatestSnapshot(
+    campaignId: string,
+  ): Promise<{ seq: number; blob: unknown } | null> {
+    return this.backend.getLatestSnapshot(campaignId);
+  }
+
+  async putSnapshot(
+    campaignId: string,
+    seq: number,
+    blob: unknown,
+  ): Promise<void> {
+    return this.backend.putSnapshot(campaignId, seq, blob);
   }
 
   /**

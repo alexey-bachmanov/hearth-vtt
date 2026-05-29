@@ -253,6 +253,163 @@ describe('SqliteStorage (:memory: mode)', () => {
       expect(eventsA).toHaveLength(1);
       expect(eventsA[0].type).toBe('event-a');
     });
+
+    it('assigns monotonically increasing seq values per campaign', async () => {
+      const e1 = await storage.appendEvent(campaignId, {
+        campaignId,
+        entityId: null,
+        type: 'first',
+        data: {},
+      });
+      const e2 = await storage.appendEvent(campaignId, {
+        campaignId,
+        entityId: null,
+        type: 'second',
+        data: {},
+      });
+      const e3 = await storage.appendEvent(campaignId, {
+        campaignId,
+        entityId: null,
+        type: 'third',
+        data: {},
+      });
+
+      expect(e1.seq).toBe(1);
+      expect(e2.seq).toBe(2);
+      expect(e3.seq).toBe(3);
+    });
+
+    it('seq numbering is independent between campaigns', async () => {
+      const eA = await storage.appendEvent(campaignId, {
+        campaignId,
+        entityId: null,
+        type: 'a',
+        data: {},
+      });
+      const eB = await storage.appendEvent(otherCampaignId, {
+        campaignId: otherCampaignId,
+        entityId: null,
+        type: 'b',
+        data: {},
+      });
+      expect(eA.seq).toBe(1);
+      expect(eB.seq).toBe(1);
+    });
+
+    it('seq is persisted and returned in getEvents', async () => {
+      await storage.appendEvent(campaignId, {
+        campaignId,
+        entityId: null,
+        type: 'x',
+        data: {},
+      });
+      await storage.appendEvent(campaignId, {
+        campaignId,
+        entityId: null,
+        type: 'y',
+        data: {},
+      });
+
+      const events = await storage.getEvents(campaignId);
+      expect(events[0].seq).toBe(1);
+      expect(events[1].seq).toBe(2);
+    });
+
+    it('getMaxEventSeq returns 0 for a campaign with no events', async () => {
+      const max = await storage.getMaxEventSeq(campaignId);
+      expect(max).toBe(0);
+    });
+
+    it('getMaxEventSeq returns the highest seq after appending events', async () => {
+      await storage.appendEvent(campaignId, {
+        campaignId,
+        entityId: null,
+        type: 'a',
+        data: {},
+      });
+      await storage.appendEvent(campaignId, {
+        campaignId,
+        entityId: null,
+        type: 'b',
+        data: {},
+      });
+      const max = await storage.getMaxEventSeq(campaignId);
+      expect(max).toBe(2);
+    });
+
+    it('filters events after a given seq (afterSeq)', async () => {
+      await storage.appendEvent(campaignId, {
+        campaignId,
+        entityId: null,
+        type: 'one',
+        data: {},
+      });
+      await storage.appendEvent(campaignId, {
+        campaignId,
+        entityId: null,
+        type: 'two',
+        data: {},
+      });
+      await storage.appendEvent(campaignId, {
+        campaignId,
+        entityId: null,
+        type: 'three',
+        data: {},
+      });
+
+      const events = await storage.getEvents(campaignId, { afterSeq: 1 });
+      expect(events).toHaveLength(2);
+      expect(events[0].type).toBe('two');
+      expect(events[1].type).toBe('three');
+    });
+
+    it('afterSeq: 0 returns all events', async () => {
+      await storage.appendEvent(campaignId, {
+        campaignId,
+        entityId: null,
+        type: 'sole',
+        data: {},
+      });
+      const events = await storage.getEvents(campaignId, { afterSeq: 0 });
+      expect(events).toHaveLength(1);
+    });
+  });
+
+  // ==========================================================================
+  // Snapshots
+  // ==========================================================================
+
+  describe('Snapshots', () => {
+    let campaignId: string;
+
+    beforeEach(async () => {
+      const c = await storage.createCampaign('Snapshot Campaign');
+      campaignId = c.id;
+    });
+
+    it('getLatestSnapshot returns null when no snapshot exists', async () => {
+      const snap = await storage.getLatestSnapshot(campaignId);
+      expect(snap).toBeNull();
+    });
+
+    it('putSnapshot and getLatestSnapshot round-trip', async () => {
+      const blob = { tokens: [{ id: 'tk-1', x: 10, y: 20 }] };
+      await storage.putSnapshot(campaignId, 5, blob);
+
+      const snap = await storage.getLatestSnapshot(campaignId);
+      expect(snap).not.toBeNull();
+      expect(snap!.seq).toBe(5);
+      expect(snap!.blob).toEqual(blob);
+    });
+
+    it('putSnapshot overwrites a previous snapshot for the same campaign', async () => {
+      await storage.putSnapshot(campaignId, 3, { version: 'v1' });
+      await storage.putSnapshot(campaignId, 7, { version: 'v2' });
+
+      const snap = await storage.getLatestSnapshot(campaignId);
+      expect(snap!.seq).toBe(7);
+      expect(snap!.blob).toEqual({ version: 'v2' });
+    });
   });
 
   // ==========================================================================
@@ -707,6 +864,136 @@ describe('SqliteStorage (:memory: mode)', () => {
 
     it('rollbackTransaction throws "not yet implemented"', async () => {
       await expect(storage.rollbackTransaction(campaignId)).rejects.toThrow();
+    });
+  });
+});
+
+// ============================================================================
+// InMemoryBackend — new storage primitive parity tests
+// ============================================================================
+
+import { Storage } from './storage.js';
+import { InMemoryBackend } from './in-memory-storage.js';
+
+describe('InMemoryBackend — new storage primitives', () => {
+  let storage: Storage;
+  let campaignId: string;
+
+  beforeEach(async () => {
+    storage = new Storage(new InMemoryBackend());
+    const c = await storage.createCampaign('Test');
+    campaignId = c.id;
+  });
+
+  describe('seq and getMaxEventSeq', () => {
+    it('assigns seq starting from 1 and incrementing', async () => {
+      const e1 = await storage.appendEvent(campaignId, {
+        campaignId,
+        entityId: null,
+        type: 'a',
+        data: {},
+      });
+      const e2 = await storage.appendEvent(campaignId, {
+        campaignId,
+        entityId: null,
+        type: 'b',
+        data: {},
+      });
+      expect(e1.seq).toBe(1);
+      expect(e2.seq).toBe(2);
+    });
+
+    it('getMaxEventSeq returns 0 for empty campaign', async () => {
+      expect(await storage.getMaxEventSeq(campaignId)).toBe(0);
+    });
+
+    it('getMaxEventSeq returns highest seq after appends', async () => {
+      await storage.appendEvent(campaignId, {
+        campaignId,
+        entityId: null,
+        type: 'x',
+        data: {},
+      });
+      await storage.appendEvent(campaignId, {
+        campaignId,
+        entityId: null,
+        type: 'y',
+        data: {},
+      });
+      expect(await storage.getMaxEventSeq(campaignId)).toBe(2);
+    });
+
+    it('seq is returned in getEvents', async () => {
+      await storage.appendEvent(campaignId, {
+        campaignId,
+        entityId: null,
+        type: 'first',
+        data: {},
+      });
+      const events = await storage.getEvents(campaignId);
+      expect(events[0].seq).toBe(1);
+    });
+  });
+
+  describe('afterSeq filter', () => {
+    it('filters events with seq > afterSeq', async () => {
+      await storage.appendEvent(campaignId, {
+        campaignId,
+        entityId: null,
+        type: 'one',
+        data: {},
+      });
+      await storage.appendEvent(campaignId, {
+        campaignId,
+        entityId: null,
+        type: 'two',
+        data: {},
+      });
+      await storage.appendEvent(campaignId, {
+        campaignId,
+        entityId: null,
+        type: 'three',
+        data: {},
+      });
+
+      const results = await storage.getEvents(campaignId, { afterSeq: 1 });
+      expect(results).toHaveLength(2);
+      expect(results[0].type).toBe('two');
+      expect(results[1].type).toBe('three');
+    });
+
+    it('afterSeq: 0 returns all events', async () => {
+      await storage.appendEvent(campaignId, {
+        campaignId,
+        entityId: null,
+        type: 'only',
+        data: {},
+      });
+      const results = await storage.getEvents(campaignId, { afterSeq: 0 });
+      expect(results).toHaveLength(1);
+    });
+  });
+
+  describe('snapshots', () => {
+    it('getLatestSnapshot returns null when no snapshot exists', async () => {
+      expect(await storage.getLatestSnapshot(campaignId)).toBeNull();
+    });
+
+    it('putSnapshot and getLatestSnapshot round-trip', async () => {
+      const blob = { tokens: [{ id: 'tk-1', x: 3, y: 7 }] };
+      await storage.putSnapshot(campaignId, 4, blob);
+      const snap = await storage.getLatestSnapshot(campaignId);
+      expect(snap).not.toBeNull();
+      expect(snap!.seq).toBe(4);
+      expect(snap!.blob).toEqual(blob);
+    });
+
+    it('putSnapshot replaces a previous snapshot', async () => {
+      await storage.putSnapshot(campaignId, 2, { v: 1 });
+      await storage.putSnapshot(campaignId, 9, { v: 2 });
+      const snap = await storage.getLatestSnapshot(campaignId);
+      expect(snap!.seq).toBe(9);
+      expect(snap!.blob).toEqual({ v: 2 });
     });
   });
 });

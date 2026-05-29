@@ -29,6 +29,7 @@ interface EventRow {
   entityId: string;
   type: string;
   data: string;
+  seq: number;
   timestamp: number;
 }
 
@@ -169,11 +170,13 @@ export class SqliteStorage implements StorageBackend {
         entity_id TEXT,
         type TEXT NOT NULL,
         data TEXT NOT NULL,
+        seq INTEGER NOT NULL,
         timestamp INTEGER NOT NULL,
         FOREIGN KEY (campaign_id) REFERENCES campaigns(id) ON DELETE CASCADE
       );
 
       CREATE INDEX IF NOT EXISTS idx_events_campaign_timestamp ON events(campaign_id, timestamp);
+      CREATE UNIQUE INDEX IF NOT EXISTS idx_events_campaign_seq ON events(campaign_id, seq);
       CREATE INDEX IF NOT EXISTS idx_events_entity_id ON events(entity_id);
       CREATE INDEX IF NOT EXISTS idx_events_type ON events(type);
 
@@ -232,6 +235,18 @@ export class SqliteStorage implements StorageBackend {
       CREATE UNIQUE INDEX IF NOT EXISTS idx_auth_sessions_refresh_token ON auth_sessions(refresh_token_hash);
       CREATE INDEX IF NOT EXISTS idx_auth_sessions_account_id ON auth_sessions(account_id);
       CREATE INDEX IF NOT EXISTS idx_auth_sessions_expires_at ON auth_sessions(expires_at);
+
+      -- Snapshots table (one row per campaign; replaced on each snapshot write)
+      -- Stores the engine's serialised CampaignState blob so open() can seed
+      -- from a snapshot and replay only events with seq > snapshot.seq.
+      -- Auto-snapshot trigger and pruning are deferred (see todo.md tech debt).
+      CREATE TABLE IF NOT EXISTS snapshots (
+        campaign_id TEXT PRIMARY KEY,
+        seq INTEGER NOT NULL,
+        data_json TEXT NOT NULL,
+        created_at INTEGER NOT NULL,
+        FOREIGN KEY (campaign_id) REFERENCES campaigns(id) ON DELETE CASCADE
+      );
     `);
   }
 
@@ -459,21 +474,30 @@ export class SqliteStorage implements StorageBackend {
 
   async appendEvent(
     campaignId: string,
-    event: Omit<Event, 'id' | 'timestamp'>,
+    event: Omit<Event, 'id' | 'seq' | 'timestamp'>,
   ): Promise<Event> {
     const db = this.ensureDb();
     const id = randomUUID();
     const timestamp = Date.now();
 
+    // Assign the next seq for this campaign atomically (SQLite single-writer).
+    const maxRow = db
+      .prepare(
+        'SELECT COALESCE(MAX(seq), 0) AS maxSeq FROM events WHERE campaign_id = ?',
+      )
+      .get(campaignId) as { maxSeq: number };
+    const seq = maxRow.maxSeq + 1;
+
     const fullEvent: Event = {
       id,
       ...event,
+      seq,
       timestamp,
     };
 
     const stmt = db.prepare(`
-      INSERT INTO events (id, campaign_id, entity_id, type, data, timestamp)
-      VALUES (?, ?, ?, ?, ?, ?)
+      INSERT INTO events (id, campaign_id, entity_id, type, data, seq, timestamp)
+      VALUES (?, ?, ?, ?, ?, ?, ?)
     `);
     stmt.run(
       fullEvent.id,
@@ -481,6 +505,7 @@ export class SqliteStorage implements StorageBackend {
       fullEvent.entityId,
       fullEvent.type,
       JSON.stringify(fullEvent.data),
+      fullEvent.seq,
       fullEvent.timestamp,
     );
 
@@ -491,6 +516,7 @@ export class SqliteStorage implements StorageBackend {
     campaignId: string,
     options?: {
       afterTimestamp?: number;
+      afterSeq?: number;
       entityId?: string;
       type?: string;
       limit?: number;
@@ -499,15 +525,20 @@ export class SqliteStorage implements StorageBackend {
     const db = this.ensureDb();
 
     let query = `
-      SELECT id, entity_id as entityId, type, data, timestamp
+      SELECT id, entity_id as entityId, type, data, seq, timestamp
       FROM events
       WHERE campaign_id = ?
     `;
     const params: unknown[] = [campaignId];
 
-    if (options?.afterTimestamp) {
+    if (options?.afterTimestamp !== undefined) {
       query += ` AND timestamp > ?`;
       params.push(options.afterTimestamp);
+    }
+
+    if (options?.afterSeq !== undefined) {
+      query += ` AND seq > ?`;
+      params.push(options.afterSeq);
     }
 
     if (options?.entityId) {
@@ -520,7 +551,7 @@ export class SqliteStorage implements StorageBackend {
       params.push(options.type);
     }
 
-    query += ` ORDER BY timestamp ASC`;
+    query += ` ORDER BY seq ASC`;
 
     if (options?.limit) {
       query += ` LIMIT ?`;
@@ -536,8 +567,50 @@ export class SqliteStorage implements StorageBackend {
       entityId: row.entityId,
       type: row.type,
       data: JSON.parse(row.data),
+      seq: row.seq,
       timestamp: row.timestamp,
     }));
+  }
+
+  async getMaxEventSeq(campaignId: string): Promise<number> {
+    const db = this.ensureDb();
+    const row = db
+      .prepare(
+        'SELECT COALESCE(MAX(seq), 0) AS maxSeq FROM events WHERE campaign_id = ?',
+      )
+      .get(campaignId) as { maxSeq: number };
+    return row.maxSeq;
+  }
+
+  // ---------------------------------------------------------------------------
+  // Snapshot operations
+  // ---------------------------------------------------------------------------
+
+  async getLatestSnapshot(
+    campaignId: string,
+  ): Promise<{ seq: number; blob: unknown } | null> {
+    const db = this.ensureDb();
+    const row = db
+      .prepare('SELECT seq, data_json FROM snapshots WHERE campaign_id = ?')
+      .get(campaignId) as { seq: number; data_json: string } | undefined;
+    if (!row) return null;
+    return { seq: row.seq, blob: JSON.parse(row.data_json) };
+  }
+
+  async putSnapshot(
+    campaignId: string,
+    seq: number,
+    blob: unknown,
+  ): Promise<void> {
+    const db = this.ensureDb();
+    db.prepare(
+      `INSERT INTO snapshots (campaign_id, seq, data_json, created_at)
+       VALUES (?, ?, ?, ?)
+       ON CONFLICT(campaign_id) DO UPDATE SET
+         seq = excluded.seq,
+         data_json = excluded.data_json,
+         created_at = excluded.created_at`,
+    ).run(campaignId, seq, JSON.stringify(blob), Date.now());
   }
 
   // ---------------------------------------------------------------------------

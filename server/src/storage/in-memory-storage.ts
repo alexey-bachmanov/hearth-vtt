@@ -28,6 +28,7 @@ export class InMemoryBackend implements StorageBackend {
   private campaigns = new Map<string, Campaign>();
   private entities = new Map<string, Map<string, Entity>>();
   private events = new Map<string, Event[]>();
+  private snapshots = new Map<string, { seq: number; blob: unknown }>();
   private serverAdmin: ServerAdmin | null = null;
   private adminSessions = new Map<string, AdminSession>();
   private playerAccounts = new Map<string, PlayerAccount>();
@@ -74,6 +75,7 @@ export class InMemoryBackend implements StorageBackend {
     this.campaigns.delete(id);
     this.entities.delete(id);
     this.events.delete(id);
+    this.snapshots.delete(id);
     this.seats.delete(id);
     // Auth sessions are account-scoped; not cascade-deleted by campaign deletion.
 
@@ -146,9 +148,16 @@ export class InMemoryBackend implements StorageBackend {
 
   async appendEvent(
     campaignId: string,
-    event: Omit<Event, 'id' | 'timestamp'>,
+    event: Omit<Event, 'id' | 'seq' | 'timestamp'>,
   ): Promise<Event> {
-    const full: Event = { ...event, id: randomUUID(), timestamp: Date.now() };
+    const existing = this.events.get(campaignId) ?? [];
+    const seq = existing.length > 0 ? existing[existing.length - 1].seq + 1 : 1;
+    const full: Event = {
+      ...event,
+      id: randomUUID(),
+      seq,
+      timestamp: Date.now(),
+    };
     if (!this.events.has(campaignId)) this.events.set(campaignId, []);
     this.events.get(campaignId)!.push(full);
     return { ...full };
@@ -158,6 +167,7 @@ export class InMemoryBackend implements StorageBackend {
     campaignId: string,
     options?: {
       afterTimestamp?: number;
+      afterSeq?: number;
       entityId?: string;
       type?: string;
       limit?: number;
@@ -166,6 +176,9 @@ export class InMemoryBackend implements StorageBackend {
     let results = [...(this.events.get(campaignId) ?? [])];
     if (options?.afterTimestamp !== undefined) {
       results = results.filter((e) => e.timestamp > options.afterTimestamp!);
+    }
+    if (options?.afterSeq !== undefined) {
+      results = results.filter((e) => e.seq > options.afterSeq!);
     }
     if (options?.entityId !== undefined) {
       results = results.filter((e) => e.entityId === options.entityId);
@@ -177,6 +190,31 @@ export class InMemoryBackend implements StorageBackend {
       results = results.slice(0, options.limit);
     }
     return results.map((e) => ({ ...e }));
+  }
+
+  async getMaxEventSeq(campaignId: string): Promise<number> {
+    const events = this.events.get(campaignId) ?? [];
+    if (events.length === 0) return 0;
+    return events[events.length - 1].seq;
+  }
+
+  // ---------------------------------------------------------------------------
+  // Snapshot operations
+  // ---------------------------------------------------------------------------
+
+  async getLatestSnapshot(
+    campaignId: string,
+  ): Promise<{ seq: number; blob: unknown } | null> {
+    const entry = this.snapshots.get(campaignId);
+    return entry ? { ...entry } : null;
+  }
+
+  async putSnapshot(
+    campaignId: string,
+    seq: number,
+    blob: unknown,
+  ): Promise<void> {
+    this.snapshots.set(campaignId, { seq, blob });
   }
 
   // ---------------------------------------------------------------------------
