@@ -1,141 +1,117 @@
 <script lang="ts">
 /**
  * SeatSettings - View and manage a specific seat.
- * 
+ *
  * Displays:
- * - Seat details (name, role, permissions)
+ * - Seat details (name, role, active status)
+ * - Claimed-by account info with "Go to Account" cross-link
  * - List of invites for this seat
  * - Create/revoke invite actions
  * - Delete seat button
+ *
+ * TODO (Phase 5+): Replace mock handlers with real API calls:
+ *   PATCH  /api/admin/campaigns/:id/seats/:seatId
+ *   POST   /api/admin/invites  (per seat)
+ *   DELETE /api/admin/invites/:token
  */
 
-interface Seat {
-  id: string;
-  campaignId: string;
-  displayName: string;
-  role: 'gm' | 'player' | 'spectator';
-  isActive: boolean;
-  createdAt: string;
-}
-
-interface Invite {
-  id: string;
-  seatId: string;
-  inviteToken: string;
-  inviteUrl: string;
-  pinHash: string;
-  maxUses: number;
-  usesRemaining: number;
-  expiresAt: string;
-  createdAt: string;
-  revokedAt: string | null;
-}
+import { adminTree, type MockSeat, type MockInvite } from '../../state/admin.svelte.js';
 
 interface Props {
   seatId: string;
-  onBack: () => void;
 }
 
-let { seatId, onBack }: Props = $props();
+let { seatId }: Props = $props();
 
-// Mock seat data - in real app, loaded from API
-let seat = $state<Seat>({
-  id: seatId,
-  campaignId: 'campaign-1',
-  displayName: 'Player 1',
-  role: 'player',
-  isActive: true,
-  createdAt: '2026-01-15T10:10:00Z',
-});
-
-let displayName = $state('Player 1');
-let role = $state<'gm' | 'player' | 'spectator'>('player');
-let isActive = $state(true);
-
-// Mock invites data - in real app, loaded from API
-let invites = $state<Invite[]>([
-  {
-    id: 'invite-1',
-    seatId: 'seat-1',
-    inviteToken: 'ABC123XYZ',
-    inviteUrl: 'http://localhost:3000/join/ABC123XYZ',
-    pinHash: 'hashed_pin',
-    maxUses: 1,
-    usesRemaining: 1,
-    expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString(),
-    createdAt: '2026-02-01T10:00:00Z',
-    revokedAt: null,
-  },
-]);
+let seat = $derived<MockSeat | undefined>(adminTree.getSeat(seatId));
+let invites = $derived<MockInvite[]>(adminTree.getInvitesForSeat(seatId));
+let claimedByAccount = $derived(adminTree.getAccountForSeat(seatId));
 
 let isEditingName = $state(false);
 let editedName = $state('');
-
 let isEditingRole = $state(false);
 let editedRole = $state<'gm' | 'player' | 'spectator'>('player');
 
+$effect(() => {
+  // Reset editing state when seat changes
+  void seatId;
+  isEditingName = false;
+  editedName = '';
+  isEditingRole = false;
+});
+
 function handleSaveName() {
-  if (editedName.trim()) {
-    displayName = editedName.trim();
-    console.log('Saving seat name:', displayName);
-    // TODO: Call API to update seat name
-  }
+  if (!editedName.trim()) return;
+  const s = adminTree.seats.find((x) => x.id === seatId);
+  if (s) s.displayName = editedName.trim();
+  // TODO (Phase 5+): PATCH /api/admin/campaigns/:id/seats/:seatId
+  console.log('[SeatSettings] Rename seat (mock):', editedName.trim());
   isEditingName = false;
 }
 
 function handleSaveRole() {
-  role = editedRole;
-  console.log('Saving seat role:', role);
-  // TODO: Call API to update seat role
+  const s = adminTree.seats.find((x) => x.id === seatId);
+  if (s) s.role = editedRole;
+  // TODO (Phase 5+): PATCH /api/admin/campaigns/:id/seats/:seatId
+  console.log('[SeatSettings] Change role (mock):', editedRole);
   isEditingRole = false;
 }
 
 function handleToggleActive() {
-  isActive = !isActive;
-  console.log('Toggling seat active status:', isActive);
-  // TODO: Call API to update seat status
+  const s = adminTree.seats.find((x) => x.id === seatId);
+  if (s) s.isActive = !s.isActive;
+  // TODO (Phase 5+): PATCH /api/admin/campaigns/:id/seats/:seatId
+  console.log('[SeatSettings] Toggle active (mock):', !seat?.isActive);
 }
 
 function handleCreateInvite() {
-  const pin = prompt('Enter PIN for this invite (4-8 characters):');
+  const pin = prompt('Enter PIN for this invite (4-8 digits):');
   if (pin && pin.length >= 4) {
-    console.log('Creating invite with PIN');
-    // TODO: Call API to create invite
+    // TODO (Phase 5+): POST /api/admin/invites
+    console.log('[SeatSettings] Create invite (mock) for seat:', seatId);
   }
 }
 
-function handleRevokeInvite(invite: Invite) {
+function handleRevokeInvite(invite: MockInvite) {
   if (confirm('Revoke this invite? Anyone with the link will no longer be able to use it.')) {
-    console.log('Revoking invite:', invite.id);
-    // TODO: Call API to revoke invite
+    // TODO (Phase 5+): DELETE /api/admin/invites/:token
+    console.log('[SeatSettings] Revoke invite (mock):', invite.id);
   }
 }
 
 function handleCopyInviteUrl(url: string) {
-  navigator.clipboard.writeText(url);
-  alert('Invite URL copied to clipboard!');
+  navigator.clipboard.writeText(url).catch(() => {
+    alert('Could not copy to clipboard.');
+  });
 }
 
 function handleDeleteSeat() {
-  if (confirm(`Delete seat "${displayName}"? This will also revoke all invites and remove any active sessions. This cannot be undone.`)) {
-    console.log('Deleting seat:', seat.id);
-    // TODO: Call API to delete seat
-    onBack();
+  if (!seat) return;
+  if (!confirm(`Delete seat "${seat.displayName}"? This will also revoke all invites and remove any active sessions. This cannot be undone.`)) {
+    return;
   }
+  // TODO (Phase 5+): DELETE /api/admin/campaigns/:id/seats/:seatId
+  console.log('[SeatSettings] Delete seat (mock):', seatId);
+  adminTree.navigateTo(seat.campaignId);
 }
 
-function isInviteExpired(invite: Invite): boolean {
+function isInviteExpired(invite: MockInvite): boolean {
   return new Date(invite.expiresAt) < new Date();
 }
 
-function isInviteActive(invite: Invite): boolean {
+function isInviteActive(invite: MockInvite): boolean {
   return !invite.revokedAt && !isInviteExpired(invite) && invite.usesRemaining > 0;
 }
 </script>
 
+{#if !seat}
+  <div class="detail-empty"><p>Seat not found.</p></div>
+{:else}
 <div class="seat-settings">
   <div class="page-header">
-    <button class="back-button" onclick={onBack}>← Back</button>
+    <button class="back-button" onclick={() => adminTree.navigateTo(seat!.campaignId)}>
+      ← Campaign
+    </button>
     <button class="btn btn--danger" onclick={handleDeleteSeat}>
       🗑️ Delete Seat
     </button>
@@ -156,20 +132,20 @@ function isInviteActive(invite: Invite): boolean {
               onkeydown={(e) => e.key === 'Enter' && handleSaveName()}
             />
             <button class="btn btn--sm btn--primary" onclick={handleSaveName}>Save</button>
-            <button class="btn btn--sm btn--secondary" onclick={() => { isEditingName = false; editedName = displayName; }}>
+            <button class="btn btn--sm btn--secondary" onclick={() => { isEditingName = false; editedName = seat?.displayName ?? ''; }}>
               Cancel
             </button>
           </div>
         {:else}
           <div class="display-field">
-            <span>{displayName}</span>
-            <button class="btn-icon" onclick={() => { isEditingName = true; editedName = displayName; }}>
+            <span>{seat.displayName}</span>
+            <button class="btn-icon" onclick={() => { isEditingName = true; editedName = seat?.displayName ?? ''; }}>
               ✏️
             </button>
           </div>
         {/if}
       </div>
-      
+
       <div class="detail-item">
         <span class="label">Role:</span>
         {#if isEditingRole}
@@ -180,16 +156,16 @@ function isInviteActive(invite: Invite): boolean {
               <option value="spectator">Spectator</option>
             </select>
             <button class="btn btn--sm btn--primary" onclick={handleSaveRole}>Save</button>
-            <button class="btn btn--sm btn--secondary" onclick={() => { isEditingRole = false; editedRole = role; }}>
+            <button class="btn btn--sm btn--secondary" onclick={() => { isEditingRole = false; }}>
               Cancel
             </button>
           </div>
         {:else}
           <div class="display-field">
-            <span class="role-badge" class:gm={role === 'gm'}>
-              {role.toUpperCase()}
+            <span class="role-badge" class:gm={seat.role === 'gm'}>
+              {seat.role.toUpperCase()}
             </span>
-            <button class="btn-icon" onclick={() => { isEditingRole = true; editedRole = role; }}>
+            <button class="btn-icon" onclick={() => { isEditingRole = true; editedRole = seat?.role ?? 'player'; }}>
               ✏️
             </button>
           </div>
@@ -199,11 +175,11 @@ function isInviteActive(invite: Invite): boolean {
       <div class="detail-item">
         <span class="label">Status:</span>
         <div class="display-field">
-          <span class="status-badge" class:status-badge--active={isActive}>
-            {isActive ? '● Active' : '○ Inactive'}
+          <span class="status-badge" class:status-badge--active={seat.isActive}>
+            {seat.isActive ? '● Active' : '○ Inactive'}
           </span>
           <button class="btn btn--sm btn--secondary" onclick={handleToggleActive}>
-            {isActive ? 'Deactivate' : 'Activate'}
+            {seat.isActive ? 'Deactivate' : 'Activate'}
           </button>
         </div>
       </div>
@@ -212,6 +188,26 @@ function isInviteActive(invite: Invite): boolean {
         <span class="label">Created:</span>
         <span>{new Date(seat.createdAt).toLocaleString()}</span>
       </div>
+
+      {#if claimedByAccount}
+        <div class="detail-item">
+          <span class="label">Claimed by:</span>
+          <div class="display-field">
+            <span>{claimedByAccount.username}</span>
+            <button
+              class="btn btn--sm btn--secondary"
+              onclick={() => adminTree.navigateTo(claimedByAccount!.id)}
+            >
+              Go to Account →
+            </button>
+          </div>
+        </div>
+      {:else}
+        <div class="detail-item">
+          <span class="label">Claimed by:</span>
+          <span class="text-muted">Unclaimed</span>
+        </div>
+      {/if}
     </div>
   </section>
 
@@ -284,6 +280,7 @@ function isInviteActive(invite: Invite): boolean {
     </div>
   </section>
 </div>
+{/if}
 
 
 <style>

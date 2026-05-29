@@ -2,9 +2,13 @@
 /**
  * AdminLayout - Campaign management interface.
  *
- * Tree-based navigation: Server → Campaigns → Seats
+ * Tree-based navigation: Settings | Campaigns → Seats | Accounts
  * Left panel: AdminTree for hierarchical navigation
- * Main area: Detail component based on selected node type
+ * Main area: Detail panel based on selected node
+ *
+ * Tree state (selected node, expanded nodes) lives in `adminTree`
+ * (client/src/state/admin.svelte.ts). All navigation — including
+ * cross-links between branches — goes through `adminTree.navigateTo()`.
  *
  * Security:
  * - Checks authentication on mount
@@ -14,24 +18,20 @@
 
 import { onMount } from 'svelte';
 import { navigate } from '../../app/routes';
-import { adminAuth, adminFetch } from '../../state/admin.svelte';
+import { adminAuth, adminTree, adminFetch } from '../../state/admin.svelte';
 import AdminTree from '../admin/AdminTree.svelte';
 import ServerSettings from '../admin/ServerSettings.svelte';
 import CampaignDetail from '../admin/CampaignDetail.svelte';
 import SeatSettings from '../admin/SeatSettings.svelte';
+import AccountDetail from '../admin/AccountDetail.svelte';
 
-// Selected node state
-type NodeType = 'server' | 'campaign' | 'seat';
-
-let selectedNodeId = $state<string>('server');
-let selectedNodeType = $state<NodeType>('server');
 let isCheckingAuth = $state(true);
 let isAuthenticated = $state(false);
 
-/**
- * Check if user is authenticated and if setup is needed.
- * Redirects to setup or login page if necessary.
- */
+// Derive selected node info reactively from the store
+let selectedId = $derived(adminTree.selectedId);
+let selectedType = $derived(adminTree.selectedNodeType);
+
 async function checkAuth() {
   try {
     const response = await fetch('/api/admin/check-auth', {
@@ -40,68 +40,35 @@ async function checkAuth() {
     });
 
     if (!response.ok) {
-      // Network error or server issue - throw an error to trigger catch block
       throw new Error(`Server responded with status ${response.status}`);
     }
 
     const data = await response.json();
 
     if (data.needsSetup) {
-      // Server needs initial setup
       navigate('/admin/setup');
       return;
     }
 
     if (!data.authenticated) {
-      // User not authenticated
       navigate('/admin/login');
       return;
     }
 
-    // User is authenticated, show admin UI
     isAuthenticated = true;
   } catch {
-    // Network error - redirect to error page
     navigate('/admin/error');
   } finally {
     isCheckingAuth = false;
   }
 }
 
-function handleSelectNode(nodeId: string, nodeType: NodeType) {
-  selectedNodeId = nodeId;
-  selectedNodeType = nodeType;
-}
-
-function handleSelectCampaignFromServer(campaignId: string) {
-  handleSelectNode(campaignId, 'campaign');
-}
-
-function handleSelectSeatFromCampaign(seatId: string) {
-  handleSelectNode(seatId, 'seat');
-}
-
-function handleBackToServer() {
-  handleSelectNode('server', 'server');
-}
-
-function handleBackToCampaign(campaignId: string) {
-  handleSelectNode(campaignId, 'campaign');
-}
-
-/**
- * Logout user by calling logout API and redirecting to login page.
- */
 async function handleLogout() {
   try {
-    await adminFetch('/api/admin/logout', {
-      method: 'POST',
-    });
+    await adminFetch('/api/admin/logout', { method: 'POST' });
   } catch (error) {
-    // Even if logout fails, redirect to login
     console.error('Logout request failed:', error);
   } finally {
-    // Clear CSRF token and redirect to login
     adminAuth.clearCsrfToken();
     navigate('/admin/login');
   }
@@ -121,29 +88,29 @@ onMount(() => {
   {:else if isAuthenticated}
     <aside class="admin-sidebar">
       <div class="sidebar-header">
-        <h2 class="sidebar-title">Admin Panel</h2>
+        <h2 class="sidebar-title">HearthVTT Admin</h2>
         <button class="logout-button" onclick={handleLogout} title="Logout">
           <span class="logout-icon">↪</span>
           <span>Logout</span>
         </button>
       </div>
-      <AdminTree {selectedNodeId} onSelectNode={handleSelectNode} />
+      <AdminTree />
     </aside>
 
     <main class="admin-content">
-      {#if selectedNodeType === 'server'}
-        <ServerSettings onSelectCampaign={handleSelectCampaignFromServer} />
-      {:else if selectedNodeType === 'campaign'}
-        <CampaignDetail
-          campaignId={selectedNodeId}
-          onBack={handleBackToServer}
-          onSelectSeat={handleSelectSeatFromCampaign}
-        />
-      {:else if selectedNodeType === 'seat'}
-        <SeatSettings
-          seatId={selectedNodeId}
-          onBack={() => handleBackToCampaign('campaign-1')}
-        />
+      {#if selectedType === 'settings' || selectedId === 'settings'}
+        <ServerSettings />
+      {:else if selectedType === 'campaign' && selectedId !== 'campaigns'}
+        <CampaignDetail campaignId={selectedId} />
+      {:else if selectedType === 'seat'}
+        <SeatSettings seatId={selectedId} />
+      {:else if selectedType === 'account' && selectedId !== 'accounts'}
+        <AccountDetail accountId={selectedId} />
+      {:else}
+        <!-- Branch node selected (Campaigns / Accounts root) — show a hint -->
+        <div class="branch-hint">
+          <p>Select an item in the tree to view details.</p>
+        </div>
       {/if}
     </main>
   {/if}
@@ -163,8 +130,10 @@ onMount(() => {
   align-items: center;
   justify-content: center;
   height: 100vh;
+  grid-column: 1 / -1;
   background-color: var(--color-bg-primary);
   color: var(--color-text-secondary);
+  gap: var(--space-md);
 }
 
 .loading-overlay p {
@@ -187,11 +156,12 @@ onMount(() => {
   padding: var(--space-md) var(--space-lg);
   border-bottom: 1px solid var(--color-border-default);
   background-color: var(--color-bg-tertiary);
+  flex-shrink: 0;
 }
 
 .sidebar-title {
   margin: 0;
-  font-size: var(--font-size-lg);
+  font-size: var(--font-size-md);
   font-weight: var(--font-weight-semibold);
   color: var(--color-text-primary);
 }
@@ -223,5 +193,14 @@ onMount(() => {
 .admin-content {
   overflow-y: auto;
   padding: var(--space-xl);
+}
+
+.branch-hint {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 100%;
+  color: var(--color-text-tertiary);
+  font-size: var(--font-size-md);
 }
 </style>

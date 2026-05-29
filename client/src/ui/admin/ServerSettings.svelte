@@ -1,48 +1,30 @@
 <script lang="ts">
 /**
  * ServerSettings - Server-level admin interface.
- * 
+ *
  * Displays:
  * - Server information (version, data directory)
- * - Campaign list with create/delete/import/export actions
+ * - Campaign list with create/import actions
  * - Admin password change form
+ *
+ * Navigation to campaigns happens via adminTree.navigateTo().
+ *
+ * TODO (Phase 5+): Load server info and campaigns from API.
+ *   GET /api/admin/status  — server info
+ *   GET /api/admin/campaigns — campaign list
  */
 
-interface Campaign {
-  id: string;
-  name: string;
-  createdAt: string;
-  updatedAt: string;
-}
+import { adminTree, type MockCampaign } from '../../state/admin.svelte.js';
 
-interface Props {
-  onSelectCampaign: (campaignId: string) => void;
-}
-
-let { onSelectCampaign }: Props = $props();
-
-// Mock server info - in real app, loaded from API
+// Mock server info
 let serverInfo = $state({
   version: '0.1.0',
   dataDir: './data',
   uptime: '2 hours 34 minutes',
 });
 
-// Mock campaigns - in real app, loaded from API
-let campaigns = $state<Campaign[]>([
-  {
-    id: 'campaign-1',
-    name: 'Lost Mines of Phandelver',
-    createdAt: '2026-01-15T10:00:00Z',
-    updatedAt: '2026-02-01T14:30:00Z',
-  },
-  {
-    id: 'campaign-2',
-    name: 'Curse of Strahd',
-    createdAt: '2026-01-20T09:00:00Z',
-    updatedAt: '2026-02-03T16:45:00Z',
-  },
-]);
+// Use campaigns from the shared store so they stay in sync with the tree
+let campaigns = $derived(adminTree.campaigns);
 
 // Password change form
 let passwordForm = $state({
@@ -56,11 +38,11 @@ function handleCreateCampaign() {
   const name = prompt('Enter campaign name:');
   if (name) {
     console.log('Creating campaign:', name);
-    // TODO: Call API to create campaign
+    // TODO (Phase 6+): POST /api/admin/campaigns
   }
 }
 
-function handleDeleteCampaign(campaign: Campaign) {
+function handleDeleteCampaign(campaign: MockCampaign) {
   if (confirm(`Delete campaign "${campaign.name}"? This cannot be undone.`)) {
     console.log('Deleting campaign:', campaign.id);
     // TODO: Call API to delete campaign
@@ -72,7 +54,7 @@ function handleImportCampaign() {
   // TODO: Show file picker and import
 }
 
-function handleExportCampaign(campaign: Campaign) {
+function handleExportCampaign(campaign: MockCampaign) {
   console.log('Exporting campaign:', campaign.id);
   // TODO: Trigger campaign export download
 }
@@ -147,7 +129,7 @@ function handleChangePassword() {
           <div class="campaign-card">
             <button 
               class="campaign-name"
-              onclick={() => onSelectCampaign(campaign.id)}
+              onclick={() => adminTree.navigateTo(campaign.id)}
             >
               📁 {campaign.name}
             </button>

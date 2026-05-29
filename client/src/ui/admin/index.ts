@@ -11,3 +11,4 @@ export { default as AdminLogin } from './AdminLogin.svelte';
 export { default as ServerSettings } from './ServerSettings.svelte';
 export { default as CampaignDetail } from './CampaignDetail.svelte';
 export { default as SeatSettings } from './SeatSettings.svelte';
+export { default as AccountDetail } from './AccountDetail.svelte';

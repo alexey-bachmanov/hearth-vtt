@@ -1,137 +1,76 @@
 <script lang="ts">
 /**
- * AdminTree - Tree navigator for admin hierarchy.
- * 
- * Displays expandable/collapsible tree structure:
- * - Server (root)
- *   - Campaign 1
- *     - Seat 1
- *     - Seat 2
- *   - Campaign 2
- *     - Seat 3
- * 
- * Each node is selectable to show details in main content area.
+ * AdminTree - Tree navigator for the admin panel.
+ *
+ * Renders the full admin navigation tree using state from `adminTree`
+ * (see client/src/state/admin.svelte.ts). All node selection and
+ * expansion is delegated to the store — this component is pure
+ * presentation.
+ *
+ * Tree structure (top to bottom):
+ *   ⚙  Settings   (leaf — server info + admin password)
+ *   📁 Campaigns  (expandable)
+ *      └ 📁 <Campaign>  (expandable)
+ *         └ 👤/👑 <Seat>  (leaf)
+ *   👥 Accounts  (expandable)
+ *      └ 👤 <Account>  (leaf)
  */
 
-interface TreeNode {
-  id: string;
-  type: 'server' | 'campaign' | 'seat';
-  label: string;
-  children?: TreeNode[];
-  expanded?: boolean;
-}
-
-interface Props {
-  selectedNodeId: string | null;
-  onSelectNode: (nodeId: string, nodeType: 'server' | 'campaign' | 'seat') => void;
-}
-
-let { selectedNodeId, onSelectNode }: Props = $props();
-
-// Mock tree structure - in real app, this would be loaded from API
-let treeData = $state<TreeNode>({
-  id: 'server',
-  type: 'server',
-  label: 'Server',
-  expanded: true,
-  children: [
-    {
-      id: 'campaign-1',
-      type: 'campaign',
-      label: 'Campaign 1',
-      expanded: false,
-      children: [
-        { id: 'seat-1', type: 'seat', label: 'GM Seat' },
-        { id: 'seat-2', type: 'seat', label: 'Player 1' },
-      ],
-    },
-    {
-      id: 'campaign-2',
-      type: 'campaign',
-      label: 'Campaign 2',
-      expanded: false,
-      children: [
-        { id: 'seat-3', type: 'seat', label: 'GM Seat' },
-      ],
-    },
-  ],
-});
-
-function toggleExpanded(node: TreeNode) {
-  node.expanded = !node.expanded;
-}
-
-function handleSelectNode(node: TreeNode) {
-  onSelectNode(node.id, node.type);
-}
-
-function getNodeIcon(type: 'server' | 'campaign' | 'seat'): string {
-  switch (type) {
-    case 'server': return '🖥️';
-    case 'campaign': return '📁';
-    case 'seat': return '👤';
-  }
-}
+import { adminTree, type AdminTreeNode } from '../../state/admin.svelte.js';
 </script>
 
-<div class="admin-tree">
+<nav class="admin-tree" aria-label="Admin navigation">
   <div class="tree-header">
-    <h3>Navigation</h3>
+    <span class="tree-title">Navigation</span>
   </div>
-  
-  <div class="tree-content">
-    {@render TreeNodeView( 
-      treeData, 
-      selectedNodeId, 
-      toggleExpanded,
-      handleSelectNode,
-      0
-    )}
-  </div>
-</div>
 
-<!-- Recursive tree node component -->
-{#snippet TreeNodeView(node: TreeNode, selectedNodeId: string | null, onToggle: (n: TreeNode) => void, onSelect: (n: TreeNode) => void, depth: number)}
-  <div class="tree-node" style="--depth: {depth}">
-    <button 
-      class="node-button"
-      class:node-button--selected={node.id === selectedNodeId}
-      onclick={() => onSelect(node)}
-    >
-      {#if node.children && node.children.length > 0}
-        <span 
-          class="expand-icon" 
-          onclick={(e) => { e.stopPropagation(); onToggle(node); }}
-          role="button"
-          tabindex="0"
-          onkeydown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); e.stopPropagation(); onToggle(node); } }}
-          aria-label={node.expanded ? 'Collapse' : 'Expand'}
-        >
-          {node.expanded ? '▼' : '▶'}
-        </span>
-      {:else}
-        <span class="expand-spacer"></span>
+  <div class="tree-content">
+    {#each adminTree.rootIds as rootId (rootId)}
+      {@const node = adminTree.getNode(rootId)}
+      {#if node}
+        {@render treeNode(node, 0)}
       {/if}
-      
-      <span class="node-icon">{getNodeIcon(node.type)}</span>
+    {/each}
+  </div>
+</nav>
+
+{#snippet treeNode(node: AdminTreeNode, depth: number)}
+  <div class="tree-node">
+    <button
+      class="node-btn"
+      class:node-btn--selected={adminTree.isSelected(node.id)}
+      class:node-btn--branch={!!node.children?.length}
+      style="--depth: {depth}"
+      onclick={() => {
+        if (node.children?.length) adminTree.toggleExpanded(node.id);
+        adminTree.navigateTo(node.id);
+      }}
+      aria-expanded={node.children?.length ? adminTree.isExpanded(node.id) : undefined}
+      aria-current={adminTree.isSelected(node.id) ? 'page' : undefined}
+    >
+      <span class="node-chevron" aria-hidden="true">
+        {#if node.children?.length}
+          {adminTree.isExpanded(node.id) ? '▾' : '▸'}
+        {:else}
+          &nbsp;
+        {/if}
+      </span>
       <span class="node-label">{node.label}</span>
     </button>
-    
-    {#if node.expanded && node.children}
-      <div class="node-children">
-        {#each node.children as child (child.id)}
-          {@render TreeNodeView( 
-            child, 
-            selectedNodeId, 
-            onToggle, 
-            onSelect, 
-            depth + 1 
-          )}
+
+    {#if node.children?.length && adminTree.isExpanded(node.id)}
+      <div class="node-children" role="group">
+        {#each node.children as childId (childId)}
+          {@const child = adminTree.getNode(childId)}
+          {#if child}
+            {@render treeNode(child, depth + 1)}
+          {/if}
         {/each}
       </div>
     {/if}
   </div>
 {/snippet}
+
 
 <style>
   .admin-tree {
@@ -142,33 +81,36 @@ function getNodeIcon(type: 'server' | 'campaign' | 'seat'): string {
   }
 
   .tree-header {
-    padding: var(--space-lg);
+    padding: var(--space-md) var(--space-lg);
     border-bottom: 1px solid var(--color-border-default);
+    flex-shrink: 0;
   }
 
-  .tree-header h3 {
-    margin: 0;
-    font-size: var(--font-size-lg);
-    font-weight: var(--font-weight-bold);
-    color: var(--color-accent-primary);
+  .tree-title {
+    font-size: var(--font-size-sm);
+    font-weight: var(--font-weight-semibold);
+    color: var(--color-text-muted);
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
   }
 
   .tree-content {
     flex: 1;
     overflow-y: auto;
-    padding: var(--space-md);
+    padding: var(--space-sm) var(--space-xs);
   }
 
   .tree-node {
-    margin-bottom: var(--space-xs);
+    /* no extra margin — vertical rhythm from node-btn padding */
   }
 
-  .node-button {
+  .node-btn {
     display: flex;
     align-items: center;
     width: 100%;
+    /* depth-based indentation: each level adds 16px */
     padding: var(--space-sm) var(--space-md);
-    padding-left: calc(var(--space-md) + var(--depth) * var(--space-xl));
+    padding-left: calc(var(--space-sm) + var(--depth, 0) * var(--space-lg));
     background-color: transparent;
     border: 1px solid transparent;
     border-radius: var(--radius-sm);
@@ -177,46 +119,41 @@ function getNodeIcon(type: 'server' | 'campaign' | 'seat'): string {
     font-weight: var(--font-weight-medium);
     text-align: left;
     cursor: pointer;
-    transition: all var(--transition-fast);
+    transition:
+      background-color var(--transition-fast),
+      color var(--transition-fast);
+    gap: var(--space-xs);
   }
 
-  .node-button:hover {
+  .node-btn:hover {
     background-color: var(--color-bg-tertiary);
     color: var(--color-text-primary);
   }
 
-  .node-button--selected {
-    background-color: var(--color-accent-primary);
+  .node-btn--selected {
+    background-color: var(--color-accent-faint);
     border-color: var(--color-accent-primary);
-    color: white;
+    color: var(--color-accent-primary);
+    font-weight: var(--font-weight-semibold);
   }
 
-  .expand-icon {
-    width: var(--icon-size-sm);
-    height: var(--icon-size-sm);
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    margin-right: var(--space-xs);
+  .node-chevron {
+    width: 12px;
+    flex-shrink: 0;
     font-size: 10px;
-    cursor: pointer;
-  }
-
-  .expand-spacer {
-    width: var(--icon-size-sm);
-    margin-right: var(--space-xs);
-  }
-
-  .node-icon {
-    margin-right: var(--space-sm);
-    font-size: var(--font-size-md);
+    color: var(--color-text-tertiary);
+    display: inline-flex;
+    align-items: center;
   }
 
   .node-label {
     flex: 1;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
   }
 
   .node-children {
-    margin-left: 0;
+    /* children are indented via their own --depth */
   }
 </style>

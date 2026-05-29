@@ -1,121 +1,86 @@
 <script lang="ts">
 /**
  * CampaignDetail - View and edit single campaign settings.
- * 
+ *
  * Displays:
  * - Campaign metadata (name, created date, updated date)
  * - Attached tomes/ruleset
  * - Import/export buttons
  * - List of seats with create button
+ *
+ * Navigation is handled via adminTree.navigateTo() — no prop callbacks needed.
  */
 
-interface Campaign {
-  id: string;
-  name: string;
-  createdAt: string;
-  updatedAt: string;
-}
-
-interface Seat {
-  id: string;
-  displayName: string;
-  role: 'gm' | 'player' | 'spectator';
-  isActive: boolean;
-  createdAt: string;
-}
+import { adminTree, type MockCampaign, type MockSeat } from '../../state/admin.svelte.js';
 
 interface Props {
   campaignId: string;
-  onBack: () => void;
-  onSelectSeat: (seatId: string) => void;
 }
 
-let { campaignId, onBack, onSelectSeat }: Props = $props();
+let { campaignId }: Props = $props();
 
-// Mock campaign data - in real app, loaded from API
-let campaign = $state<Campaign>({
-  id: campaignId,
-  name: 'Lost Mines of Phandelver',
-  createdAt: '2026-01-15T10:00:00Z',
-  updatedAt: '2026-02-01T14:30:00Z',
-});
+// Derive from the shared store so edits in the store reflect here
+let campaign = $derived<MockCampaign | undefined>(adminTree.getCampaign(campaignId));
+let seats = $derived<MockSeat[]>(adminTree.getSeatsForCampaign(campaignId));
 
-let campaignName = $state('Lost Mines of Phandelver');
-
-// Mock seats data - in real app, loaded from API
-let seats = $state<Seat[]>([
-  {
-    id: 'seat-1',
-    displayName: 'GM Seat',
-    role: 'gm',
-    isActive: true,
-    createdAt: '2026-01-15T10:05:00Z',
-  },
-  {
-    id: 'seat-2',
-    displayName: 'Player 1',
-    role: 'player',
-    isActive: true,
-    createdAt: '2026-01-15T10:10:00Z',
-  },
-]);
-
-// Mock ruleset data
-let ruleset = $state({
+// Ruleset is still mock; no API endpoint for this yet.
+const ruleset = {
   name: 'D&D 5th Edition',
   version: '2024',
-  tomes: ['Player\'s Handbook', 'Dungeon Master\'s Guide'],
-});
+  tomes: ["Player's Handbook", "Dungeon Master's Guide"],
+};
 
 let isEditingName = $state(false);
 let editedName = $state('');
 
 function handleSaveName() {
-  if (editedName.trim()) {
-    campaignName = editedName.trim();
-    console.log('Saving campaign name:', campaignName);
-    // TODO: Call API to update campaign name
-  }
+  if (!editedName.trim() || !campaign) return;
+  // TODO (Phase 6+): call PATCH /api/admin/campaigns/:id
+  console.log('[CampaignDetail] Rename campaign (mock):', editedName.trim());
+  const c = adminTree.campaigns.find((x) => x.id === campaignId);
+  if (c) c.name = editedName.trim();
   isEditingName = false;
 }
 
 function handleCreateSeat() {
   const name = prompt('Enter seat name:');
-  if (name) {
-    console.log('Creating seat:', name);
-    // TODO: Call API to create seat
-  }
+  if (!name) return;
+  // TODO (Phase 6+): call POST /api/admin/campaigns/:id/seats
+  console.log('[CampaignDetail] Create seat (mock):', name);
 }
 
 function handleExportCampaign() {
-  console.log('Exporting campaign:', campaign.id);
-  // TODO: Trigger campaign export download
+  // TODO (Phase 11): trigger .campaign export download
+  console.log('[CampaignDetail] Export campaign (mock):', campaignId);
 }
 
 function handleImportData() {
-  console.log('Import data into campaign:', campaign.id);
-  // TODO: Show file picker and import
+  // TODO (Phase 11): show file picker and import
+  console.log('[CampaignDetail] Import data (mock):', campaignId);
 }
 </script>
 
 <div class="campaign-detail">
-  <div class="page-header">
-    <button class="back-button" onclick={onBack}>← Back</button>
-  </div>
-
-  <!-- Campaign Metadata -->
-  <section class="detail-section">
-    <div class="section-header">
-      <h2>Campaign Details</h2>
-      <div class="section-actions">
-        <button class="btn btn--secondary" onclick={handleImportData}>
-          📥 Import Data
-        </button>
-        <button class="btn btn--secondary" onclick={handleExportCampaign}>
-          📤 Export Campaign
-        </button>
-      </div>
+  {#if !campaign}
+    <div class="detail-empty"><p>Campaign not found.</p></div>
+  {:else}
+    <div class="page-header">
+      <button class="back-button" onclick={() => adminTree.navigateTo('campaigns')}>← Campaigns</button>
     </div>
+
+    <!-- Campaign Metadata -->
+    <section class="detail-section">
+      <div class="section-header">
+        <h2>Campaign Details</h2>
+        <div class="section-actions">
+          <button class="btn btn--secondary" onclick={handleImportData}>
+            📥 Import Data
+          </button>
+          <button class="btn btn--secondary" onclick={handleExportCampaign}>
+            📤 Export Campaign
+          </button>
+        </div>
+      </div>
     
     <div class="metadata-grid">
       <div class="metadata-item">
@@ -128,14 +93,14 @@ function handleImportData() {
               onkeydown={(e) => e.key === 'Enter' && handleSaveName()}
             />
             <button class="btn btn--sm btn--primary" onclick={handleSaveName}>Save</button>
-            <button class="btn btn--sm btn--secondary" onclick={() => { isEditingName = false; editedName = campaignName; }}>
+            <button class="btn btn--sm btn--secondary" onclick={() => { isEditingName = false; editedName = campaign?.name ?? ''; }}>
               Cancel
             </button>
           </div>
         {:else}
           <div class="display-name">
-            <span>{campaignName}</span>
-            <button class="btn-icon" onclick={() => { isEditingName = true; editedName = campaignName; }}>
+            <span>{campaign.name}</span>
+            <button class="btn-icon" onclick={() => { isEditingName = true; editedName = campaign?.name ?? ''; }}>
               ✏️
             </button>
           </div>
@@ -193,7 +158,7 @@ function handleImportData() {
         {#each seats as seat (seat.id)}
           <button 
             class="seat-card"
-            onclick={() => onSelectSeat(seat.id)}
+            onclick={() => adminTree.navigateTo(seat.id)}
           >
             <div class="seat-header">
               <span class="seat-icon">
@@ -212,6 +177,7 @@ function handleImportData() {
       {/if}
     </div>
   </section>
+  {/if}
 </div>
 
 
