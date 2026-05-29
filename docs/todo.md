@@ -39,7 +39,7 @@ _Depends on Phase 1._
 
 - [x] **4. Schema.** Add `player_accounts` table to `hearth.db` schema. Add `account_id` FK on `seats`. Rebind `auth_sessions` to `account_id` (was `seat_id`). Delete `server/data/db/hearth.db` before testing.
 - [x] **5. Accounts repo.** Extend storage interface (`server/src/storage/index.ts`) with `accounts` repo: `getByUsername`, `create`, `updateLastLogin`, `setMustChangePassword`, `listAll`. Implement in `server/src/storage/sqlite/accounts.ts`. Reuse scrypt utility from admin auth.
-- [ ] **6. Domain helpers.** Add `server/src/domain/auth/account.ts`: `createAccount`, `verifyPassword`, `bindSeat`, `unbindSeat`.
+- [x] **6. Domain helpers.** Add `server/src/domain/auth/account.ts`: `createAccount`, `verifyPassword`, `bindSeat`, `unbindSeat`.
 - [ ] **7. Rewrite `server/src/routes/auth.ts`.** `POST /api/auth/claim-invite` — accept `mode`, branch login vs register, bind seat, create AuthSession bound to `account_id`. `POST /api/auth/login` — username+password, per-IP rate-limit (in-memory bucket; productionization is Tech Debt), return `MeResponse`. `POST /api/auth/logout` — revoke session, clear cookie. `POST /api/auth/refresh` — stable refresh (no rotation), reuse-detection on revoked tokens. `GET /api/auth/me` — return `MeResponse` (JOIN seats + campaigns for names).
 - [ ] **8. Admin accounts routes.** Add `server/src/routes/admin-accounts.ts`: `GET /api/admin/accounts` (list with seat count + lastLoginAt), `POST /api/admin/accounts/:id/reset-password` (set temp password, set `must_change_password`, revoke all sessions), `POST /api/admin/accounts/:id/revoke-sessions`.
 - [ ] **9. WS seat-resolve.** Update `(authPrincipal, campaignId) → seatId` resolver in `server/src/routes/ws.ts` to follow `account_id` linkage.

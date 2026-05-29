@@ -211,7 +211,7 @@ export async function buildServer(
     dataDir: options.dataDir,
   });
   await campaignRoutes(server, { storage: options.storage });
-  await authRoutes(server);
+  await authRoutes(server, { storage: options.storage });
   await seatRoutes(server, { storage: options.storage });
   await inviteRoutes(server, { storage: options.storage });
   await sessionRoutes(server);
