@@ -11,6 +11,7 @@ import { healthRoutes } from './routes/health.js';
 import { campaignRoutes } from './routes/campaigns.js';
 import { authRoutes } from './routes/auth.js';
 import { adminAuthRoutes } from './routes/admin-auth.js';
+import { adminAccountsRoutes } from './routes/admin-accounts.js';
 import { seatRoutes } from './routes/seats.js';
 import { inviteRoutes } from './routes/invites.js';
 import { sessionRoutes } from './routes/sessions.js';
@@ -210,6 +211,7 @@ export async function buildServer(
     storage: options.storage,
     dataDir: options.dataDir,
   });
+  await adminAccountsRoutes(server, { storage: options.storage });
   await campaignRoutes(server, { storage: options.storage });
   await authRoutes(server, { storage: options.storage });
   await seatRoutes(server, { storage: options.storage });
