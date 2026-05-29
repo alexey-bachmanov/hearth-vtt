@@ -46,7 +46,11 @@ async function createTestServer(): Promise<{
 }> {
   const storage = new Storage(new InMemoryBackend());
   await storage.init();
-  const server = await buildServer({ dataDir: DATA_DIR, storage, logger: false });
+  const server = await buildServer({
+    dataDir: DATA_DIR,
+    storage,
+    logger: false,
+  });
   return { server, storage };
 }
 
@@ -137,7 +141,9 @@ describe('GET /api/admin/accounts', () => {
 
     expect(res.statusCode).toBe(200);
     const body = res.json();
-    const found = body.accounts.find((a: { id: string }) => a.id === account.id);
+    const found = body.accounts.find(
+      (a: { id: string }) => a.id === account.id,
+    );
     expect(found).toBeTruthy();
     expect(found.username).toBe('listme');
     expect(found.seatCount).toBe(0);
@@ -165,7 +171,9 @@ describe('GET /api/admin/accounts', () => {
 
     expect(res.statusCode).toBe(200);
     const body = res.json();
-    const found = body.accounts.find((a: { id: string }) => a.id === account.id);
+    const found = body.accounts.find(
+      (a: { id: string }) => a.id === account.id,
+    );
     expect(found.seatCount).toBe(1);
   });
 });
@@ -269,7 +277,9 @@ describe('POST /api/admin/accounts/:id/reset-password', () => {
 
     // Old password no longer works (passwordHash changed)
     const oldCookie = Array.isArray(loginRes.headers['set-cookie'])
-      ? loginRes.headers['set-cookie'].find((c: string) => c.startsWith('hearth_refresh='))
+      ? loginRes.headers['set-cookie'].find((c: string) =>
+          c.startsWith('hearth_refresh='),
+        )
       : loginRes.headers['set-cookie'];
     const cookieHeader = oldCookie?.split(';')[0];
 
@@ -353,7 +363,9 @@ describe('POST /api/admin/accounts/:id/revoke-sessions', () => {
     expect(loginRes.statusCode).toBe(200);
 
     const playerCookieRaw = Array.isArray(loginRes.headers['set-cookie'])
-      ? loginRes.headers['set-cookie'].find((c: string) => c.startsWith('hearth_refresh='))
+      ? loginRes.headers['set-cookie'].find((c: string) =>
+          c.startsWith('hearth_refresh='),
+        )
       : loginRes.headers['set-cookie'];
     const playerCookie = playerCookieRaw?.split(';')[0];
 

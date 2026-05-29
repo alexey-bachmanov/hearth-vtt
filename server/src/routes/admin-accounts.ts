@@ -113,14 +113,21 @@ export async function adminAccountsRoutes(
       if (!account) {
         reply.code(404);
         return reply.send({
-          error: { code: 'ACCOUNT_NOT_FOUND', message: 'Player account not found' },
+          error: {
+            code: 'ACCOUNT_NOT_FOUND',
+            message: 'Player account not found',
+          },
         });
       }
 
       const newPasswordHash = await hashPassword(temporaryPassword);
 
       // Mark mustChangePassword and update hash; revoke all sessions
-      await storage.setPlayerAccountMustChangePassword(id, true, newPasswordHash);
+      await storage.setPlayerAccountMustChangePassword(
+        id,
+        true,
+        newPasswordHash,
+      );
       await storage.revokeAllAuthSessionsForAccount(id);
 
       return reply.code(204).send();
@@ -149,7 +156,10 @@ export async function adminAccountsRoutes(
       if (!account) {
         reply.code(404);
         return reply.send({
-          error: { code: 'ACCOUNT_NOT_FOUND', message: 'Player account not found' },
+          error: {
+            code: 'ACCOUNT_NOT_FOUND',
+            message: 'Player account not found',
+          },
         });
       }
 
