@@ -1,32 +1,85 @@
 /**
  * JoinPage component tests.
  *
+ * The updated JoinPage supports two modes (register / login) and submits
+ * ClaimInviteRequest to POST /api/auth/claim-invite via the HttpClient.
+ *
  * Patterns:
- * - Mock global.fetch to control server responses (real fetch replaces the old setTimeout mock)
- * - Use vi.useFakeTimers() to prevent post-success redirect timer from firing
+ * - Mock global.fetch to control server responses
+ * - Use vi.useFakeTimers() to prevent the post-success redirect from firing
  * - Use screen.findBy* for assertions after async fetch resolves
  */
 
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { render, screen, fireEvent } from '@testing-library/svelte';
+import { authState } from '../../state/auth.svelte.js';
 import JoinPage from './JoinPage.svelte';
 
 // ---------------------------------------------------------------------------
 // Helpers
 // ---------------------------------------------------------------------------
 
-function makeOkResponse(body: object = { success: true }): Response {
+function makeClaimResponse() {
+  return {
+    accountId: 'acc-1',
+    campaignId: 'camp-1',
+    seatId: 'seat-1',
+    role: 'player',
+  };
+}
+
+function makeMeResponse() {
+  return {
+    accountId: 'acc-1',
+    username: 'testplayer',
+    seats: [
+      {
+        campaignId: 'camp-1',
+        campaignName: 'Test',
+        seatId: 'seat-1',
+        role: 'player',
+      },
+    ],
+  };
+}
+
+function makeOkResponse(body: object): Response {
   return new Response(JSON.stringify(body), {
     status: 200,
     headers: { 'Content-Type': 'application/json' },
   });
 }
 
-function makeErrorResponse(status: number, body: object = {}): Response {
-  return new Response(JSON.stringify(body), {
+function makeErrorResponse(status: number, code = 'ERROR'): Response {
+  return new Response(JSON.stringify({ error: { code, message: 'error' } }), {
     status,
     headers: { 'Content-Type': 'application/json' },
   });
+}
+
+/** Fill in the form fields and submit. */
+async function fillAndSubmit({
+  pin = '1234',
+  username = 'player1',
+  password = 'password123',
+}: Partial<{ pin: string; username: string; password: string }> = {}) {
+  if (pin) {
+    fireEvent.input(screen.getByLabelText('PIN'), { target: { value: pin } });
+  }
+  if (username) {
+    fireEvent.input(screen.getByLabelText('Username'), {
+      target: { value: username },
+    });
+  }
+  if (password) {
+    fireEvent.input(screen.getByLabelText('Password'), {
+      target: { value: password },
+    });
+  }
+  // Button label depends on mode — find any submit button
+  fireEvent.click(
+    screen.getByRole('button', { name: /Create account|Sign in & join/i }),
+  );
 }
 
 // ---------------------------------------------------------------------------
@@ -34,6 +87,11 @@ function makeErrorResponse(status: number, body: object = {}): Response {
 // ---------------------------------------------------------------------------
 
 beforeEach(() => {
+  authState.me = null;
+  // @ts-expect-error reset loading
+  authState.loading = false;
+  // @ts-expect-error reset private field
+  authState._loadingPromise = null;
   global.fetch = vi.fn();
   vi.useFakeTimers();
 });
@@ -41,6 +99,7 @@ beforeEach(() => {
 afterEach(() => {
   vi.restoreAllMocks();
   vi.useRealTimers();
+  authState.me = null;
 });
 
 // ---------------------------------------------------------------------------
@@ -49,7 +108,7 @@ afterEach(() => {
 
 describe('JoinPage rendering', () => {
   it('renders the invite token in a readonly field', () => {
-    render(JoinPage, { token: 'my-invite-token' });
+    render(JoinPage, { props: { token: 'my-invite-token' } });
 
     const tokenInput = screen.getByLabelText(
       'Invite Token',
@@ -58,12 +117,56 @@ describe('JoinPage rendering', () => {
     expect(tokenInput).toHaveAttribute('readonly');
   });
 
-  it('renders the PIN input and submit button', () => {
-    render(JoinPage, { token: 'abc' });
+  it('renders PIN, Username, and Password fields', () => {
+    render(JoinPage, { props: { token: 'abc' } });
 
-    expect(screen.getByLabelText('Enter PIN')).toBeInTheDocument();
+    expect(screen.getByLabelText('PIN')).toBeInTheDocument();
+    expect(screen.getByLabelText('Username')).toBeInTheDocument();
+    expect(screen.getByLabelText('Password')).toBeInTheDocument();
+  });
+
+  it('defaults to register mode (shows "New player" active)', () => {
+    render(JoinPage, { props: { token: 'abc' } });
+
     expect(
-      screen.getByRole('button', { name: 'Claim Invite' }),
+      screen.getByRole('button', { name: /Create account/i }),
+    ).toBeInTheDocument();
+  });
+
+  it('renders mode toggle buttons', () => {
+    render(JoinPage, { props: { token: 'abc' } });
+
+    expect(
+      screen.getByRole('button', { name: 'New player' }),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole('button', { name: 'Existing account' }),
+    ).toBeInTheDocument();
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Mode toggle
+// ---------------------------------------------------------------------------
+
+describe('JoinPage mode toggle', () => {
+  it('switches to login mode when "Existing account" is clicked', async () => {
+    render(JoinPage, { props: { token: 'abc' } });
+
+    fireEvent.click(screen.getByRole('button', { name: 'Existing account' }));
+
+    // Svelte 5 state updates are batched — use findByRole to wait for DOM update
+    await screen.findByRole('button', { name: 'Sign in & join' });
+  });
+
+  it('switches back to register mode', async () => {
+    render(JoinPage, { props: { token: 'abc' } });
+
+    fireEvent.click(screen.getByRole('button', { name: 'Existing account' }));
+    fireEvent.click(screen.getByRole('button', { name: 'New player' }));
+
+    expect(
+      screen.getByRole('button', { name: /Create account/i }),
     ).toBeInTheDocument();
   });
 });
@@ -73,25 +176,56 @@ describe('JoinPage rendering', () => {
 // ---------------------------------------------------------------------------
 
 describe('JoinPage validation', () => {
-  it('shows error when PIN is too short on submit', async () => {
-    render(JoinPage, { token: 'abc' });
+  it('shows error when PIN is too short', async () => {
+    render(JoinPage, { props: { token: 'abc' } });
 
-    fireEvent.input(screen.getByLabelText('Enter PIN'), {
-      target: { value: '123' }, // < 4 chars
+    fireEvent.input(screen.getByLabelText('PIN'), { target: { value: '123' } });
+    fireEvent.input(screen.getByLabelText('Username'), {
+      target: { value: 'player1' },
     });
-    fireEvent.click(screen.getByRole('button', { name: 'Claim Invite' }));
+    fireEvent.input(screen.getByLabelText('Password'), {
+      target: { value: 'password123' },
+    });
+    fireEvent.click(screen.getByRole('button', { name: /Create account/i }));
 
-    await screen.findByText('Please enter a valid PIN');
-    // fetch should not have been called
+    await screen.findByText(/Please enter a valid PIN/);
     expect(global.fetch).not.toHaveBeenCalled();
   });
 
-  it('shows error when PIN is empty on submit', async () => {
-    render(JoinPage, { token: 'abc' });
+  it('shows error when username is too short', async () => {
+    render(JoinPage, { props: { token: 'abc' } });
 
-    fireEvent.click(screen.getByRole('button', { name: 'Claim Invite' }));
+    fireEvent.input(screen.getByLabelText('PIN'), {
+      target: { value: '1234' },
+    });
+    fireEvent.input(screen.getByLabelText('Username'), {
+      target: { value: 'a' },
+    });
+    fireEvent.input(screen.getByLabelText('Password'), {
+      target: { value: 'password123' },
+    });
+    fireEvent.click(screen.getByRole('button', { name: /Create account/i }));
 
-    await screen.findByText('Please enter a valid PIN');
+    await screen.findByText(/Please enter a username/);
+    expect(global.fetch).not.toHaveBeenCalled();
+  });
+
+  it('shows error when password is too short', async () => {
+    render(JoinPage, { props: { token: 'abc' } });
+
+    fireEvent.input(screen.getByLabelText('PIN'), {
+      target: { value: '1234' },
+    });
+    fireEvent.input(screen.getByLabelText('Username'), {
+      target: { value: 'player1' },
+    });
+    fireEvent.input(screen.getByLabelText('Password'), {
+      target: { value: 'short' },
+    });
+    fireEvent.click(screen.getByRole('button', { name: /Create account/i }));
+
+    await screen.findByText(/Please enter a password/);
+    expect(global.fetch).not.toHaveBeenCalled();
   });
 });
 
@@ -101,34 +235,34 @@ describe('JoinPage validation', () => {
 
 describe('JoinPage successful claim', () => {
   it('shows success message after successful claim', async () => {
-    (global.fetch as ReturnType<typeof vi.fn>).mockResolvedValue(
-      makeOkResponse(),
-    );
+    // First call: POST /api/auth/claim-invite
+    // Second call: GET /api/auth/me (authState.loadMe)
+    (global.fetch as ReturnType<typeof vi.fn>)
+      .mockResolvedValueOnce(makeOkResponse(makeClaimResponse()))
+      .mockResolvedValueOnce(makeOkResponse(makeMeResponse()));
 
-    render(JoinPage, { token: 'valid-token' });
+    render(JoinPage, { props: { token: 'valid-token' } });
 
-    fireEvent.input(screen.getByLabelText('Enter PIN'), {
-      target: { value: '1234' },
-    });
-    fireEvent.click(screen.getByRole('button', { name: 'Claim Invite' }));
+    await fillAndSubmit();
 
     await screen.findByText('Welcome!');
     expect(
-      screen.getByText('Your invite has been claimed successfully.'),
+      screen.getByText('You have joined the campaign successfully.'),
     ).toBeInTheDocument();
   });
 
-  it('sends token and pin in the request body', async () => {
-    (global.fetch as ReturnType<typeof vi.fn>).mockResolvedValue(
-      makeOkResponse(),
-    );
+  it('sends inviteToken, pin, mode, username and password in request body', async () => {
+    (global.fetch as ReturnType<typeof vi.fn>)
+      .mockResolvedValueOnce(makeOkResponse(makeClaimResponse()))
+      .mockResolvedValueOnce(makeOkResponse(makeMeResponse()));
 
-    render(JoinPage, { token: 'invite-xyz' });
+    render(JoinPage, { props: { token: 'invite-xyz' } });
 
-    fireEvent.input(screen.getByLabelText('Enter PIN'), {
-      target: { value: '5678' },
+    await fillAndSubmit({
+      pin: '5678',
+      username: 'player1',
+      password: 'password123',
     });
-    fireEvent.click(screen.getByRole('button', { name: 'Claim Invite' }));
 
     await screen.findByText('Welcome!');
 
@@ -136,9 +270,13 @@ describe('JoinPage successful claim', () => {
       .calls[0];
     expect(url).toBe('/api/auth/claim-invite');
     expect(options.method).toBe('POST');
-    expect(JSON.parse(options.body)).toEqual({
-      token: 'invite-xyz',
+    const body = JSON.parse(options.body);
+    expect(body).toMatchObject({
+      mode: 'register',
+      inviteToken: 'invite-xyz',
       pin: '5678',
+      username: 'player1',
+      password: 'password123',
     });
   });
 });
@@ -148,46 +286,47 @@ describe('JoinPage successful claim', () => {
 // ---------------------------------------------------------------------------
 
 describe('JoinPage error states', () => {
-  async function renderAndFillPin(pin = '1234'): Promise<void> {
-    render(JoinPage, { token: 'tok' });
-    fireEvent.input(screen.getByLabelText('Enter PIN'), {
-      target: { value: pin },
-    });
-  }
-
-  it('shows "Invite not found or has expired" on 404', async () => {
+  it('shows "invalid or has expired" on 400', async () => {
     (global.fetch as ReturnType<typeof vi.fn>).mockResolvedValue(
-      makeErrorResponse(404),
+      makeErrorResponse(400, 'INVALID_TOKEN'),
     );
-    await renderAndFillPin();
-    fireEvent.click(screen.getByRole('button', { name: 'Claim Invite' }));
-    await screen.findByText(/Invite not found or has expired/);
+
+    render(JoinPage, { props: { token: 'tok' } });
+    await fillAndSubmit();
+
+    await screen.findByText(/invalid or has expired/);
   });
 
-  it('shows "already been claimed" on 409', async () => {
+  it('shows "Incorrect PIN" on 401', async () => {
     (global.fetch as ReturnType<typeof vi.fn>).mockResolvedValue(
-      makeErrorResponse(409),
+      makeErrorResponse(401, 'WRONG_PIN'),
     );
-    await renderAndFillPin();
-    fireEvent.click(screen.getByRole('button', { name: 'Claim Invite' }));
-    await screen.findByText(/already been claimed/);
+
+    render(JoinPage, { props: { token: 'tok' } });
+    await fillAndSubmit();
+
+    await screen.findByText(/Incorrect PIN/);
   });
 
-  it('shows "Incorrect PIN" on 403', async () => {
+  it('shows username-taken message on 409 in register mode', async () => {
     (global.fetch as ReturnType<typeof vi.fn>).mockResolvedValue(
-      makeErrorResponse(403),
+      makeErrorResponse(409, 'USERNAME_TAKEN'),
     );
-    await renderAndFillPin();
-    fireEvent.click(screen.getByRole('button', { name: 'Claim Invite' }));
-    await screen.findByText('Incorrect PIN');
+
+    render(JoinPage, { props: { token: 'tok' } });
+    await fillAndSubmit();
+
+    await screen.findByText(/already taken/);
   });
 
-  it('shows generic error on unexpected status', async () => {
+  it('shows generic error on 500', async () => {
     (global.fetch as ReturnType<typeof vi.fn>).mockResolvedValue(
       makeErrorResponse(500),
     );
-    await renderAndFillPin();
-    fireEvent.click(screen.getByRole('button', { name: 'Claim Invite' }));
+
+    render(JoinPage, { props: { token: 'tok' } });
+    await fillAndSubmit();
+
     await screen.findByText(/An error occurred/);
   });
 
@@ -195,8 +334,11 @@ describe('JoinPage error states', () => {
     (global.fetch as ReturnType<typeof vi.fn>).mockRejectedValue(
       new TypeError('Network error'),
     );
-    await renderAndFillPin();
-    fireEvent.click(screen.getByRole('button', { name: 'Claim Invite' }));
-    await screen.findByText(/Failed to connect to server/);
+
+    render(JoinPage, { props: { token: 'tok' } });
+    await fillAndSubmit();
+
+    await screen.findByText(/Could not connect/);
   });
 });
+
