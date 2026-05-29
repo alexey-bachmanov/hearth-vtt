@@ -17,6 +17,7 @@ import type {
 } from '@hearth-vtt/shared';
 import { viewportState } from './viewport.svelte';
 import { notificationState } from './notifications.svelte';
+import { connectionState } from './connection.svelte';
 
 // ============================================================================
 // Types
@@ -724,11 +725,9 @@ export const campaignState = new CampaignState();
 // Phase 3: Replace with server-driven initial state (sync.initial WS message).
 campaignState.loadMockData();
 notificationState.loadMockNotifications();
-import('./connection.svelte').then(({ connectionState }) => {
-  connectionState.handleWelcome({
-    version: '1.0.0',
-    seatId: 'seat-player-2',
-    seatRole: 'gm',
-    campaignId: campaignState.campaignId!,
-  });
+connectionState.handleWelcome({
+  version: '1.0.0',
+  seatId: 'seat-player-2',
+  seatRole: 'gm',
+  campaignId: campaignState.campaignId!,
 });

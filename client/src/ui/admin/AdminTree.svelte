@@ -100,10 +100,6 @@ import { adminTree, type AdminTreeNode } from '../../state/admin.svelte.js';
     padding: var(--space-sm) var(--space-xs);
   }
 
-  .tree-node {
-    /* no extra margin — vertical rhythm from node-btn padding */
-  }
-
   .node-btn {
     display: flex;
     align-items: center;
@@ -153,7 +149,4 @@ import { adminTree, type AdminTreeNode } from '../../state/admin.svelte.js';
     text-overflow: ellipsis;
   }
 
-  .node-children {
-    /* children are indented via their own --depth */
-  }
 </style>

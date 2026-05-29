@@ -88,11 +88,10 @@ async function fillAndSubmit({
 
 beforeEach(() => {
   authState.me = null;
-  // @ts-expect-error reset loading
   authState.loading = false;
   // @ts-expect-error reset private field
   authState._loadingPromise = null;
-  global.fetch = vi.fn();
+  vi.stubGlobal('fetch', vi.fn());
   vi.useFakeTimers();
 });
 
@@ -189,7 +188,7 @@ describe('JoinPage validation', () => {
     fireEvent.click(screen.getByRole('button', { name: /Create account/i }));
 
     await screen.findByText(/Please enter a valid PIN/);
-    expect(global.fetch).not.toHaveBeenCalled();
+    expect(fetch).not.toHaveBeenCalled();
   });
 
   it('shows error when username is too short', async () => {
@@ -207,7 +206,7 @@ describe('JoinPage validation', () => {
     fireEvent.click(screen.getByRole('button', { name: /Create account/i }));
 
     await screen.findByText(/Please enter a username/);
-    expect(global.fetch).not.toHaveBeenCalled();
+    expect(fetch).not.toHaveBeenCalled();
   });
 
   it('shows error when password is too short', async () => {
@@ -225,7 +224,7 @@ describe('JoinPage validation', () => {
     fireEvent.click(screen.getByRole('button', { name: /Create account/i }));
 
     await screen.findByText(/Please enter a password/);
-    expect(global.fetch).not.toHaveBeenCalled();
+    expect(fetch).not.toHaveBeenCalled();
   });
 });
 
@@ -237,7 +236,7 @@ describe('JoinPage successful claim', () => {
   it('shows success message after successful claim', async () => {
     // First call: POST /api/auth/claim-invite
     // Second call: GET /api/auth/me (authState.loadMe)
-    (global.fetch as ReturnType<typeof vi.fn>)
+    vi.mocked(fetch)
       .mockResolvedValueOnce(makeOkResponse(makeClaimResponse()))
       .mockResolvedValueOnce(makeOkResponse(makeMeResponse()));
 
@@ -252,7 +251,7 @@ describe('JoinPage successful claim', () => {
   });
 
   it('sends inviteToken, pin, mode, username and password in request body', async () => {
-    (global.fetch as ReturnType<typeof vi.fn>)
+    vi.mocked(fetch)
       .mockResolvedValueOnce(makeOkResponse(makeClaimResponse()))
       .mockResolvedValueOnce(makeOkResponse(makeMeResponse()));
 
@@ -266,11 +265,13 @@ describe('JoinPage successful claim', () => {
 
     await screen.findByText('Welcome!');
 
-    const [url, options] = (global.fetch as ReturnType<typeof vi.fn>).mock
-      .calls[0];
+    const [url, options] = vi.mocked(fetch).mock.calls[0] as [
+      string,
+      RequestInit,
+    ];
     expect(url).toBe('/api/auth/claim-invite');
     expect(options.method).toBe('POST');
-    const body = JSON.parse(options.body);
+    const body = JSON.parse(options.body as string);
     expect(body).toMatchObject({
       mode: 'register',
       inviteToken: 'invite-xyz',
@@ -287,9 +288,7 @@ describe('JoinPage successful claim', () => {
 
 describe('JoinPage error states', () => {
   it('shows "invalid or has expired" on 400', async () => {
-    (global.fetch as ReturnType<typeof vi.fn>).mockResolvedValue(
-      makeErrorResponse(400, 'INVALID_TOKEN'),
-    );
+    vi.mocked(fetch).mockResolvedValue(makeErrorResponse(400, 'INVALID_TOKEN'));
 
     render(JoinPage, { props: { token: 'tok' } });
     await fillAndSubmit();
@@ -298,9 +297,7 @@ describe('JoinPage error states', () => {
   });
 
   it('shows "Incorrect PIN" on 401', async () => {
-    (global.fetch as ReturnType<typeof vi.fn>).mockResolvedValue(
-      makeErrorResponse(401, 'WRONG_PIN'),
-    );
+    vi.mocked(fetch).mockResolvedValue(makeErrorResponse(401, 'WRONG_PIN'));
 
     render(JoinPage, { props: { token: 'tok' } });
     await fillAndSubmit();
@@ -309,7 +306,7 @@ describe('JoinPage error states', () => {
   });
 
   it('shows username-taken message on 409 in register mode', async () => {
-    (global.fetch as ReturnType<typeof vi.fn>).mockResolvedValue(
+    vi.mocked(fetch).mockResolvedValue(
       makeErrorResponse(409, 'USERNAME_TAKEN'),
     );
 
@@ -320,9 +317,7 @@ describe('JoinPage error states', () => {
   });
 
   it('shows generic error on 500', async () => {
-    (global.fetch as ReturnType<typeof vi.fn>).mockResolvedValue(
-      makeErrorResponse(500),
-    );
+    vi.mocked(fetch).mockResolvedValue(makeErrorResponse(500));
 
     render(JoinPage, { props: { token: 'tok' } });
     await fillAndSubmit();
@@ -331,9 +326,7 @@ describe('JoinPage error states', () => {
   });
 
   it('shows network error message when fetch throws', async () => {
-    (global.fetch as ReturnType<typeof vi.fn>).mockRejectedValue(
-      new TypeError('Network error'),
-    );
+    vi.mocked(fetch).mockRejectedValue(new TypeError('Network error'));
 
     render(JoinPage, { props: { token: 'tok' } });
     await fillAndSubmit();
@@ -341,4 +334,3 @@ describe('JoinPage error states', () => {
     await screen.findByText(/Could not connect/);
   });
 });
-
