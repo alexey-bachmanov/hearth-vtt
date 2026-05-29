@@ -23,6 +23,7 @@ import { viewportState } from '../../state/viewport.svelte';
 import { uiState } from '../../state/ui.svelte';
 import { seatPermissions } from '../../state/seatPermissions.svelte';
 import { selectionState } from '../../state/selection.svelte';
+import { wsClient } from '../../api/ws';
 
 let canvasElement: HTMLCanvasElement;
 let containerElement: HTMLDivElement;
@@ -41,6 +42,7 @@ onMount(() => {
       renderer,
       onContextMenu: (target) => uiState.openContextMenu(target),
       canDragToken: (tokenId) => seatPermissions.canDragToken(tokenId),
+      onDispatch: (actionType, payload) => wsClient.dispatch(actionType, payload),
     });
     detach = ctl.attach(canvasElement);
 

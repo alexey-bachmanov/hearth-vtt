@@ -31,13 +31,13 @@
  *
  * Out of scope (deferred to later phases):
  * - Touch / pinch-zoom gestures (Phase E)
- * - Server action dispatch for token moves (Phase 3)
  */
 
 import type { Renderer } from '../render';
 import type { CampaignState } from '../state/campaign.svelte';
 import type { ViewportState } from '../state/viewport.svelte';
 import type { ContextMenuTarget } from '../state/ui.svelte';
+import type { EngineInput } from '@hearth-vtt/shared';
 import { selectionState } from '../state/selection.svelte';
 
 // Pixels of pointer movement required before a left-click becomes a drag.
@@ -144,6 +144,14 @@ export interface CanvasInputControllerOptions {
    * the given token. Defaults to always-true (no restriction).
    */
   canDragToken?: (tokenId: string) => boolean;
+  /**
+   * Called when the user completes a token drag to dispatch the move to the
+   * server. If omitted, moves are applied optimistically only (no server sync).
+   */
+  onDispatch?: (
+    actionType: EngineInput['actionType'],
+    payload: unknown,
+  ) => void;
 }
 
 export class CanvasInputController {
@@ -152,6 +160,9 @@ export class CanvasInputController {
   private _renderer: CanvasInputControllerOptions['renderer'];
   private _onContextMenu: ((target: ContextMenuTarget) => void) | undefined;
   private _canDragToken: (tokenId: string) => boolean;
+  private _onDispatch:
+    | ((actionType: EngineInput['actionType'], payload: unknown) => void)
+    | undefined;
 
   private _mode: Mode = 'idle';
 
@@ -178,12 +189,14 @@ export class CanvasInputController {
     renderer,
     onContextMenu,
     canDragToken,
+    onDispatch,
   }: CanvasInputControllerOptions) {
     this._viewport = viewportState;
     this._campaign = campaignState;
     this._renderer = renderer;
     this._onContextMenu = onContextMenu;
     this._canDragToken = canDragToken ?? (() => true);
+    this._onDispatch = onDispatch;
   }
 
   // ============================================================================
@@ -363,13 +376,18 @@ export class CanvasInputController {
 
     if (this._mode === 'tokenDragging' && e.pointerId === this._dragPointerId) {
       if (this._dragStarted) {
-        // Commit new position to local state.
-        // TODO (Phase 3): replace with server action dispatch.
         let worldPos = this._screenToWorld(e.offsetX, e.offsetY);
         if (this._viewport.snapToGrid) {
           worldPos = this._snapToGrid(worldPos);
         }
+        // Apply optimistically on the client, then dispatch to the server.
+        // If the server rejects (ACTION_REJECTED), wsClient reverts via
+        // campaignState.revertOptimisticMoves().
         this._campaign.moveTokenOptimistic(this._dragTokenId, worldPos);
+        this._onDispatch?.('token.move', {
+          tokenId: this._dragTokenId,
+          position: worldPos,
+        });
         this._renderer.clearTokenDragPreview(this._dragTokenId);
       } else {
         // Released before drag threshold — resolve as a click → single-select.

@@ -16,8 +16,6 @@ import type {
   GameEvent as SharedGameEvent,
 } from '@hearth-vtt/shared';
 import { viewportState } from './viewport.svelte';
-import { notificationState } from './notifications.svelte';
-import { connectionState } from './connection.svelte';
 
 // ============================================================================
 // Types
@@ -720,14 +718,5 @@ export class CampaignState {
  * Singleton campaign state instance.
  */
 export const campaignState = new CampaignState();
-
-// Load mock data on module initialization (development only).
-// Phase 3: Replace with server-driven initial state (sync.initial WS message).
-campaignState.loadMockData();
-notificationState.loadMockNotifications();
-connectionState.handleWelcome({
-  version: '1.0.0',
-  seatId: 'seat-player-2',
-  seatRole: 'gm',
-  campaignId: campaignState.campaignId!,
-});
+// State starts empty; populated by `view` messages from the server once the
+// WS connection completes the welcome handshake.

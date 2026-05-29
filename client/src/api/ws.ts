@@ -245,6 +245,10 @@ export class WebSocketClient {
 
   /**
    * Handle welcome message from server.
+   *
+   * Updates connection state, then immediately requests a full SeatView so
+   * the campaign state is populated from real server data rather than mock
+   * defaults.
    */
   private handleWelcome(
     message: Extract<ServerMessage, { type: 'welcome' }>,
@@ -256,6 +260,10 @@ export class WebSocketClient {
       seatRole: message.seatRole,
       campaignId: message.campaignId,
     });
+    // Request the initial SeatView. The server only sends view on explicit
+    // request (or resume); this ensures campaign state is populated from real
+    // data on every fresh connect.
+    this.send({ type: 'view.request' });
   }
 
   /**

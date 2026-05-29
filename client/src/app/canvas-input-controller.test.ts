@@ -518,6 +518,64 @@ describe('token drag', () => {
     const token = campaignState.getToken(TOKEN_ID);
     expect(token?.position).toEqual({ x: 100, y: 100 });
   });
+
+  it('calls onDispatch with token.move when drag is committed', () => {
+    addToken();
+    const onDispatch = vi.fn();
+    const renderer = makeMockRenderer(TOKEN_ID);
+    const ctl = new CanvasInputController({
+      viewportState,
+      campaignState,
+      renderer,
+      onDispatch,
+    });
+    detach = ctl.attach(el as unknown as HTMLElement);
+
+    viewportState.snapToGrid = false;
+    viewportState.setZoom(1.0);
+    viewportState.setPan(0, 0);
+
+    el.fire(
+      'pointerdown',
+      ptr({ button: 0, pointerId: 1, clientX: 100, clientY: 100 }),
+    );
+    el.fire('pointermove', ptr({ pointerId: 1, clientX: 115, clientY: 100 }));
+    el.fire(
+      'pointerup',
+      ptr({ button: 0, pointerId: 1, clientX: 115, clientY: 100 }),
+    );
+
+    expect(onDispatch).toHaveBeenCalledOnce();
+    expect(onDispatch).toHaveBeenCalledWith('token.move', {
+      tokenId: TOKEN_ID,
+      position: { x: 115, y: 100 },
+    });
+  });
+
+  it('does not call onDispatch when drag threshold is never crossed', () => {
+    addToken();
+    const onDispatch = vi.fn();
+    const renderer = makeMockRenderer(TOKEN_ID);
+    const ctl = new CanvasInputController({
+      viewportState,
+      campaignState,
+      renderer,
+      onDispatch,
+    });
+    detach = ctl.attach(el as unknown as HTMLElement);
+
+    el.fire(
+      'pointerdown',
+      ptr({ button: 0, pointerId: 1, clientX: 100, clientY: 100 }),
+    );
+    el.fire('pointermove', ptr({ pointerId: 1, clientX: 101, clientY: 100 }));
+    el.fire(
+      'pointerup',
+      ptr({ button: 0, pointerId: 1, clientX: 101, clientY: 100 }),
+    );
+
+    expect(onDispatch).not.toHaveBeenCalled();
+  });
 });
 
 // ---------------------------------------------------------------------------
