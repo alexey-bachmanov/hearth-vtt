@@ -46,6 +46,18 @@
       <span>Reduce animations</span>
     </label>
   </div>
+
+  <div class="drawer__section">
+    <h3 class="drawer__section-title">Account</h3>
+    <a
+      href="/play/account"
+      target="_blank"
+      rel="noopener noreferrer"
+      class="account-settings-link"
+    >
+      Account Settings ↗
+    </a>
+  </div>
 </div>
 
 <style>
@@ -64,5 +76,16 @@
 
   .slider {
     width: 100%;
+  }
+
+  .account-settings-link {
+    display: inline-block;
+    color: var(--color-text-primary);
+    text-decoration: underline;
+    font-size: var(--font-size-sm, 0.875rem);
+  }
+
+  .account-settings-link:hover {
+    color: var(--color-accent, #7c6fff);
   }
 </style>

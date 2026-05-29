@@ -56,7 +56,7 @@ _Depends on Phase 1. Can run in parallel with Phase 2 against typed mocks._
 - [x] **13. Update Router.svelte.** Add branches for new routes. Protected routes (`play`, `play-account`, `play-campaign`) call `authState.loadMe()` on mount; on 401 redirect to `/play/login?returnTo=<currentPath>`.
 - [x] **14. New UX pages.** `SplashPage.svelte` (logo + 3 buttons: Play / Account / Admin; replaces `NotLoggedInPage.svelte`). `PlayLoginPage.svelte` (login form; `returnTo` redirect; "I forgot my password" → "Ask your admin" modal). `PlayAccountPage.svelte` (username, "Settings coming soon", Logout, link back to `/play`). `CampaignPickerPage.svelte` (list `me.seats`; empty state: "You are not signed up for any campaigns"). `NotFoundPage.svelte` (404 + "Back to /play").
 - [x] **15. Update `JoinPage.svelte`.** Add login/register mode toggle + username/password fields per ADR-010 claim flow. On success navigate to `/play/<campaignId>`.
-- [ ] **16. Settings drawer affordance.** Add "Account Settings" link in `SettingsDrawer.svelte` that opens `/play/account` in a new tab.
+- [x] **16. Settings drawer affordance.** Add "Account Settings" link in `SettingsDrawer.svelte` that opens `/play/account` in a new tab.
 
 **Verification:** Unit tests for `parseRoute` (new routes + `returnTo` same-origin validation). Unit tests for `auth.svelte.ts` state transitions. Component tests for `PlayLoginPage` (returnTo flow) and `CampaignPickerPage` (empty + populated). Manual: splash → play → login → picker → campaign; logout → splash.
 
