@@ -5,6 +5,7 @@
  */
 
 export * from './admin.svelte';
+export * from './auth.svelte';
 export * from './campaign.svelte';
 export * from './connection.svelte';
 export * from './notifications.svelte';
