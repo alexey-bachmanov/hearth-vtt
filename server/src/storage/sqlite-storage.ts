@@ -11,6 +11,7 @@ import type {
   Seat,
   Invite,
   AuthSession,
+  PlayerAccount,
 } from './storage.js';
 
 /** Raw SQLite row shape for entity records */
@@ -36,10 +37,22 @@ interface SeatRow {
   id: string;
   campaignId: string;
   displayName: string;
+  accountId: string | null;
   role: Seat['role'];
   isActive: number;
   createdAt: number;
   updatedAt: number;
+}
+
+/** Raw SQLite row shape for player account records */
+interface PlayerAccountRow {
+  id: string;
+  username: string;
+  passwordHash: string;
+  mustChangePassword: number; // 0 or 1
+  createdAt: number;
+  updatedAt: number;
+  lastLoginAt: number | null;
 }
 
 /**
@@ -120,6 +133,20 @@ export class SqliteStorage implements StorageBackend {
       CREATE INDEX IF NOT EXISTS idx_admin_sessions_admin_id ON admin_sessions(admin_id);
       CREATE INDEX IF NOT EXISTS idx_admin_sessions_expires_at ON admin_sessions(expires_at);
 
+      -- Player accounts table (per-server player identities, per ADR-010)
+      CREATE TABLE IF NOT EXISTS player_accounts (
+        id TEXT PRIMARY KEY,
+        username TEXT NOT NULL UNIQUE,
+        password_hash TEXT NOT NULL,
+        must_change_password INTEGER NOT NULL DEFAULT 0,
+        created_at INTEGER NOT NULL,
+        updated_at INTEGER NOT NULL,
+        last_login_at INTEGER
+      );
+
+      CREATE UNIQUE INDEX IF NOT EXISTS idx_player_accounts_username ON player_accounts(username);
+      CREATE INDEX IF NOT EXISTS idx_player_accounts_created_at ON player_accounts(created_at);
+
       -- Entities table (campaign-scoped game objects)
       CREATE TABLE IF NOT EXISTS entities (
         id TEXT PRIMARY KEY,
@@ -156,14 +183,17 @@ export class SqliteStorage implements StorageBackend {
         campaign_id TEXT NOT NULL,
         display_name TEXT NOT NULL,
         role TEXT NOT NULL CHECK(role IN ('gm', 'player', 'spectator')),
+        account_id TEXT,
         is_active INTEGER NOT NULL DEFAULT 1,
         created_at INTEGER NOT NULL,
         updated_at INTEGER NOT NULL,
-        FOREIGN KEY (campaign_id) REFERENCES campaigns(id) ON DELETE CASCADE
+        FOREIGN KEY (campaign_id) REFERENCES campaigns(id) ON DELETE CASCADE,
+        FOREIGN KEY (account_id) REFERENCES player_accounts(id) ON DELETE SET NULL
       );
 
       CREATE INDEX IF NOT EXISTS idx_seats_campaign_id ON seats(campaign_id);
       CREATE INDEX IF NOT EXISTS idx_seats_role ON seats(role);
+      CREATE INDEX IF NOT EXISTS idx_seats_account_id ON seats(account_id);
 
       -- Invites table (capability tokens for claiming seats)
       CREATE TABLE IF NOT EXISTS invites (
@@ -186,24 +216,21 @@ export class SqliteStorage implements StorageBackend {
       CREATE INDEX IF NOT EXISTS idx_invites_seat_id ON invites(seat_id);
       CREATE INDEX IF NOT EXISTS idx_invites_expires_at ON invites(expires_at);
 
-      -- Auth sessions table (seat-based authentication)
+      -- Auth sessions table (account-scoped authentication, per ADR-010)
       CREATE TABLE IF NOT EXISTS auth_sessions (
         id TEXT PRIMARY KEY,
-        campaign_id TEXT NOT NULL,
-        seat_id TEXT NOT NULL,
-        refresh_token_hash TEXT NOT NULL,
+        account_id TEXT NOT NULL,
+        refresh_token_hash TEXT NOT NULL UNIQUE,
         access_token_hash TEXT NOT NULL,
         expires_at INTEGER NOT NULL,
         created_at INTEGER NOT NULL,
         last_used_at INTEGER NOT NULL,
         revoked_at INTEGER,
-        FOREIGN KEY (campaign_id) REFERENCES campaigns(id) ON DELETE CASCADE,
-        FOREIGN KEY (seat_id) REFERENCES seats(id) ON DELETE CASCADE
+        FOREIGN KEY (account_id) REFERENCES player_accounts(id) ON DELETE CASCADE
       );
 
-      CREATE INDEX IF NOT EXISTS idx_auth_sessions_refresh_token ON auth_sessions(refresh_token_hash);
-      CREATE INDEX IF NOT EXISTS idx_auth_sessions_campaign_id ON auth_sessions(campaign_id);
-      CREATE INDEX IF NOT EXISTS idx_auth_sessions_seat_id ON auth_sessions(seat_id);
+      CREATE UNIQUE INDEX IF NOT EXISTS idx_auth_sessions_refresh_token ON auth_sessions(refresh_token_hash);
+      CREATE INDEX IF NOT EXISTS idx_auth_sessions_account_id ON auth_sessions(account_id);
       CREATE INDEX IF NOT EXISTS idx_auth_sessions_expires_at ON auth_sessions(expires_at);
     `);
   }
@@ -255,7 +282,12 @@ export class SqliteStorage implements StorageBackend {
       INSERT INTO campaigns (id, name, created_at, updated_at)
       VALUES (?, ?, ?, ?)
     `);
-    stmt.run(campaign.id, campaign.name, campaign.createdAt, campaign.updatedAt);
+    stmt.run(
+      campaign.id,
+      campaign.name,
+      campaign.createdAt,
+      campaign.updatedAt,
+    );
 
     return campaign;
   }
@@ -784,6 +816,7 @@ export class SqliteStorage implements StorageBackend {
       campaignId: data.campaignId,
       displayName: data.displayName,
       role: data.role,
+      accountId: null,
       isActive: true,
       createdAt: now,
       updatedAt: now,
@@ -791,16 +824,17 @@ export class SqliteStorage implements StorageBackend {
 
     const stmt = db.prepare(`
       INSERT INTO seats (
-        id, campaign_id, display_name, role, is_active,
+        id, campaign_id, display_name, role, account_id, is_active,
         created_at, updated_at
       )
-      VALUES (?, ?, ?, ?, ?, ?, ?)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?)
     `);
     stmt.run(
       seat.id,
       seat.campaignId,
       seat.displayName,
       seat.role,
+      seat.accountId,
       seat.isActive ? 1 : 0,
       seat.createdAt,
       seat.updatedAt,
@@ -821,6 +855,7 @@ export class SqliteStorage implements StorageBackend {
         campaign_id as campaignId,
         display_name as displayName,
         role,
+        account_id as accountId,
         is_active as isActive,
         created_at as createdAt,
         updated_at as updatedAt
@@ -849,6 +884,7 @@ export class SqliteStorage implements StorageBackend {
         campaign_id as campaignId,
         display_name as displayName,
         role,
+        account_id as accountId,
         is_active as isActive,
         created_at as createdAt,
         updated_at as updatedAt
@@ -870,7 +906,9 @@ export class SqliteStorage implements StorageBackend {
   async updateSeat(
     campaignId: string,
     seatId: string,
-    data: Partial<Pick<Seat, 'displayName' | 'role' | 'isActive'>>,
+    data: Partial<
+      Pick<Seat, 'displayName' | 'role' | 'isActive' | 'accountId'>
+    >,
   ): Promise<void> {
     const db = this.ensureDb();
 
@@ -890,6 +928,11 @@ export class SqliteStorage implements StorageBackend {
     if (data.isActive !== undefined) {
       updates.push('is_active = ?');
       values.push(data.isActive ? 1 : 0);
+    }
+
+    if ('accountId' in data) {
+      updates.push('account_id = ?');
+      values.push(data.accountId ?? null);
     }
 
     if (updates.length === 0) {
@@ -1055,15 +1098,59 @@ export class SqliteStorage implements StorageBackend {
   }
 
   // ---------------------------------------------------------------------------
+  // Player account operations
+  // ---------------------------------------------------------------------------
+
+  /**
+   * Create a player account.
+   */
+  async createPlayerAccount(data: {
+    username: string;
+    passwordHash: string;
+  }): Promise<PlayerAccount> {
+    const db = this.ensureDb();
+    const id = randomUUID();
+    const now = Date.now();
+
+    const account: PlayerAccount = {
+      id,
+      username: data.username,
+      passwordHash: data.passwordHash,
+      mustChangePassword: false,
+      createdAt: now,
+      updatedAt: now,
+      lastLoginAt: null,
+    };
+
+    const stmt = db.prepare(`
+      INSERT INTO player_accounts (
+        id, username, password_hash, must_change_password,
+        created_at, updated_at, last_login_at
+      )
+      VALUES (?, ?, ?, ?, ?, ?, ?)
+    `);
+    stmt.run(
+      account.id,
+      account.username,
+      account.passwordHash,
+      0,
+      account.createdAt,
+      account.updatedAt,
+      account.lastLoginAt,
+    );
+
+    return account;
+  }
+
+  // ---------------------------------------------------------------------------
   // Auth session operations
   // ---------------------------------------------------------------------------
 
   /**
-   * Create an auth session for a seat.
+   * Create an auth session for an account.
    */
   async createAuthSession(data: {
-    campaignId: string;
-    seatId: string;
+    accountId: string;
     refreshTokenHash: string;
     accessTokenHash: string;
     expiresAt: number;
@@ -1074,7 +1161,7 @@ export class SqliteStorage implements StorageBackend {
 
     const session: AuthSession = {
       id,
-      seatId: data.seatId,
+      accountId: data.accountId,
       refreshTokenHash: data.refreshTokenHash,
       accessTokenHash: data.accessTokenHash,
       expiresAt: data.expiresAt,
@@ -1085,15 +1172,14 @@ export class SqliteStorage implements StorageBackend {
 
     const stmt = db.prepare(`
       INSERT INTO auth_sessions (
-        id, campaign_id, seat_id, refresh_token_hash, access_token_hash,
+        id, account_id, refresh_token_hash, access_token_hash,
         expires_at, created_at, last_used_at, revoked_at
       )
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?)
     `);
     stmt.run(
       session.id,
-      data.campaignId,
-      session.seatId,
+      session.accountId,
       session.refreshTokenHash,
       session.accessTokenHash,
       session.expiresAt,
@@ -1114,7 +1200,7 @@ export class SqliteStorage implements StorageBackend {
     const stmt = db.prepare(`
       SELECT
         id,
-        seat_id as seatId,
+        account_id as accountId,
         refresh_token_hash as refreshTokenHash,
         access_token_hash as accessTokenHash,
         expires_at as expiresAt,
@@ -1130,10 +1216,9 @@ export class SqliteStorage implements StorageBackend {
   }
 
   /**
-   * Update an auth session (for token rotation).
+   * Update an auth session (last_used_at, token rotation if needed).
    */
   async updateAuthSession(
-    campaignId: string,
     sessionId: string,
     data: Partial<
       Pick<AuthSession, 'refreshTokenHash' | 'accessTokenHash' | 'lastUsedAt'>
@@ -1164,12 +1249,11 @@ export class SqliteStorage implements StorageBackend {
     }
 
     values.push(sessionId);
-    values.push(campaignId);
 
     const stmt = db.prepare(`
       UPDATE auth_sessions
       SET ${updates.join(', ')}
-      WHERE id = ? AND campaign_id = ?
+      WHERE id = ?
     `);
     stmt.run(...values);
   }
@@ -1177,31 +1261,37 @@ export class SqliteStorage implements StorageBackend {
   /**
    * Revoke an auth session.
    */
-  async revokeAuthSession(
-    campaignId: string,
-    sessionId: string,
-  ): Promise<void> {
+  async revokeAuthSession(sessionId: string): Promise<void> {
     const db = this.ensureDb();
 
     const stmt = db.prepare(`
-      UPDATE auth_sessions SET revoked_at = ? WHERE id = ? AND campaign_id = ?
+      UPDATE auth_sessions SET revoked_at = ? WHERE id = ?
     `);
-    stmt.run(Date.now(), sessionId, campaignId);
+    stmt.run(Date.now(), sessionId);
   }
 
   /**
-   * List all auth sessions for a seat.
+   * Revoke all auth sessions for an account (e.g., on password reset).
    */
-  async listAuthSessionsForSeat(
-    campaignId: string,
-    seatId: string,
-  ): Promise<AuthSession[]> {
+  async revokeAllAuthSessionsForAccount(accountId: string): Promise<void> {
+    const db = this.ensureDb();
+
+    const stmt = db.prepare(`
+      UPDATE auth_sessions SET revoked_at = ? WHERE account_id = ? AND revoked_at IS NULL
+    `);
+    stmt.run(Date.now(), accountId);
+  }
+
+  /**
+   * List all auth sessions for an account.
+   */
+  async listAuthSessionsForAccount(accountId: string): Promise<AuthSession[]> {
     const db = this.ensureDb();
 
     const stmt = db.prepare(`
       SELECT
         id,
-        seat_id as seatId,
+        account_id as accountId,
         refresh_token_hash as refreshTokenHash,
         access_token_hash as accessTokenHash,
         expires_at as expiresAt,
@@ -1209,10 +1299,10 @@ export class SqliteStorage implements StorageBackend {
         last_used_at as lastUsedAt,
         revoked_at as revokedAt
       FROM auth_sessions
-      WHERE campaign_id = ? AND seat_id = ?
+      WHERE account_id = ?
       ORDER BY created_at DESC
     `);
 
-    return stmt.all(campaignId, seatId) as AuthSession[];
+    return stmt.all(accountId) as AuthSession[];
   }
 }

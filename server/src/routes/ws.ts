@@ -63,9 +63,13 @@ async function resolveAuthSession(
     return null;
   }
 
-  // Verify the session's seat belongs to the requested campaign and is active.
-  const seat = await storage.getSeat(campaignId, session.seatId);
-  if (!seat || !seat.isActive) return null;
+  // Resolve seat: find the active seat for this account in the requested campaign.
+  // Auth sessions are account-scoped (ADR-010); seatId is derived via account_id FK on seats.
+  const seats = await storage.listSeats(campaignId);
+  const seat = seats.find(
+    (s) => s.accountId === session.accountId && s.isActive,
+  );
+  if (!seat) return null;
 
   return { campaignId, seatId: seat.id, seatRole: seat.role };
 }

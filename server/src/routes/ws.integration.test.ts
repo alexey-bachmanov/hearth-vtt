@@ -67,7 +67,7 @@ interface TestCredentials {
   refreshToken: string;
 }
 
-/** Create a campaign, seat, and live auth session in storage. */
+/** Create a campaign, seat, player account, and live auth session in storage. */
 async function seedSession(
   storage: Storage,
   role: 'gm' | 'player' | 'spectator' = 'gm',
@@ -79,10 +79,17 @@ async function seedSession(
     role,
   });
 
+  const account = await storage.createPlayerAccount({
+    username: `player-${seat.id}`,
+    passwordHash: 'test-hash',
+  });
+
+  // Bind the seat to the account so the WS resolver can find it.
+  await storage.updateSeat(campaign.id, seat.id, { accountId: account.id });
+
   const refreshToken = `test-refresh-${role}-${seat.id}`;
   await storage.createAuthSession({
-    campaignId: campaign.id,
-    seatId: seat.id,
+    accountId: account.id,
     refreshTokenHash: hashToken(refreshToken),
     accessTokenHash: hashToken(`access-${refreshToken}`),
     expiresAt: Date.now() + 60 * 60 * 1000, // 1 hour

@@ -65,21 +65,13 @@ describe('SqliteStorage (:memory: mode)', () => {
         maxUses: 1,
         expiresAt: Date.now() + 3600_000,
       });
-      await storage.createAuthSession({
-        campaignId: campaign.id,
-        seatId: seat.id,
-        refreshTokenHash: 'cascade-refresh-hash',
-        accessTokenHash: 'cascade-access-hash',
-        expiresAt: Date.now() + 3600_000,
-      });
 
       await storage.deleteCampaign(campaign.id);
 
       expect(await storage.getCampaign(campaign.id)).toBeNull();
       expect(await storage.getSeat(campaign.id, seat.id)).toBeNull();
       expect(await storage.getInvite('cascade-test-token')).toBeNull();
-      // getAuthSession filters revoked_at IS NULL; deleted rows return null
-      expect(await storage.getAuthSession('cascade-refresh-hash')).toBeNull();
+      // Auth sessions are account-scoped and are NOT cascade-deleted by campaign deletion.
     });
 
     it('silently succeeds when deleting a nonexistent campaign', async () => {
@@ -596,24 +588,19 @@ describe('SqliteStorage (:memory: mode)', () => {
   // ==========================================================================
 
   describe('Auth sessions', () => {
-    let campaignId: string;
-    let seatId: string;
+    let accountId: string;
 
     beforeEach(async () => {
-      const campaign = await storage.createCampaign('Auth Campaign');
-      campaignId = campaign.id;
-      const seat = await storage.createSeat({
-        campaignId,
-        displayName: 'Player',
-        role: 'player',
+      const account = await storage.createPlayerAccount({
+        username: 'testplayer',
+        passwordHash: 'hashed-password',
       });
-      seatId = seat.id;
+      accountId = account.id;
     });
 
     it('creates and retrieves an auth session by refresh token hash', async () => {
       const session = await storage.createAuthSession({
-        campaignId,
-        seatId,
+        accountId,
         refreshTokenHash: 'refresh-hash-xyz',
         accessTokenHash: 'access-hash-xyz',
         expiresAt: Date.now() + 3600_000,
@@ -621,32 +608,30 @@ describe('SqliteStorage (:memory: mode)', () => {
 
       const retrieved = await storage.getAuthSession('refresh-hash-xyz');
       expect(retrieved?.id).toBe(session.id);
-      expect(retrieved?.seatId).toBe(seatId);
+      expect(retrieved?.accountId).toBe(accountId);
     });
 
     it('returns null for a revoked auth session', async () => {
       const session = await storage.createAuthSession({
-        campaignId,
-        seatId,
+        accountId,
         refreshTokenHash: 'to-revoke-hash',
         accessTokenHash: 'access-hash',
         expiresAt: Date.now() + 3600_000,
       });
 
-      await storage.revokeAuthSession(campaignId, session.id);
+      await storage.revokeAuthSession(session.id);
       expect(await storage.getAuthSession('to-revoke-hash')).toBeNull();
     });
 
-    it('rotates refresh token hash via updateAuthSession', async () => {
+    it('updates refresh token hash via updateAuthSession', async () => {
       const session = await storage.createAuthSession({
-        campaignId,
-        seatId,
+        accountId,
         refreshTokenHash: 'old-refresh-hash',
         accessTokenHash: 'access-hash',
         expiresAt: Date.now() + 3600_000,
       });
 
-      await storage.updateAuthSession(campaignId, session.id, {
+      await storage.updateAuthSession(session.id, {
         refreshTokenHash: 'new-refresh-hash',
       });
 
@@ -654,34 +639,48 @@ describe('SqliteStorage (:memory: mode)', () => {
       expect(await storage.getAuthSession('new-refresh-hash')).not.toBeNull();
     });
 
-    it('lists auth sessions for a seat (excludes other seats)', async () => {
-      const otherSeat = await storage.createSeat({
-        campaignId,
-        displayName: 'Other',
-        role: 'spectator',
+    it('lists auth sessions for an account (excludes other accounts)', async () => {
+      const otherAccount = await storage.createPlayerAccount({
+        username: 'otherplayer',
+        passwordHash: 'hashed-password-2',
       });
 
       await storage.createAuthSession({
-        campaignId,
-        seatId,
+        accountId,
         refreshTokenHash: 'hash-s1',
         accessTokenHash: 'access-s1',
         expiresAt: Date.now() + 3600_000,
       });
       await storage.createAuthSession({
-        campaignId,
-        seatId: otherSeat.id,
+        accountId: otherAccount.id,
         refreshTokenHash: 'hash-s2',
         accessTokenHash: 'access-s2',
         expiresAt: Date.now() + 3600_000,
       });
 
-      const sessions = await storage.listAuthSessionsForSeat(
-        campaignId,
-        seatId,
-      );
+      const sessions = await storage.listAuthSessionsForAccount(accountId);
       expect(sessions).toHaveLength(1);
       expect(sessions[0].refreshTokenHash).toBe('hash-s1');
+    });
+
+    it('revokes all sessions for an account', async () => {
+      await storage.createAuthSession({
+        accountId,
+        refreshTokenHash: 'hash-b1',
+        accessTokenHash: 'access-b1',
+        expiresAt: Date.now() + 3600_000,
+      });
+      await storage.createAuthSession({
+        accountId,
+        refreshTokenHash: 'hash-b2',
+        accessTokenHash: 'access-b2',
+        expiresAt: Date.now() + 3600_000,
+      });
+
+      await storage.revokeAllAuthSessionsForAccount(accountId);
+
+      expect(await storage.getAuthSession('hash-b1')).toBeNull();
+      expect(await storage.getAuthSession('hash-b2')).toBeNull();
     });
   });
 

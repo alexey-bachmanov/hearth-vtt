@@ -1,6 +1,6 @@
 # Todo List Strategy
 
-**Workflow:** Items in "Tech Debt" and "Bugs" represent known issues organized by category. Long-term objectives are detailed in [docs/implementaion-strategy.md](../docs/implementation-strategy.md). When we decide to tackle a category, we **promote it to "Current Projects"** with a comprehensive, step-by-step plan. This prevents plans from rolling out of context during implementation.
+**Workflow:** Items in "Tech Debt" and "Bugs" represent known issues organized by category. Long-term objectives are detailed in [docs/implementation-strategy.md](../docs/implementation-strategy.md). When we decide to tackle a category, we **promote it to "Current Projects"** with a comprehensive, step-by-step plan. This prevents plans from rolling out of context during implementation.
 
 As work completes, check off tasks.
 
@@ -27,9 +27,9 @@ Brings client routing in line with the PlayerAccount model, adds UX-glue pages (
 
 ### Phase 1 — Shared types + protocol updates
 
-- [ ] **1. Player auth schemas.** Add to `shared/src/protocol/http.ts`: request/response schemas for `POST /api/auth/login`, `POST /api/auth/logout`, `POST /api/auth/refresh`, `GET /api/auth/me`, and updated `POST /api/auth/claim-invite` (add `mode: 'login' | 'register'` field). Define `MeResponse = { accountId, username, seats: Array<{ campaignId, campaignName, seatId, role }> }`.
-- [ ] **2. Admin account schemas.** Add schemas for `GET /api/admin/accounts`, `POST /api/admin/accounts/:id/reset-password`, `POST /api/admin/accounts/:id/revoke-sessions`.
-- [ ] **3. `PlayerAccount` type.** Add `{ id, username, mustChangePassword, createdAt, lastLoginAt }` to `shared/src/entities.ts` (or new `shared/src/accounts.ts`). Update `docs/shared-types.md`.
+- [x] **1. Player auth schemas.** Add to `shared/src/protocol/http.ts`: request/response schemas for `POST /api/auth/login`, `POST /api/auth/logout`, `POST /api/auth/refresh`, `GET /api/auth/me`, and updated `POST /api/auth/claim-invite` (add `mode: 'login' | 'register'` field). Define `MeResponse = { accountId, username, seats: Array<{ campaignId, campaignName, seatId, role }> }`.
+- [x] **2. Admin account schemas.** Add schemas for `GET /api/admin/accounts`, `POST /api/admin/accounts/:id/reset-password`, `POST /api/admin/accounts/:id/revoke-sessions`.
+- [x] **3. `PlayerAccount` type.** Add `{ id, username, mustChangePassword, createdAt, lastLoginAt }` to `shared/src/entities.ts` (or new `shared/src/accounts.ts`). Update `docs/shared-types.md`.
 
 **Verification:** `npm test --workspace=shared`; `tsc --noEmit` from root.
 
@@ -37,7 +37,7 @@ Brings client routing in line with the PlayerAccount model, adds UX-glue pages (
 
 _Depends on Phase 1._
 
-- [ ] **4. Schema.** Add `player_accounts` table to `hearth.db` schema. Add `account_id` FK on `seats`. Rebind `auth_sessions` to `account_id` (was `seat_id`). Delete `server/data/db/hearth.db` before testing.
+- [x] **4. Schema.** Add `player_accounts` table to `hearth.db` schema. Add `account_id` FK on `seats`. Rebind `auth_sessions` to `account_id` (was `seat_id`). Delete `server/data/db/hearth.db` before testing.
 - [ ] **5. Accounts repo.** Extend storage interface (`server/src/storage/index.ts`) with `accounts` repo: `getByUsername`, `create`, `updateLastLogin`, `setMustChangePassword`, `listAll`. Implement in `server/src/storage/sqlite/accounts.ts`. Reuse scrypt utility from admin auth.
 - [ ] **6. Domain helpers.** Add `server/src/domain/auth/account.ts`: `createAccount`, `verifyPassword`, `bindSeat`, `unbindSeat`.
 - [ ] **7. Rewrite `server/src/routes/auth.ts`.** `POST /api/auth/claim-invite` — accept `mode`, branch login vs register, bind seat, create AuthSession bound to `account_id`. `POST /api/auth/login` — username+password, per-IP rate-limit (in-memory bucket; productionization is Tech Debt), return `MeResponse`. `POST /api/auth/logout` — revoke session, clear cookie. `POST /api/auth/refresh` — stable refresh (no rotation), reuse-detection on revoked tokens. `GET /api/auth/me` — return `MeResponse` (JOIN seats + campaigns for names).
@@ -203,16 +203,7 @@ Follow-on mini-sprint after the engine boundary is locked. Adds the remaining VT
 
 ### Input System
 
-The current `CanvasInputController` works but was built incrementally and has known structural problems. It is good enough until tool modes or touch support are actually required.
-
-- [ ] **Redesign the input pipeline** as a proper three-layer system:
-  1. **Input sources** — `PointerSource`, `KeyboardSource`, `GamepadSource` (etc.) emit normalised raw signals. Each source is independent; adding a new device type does not touch existing code.
-  2. **Gesture recognisers** (stateful) — consume raw signals and emit named, normalised gestures: `tap`, `dragStart`, `pinchStart`, `longPress`, `wheelTick`, `keyPress`, etc. Gesture disambiguation (tap vs drag, one-finger pan vs two-finger pinch) lives entirely here.
-  3. **Binding table** — pure function `(gesture, uiState, hitTarget) → IntentName | null`. The single readable map of "what does this input do". Remapping right-click, adding tool-mode overrides, or supporting user-configurable keybinds are all one-line changes here.
-  4. **Handler registry** — `Map<IntentName, IntentHandler>`. Handlers own the full gesture lifecycle (start / move / end / cancel). Atomic actions are plain functions; multi-event gestures (pan, drag, marquee, measure) are small classes. Stub handlers allow intents to be declared before they are implemented.
-  - **Why not now:** touch and tool modes are not on the near-term roadmap. The refactor only pays for itself once one of those lands.
-  - **Constraint:** refactoring must not change any observable behaviour. The existing integration tests in `canvas-input-controller.test.ts` are the acceptance criteria.
-  - See [canvas-input-controller.ts](../client/src/app/canvas-input-controller.ts) and discussion in session notes for full design context.
+The current `CanvasInputController` works but was built incrementally and has known structural problems. It is good enough until tool modes or touch support are actually required. Scope of the redesign still TBD. Don't touch this one without an actual design.
 
 ### Renderer
 

@@ -6,6 +6,7 @@ import type {
   Entity,
   Event,
   Invite,
+  PlayerAccount,
   Seat,
   ServerAdmin,
   StorageBackend,
@@ -29,9 +30,10 @@ export class InMemoryBackend implements StorageBackend {
   private events = new Map<string, Event[]>();
   private serverAdmin: ServerAdmin | null = null;
   private adminSessions = new Map<string, AdminSession>();
+  private playerAccounts = new Map<string, PlayerAccount>();
   private seats = new Map<string, Map<string, Seat>>();
   private invites = new Map<string, Invite>();
-  private authSessions = new Map<string, Map<string, AuthSession>>();
+  private authSessions = new Map<string, AuthSession>(); // keyed by session id
 
   // ---------------------------------------------------------------------------
   // Lifecycle
@@ -73,7 +75,7 @@ export class InMemoryBackend implements StorageBackend {
     this.entities.delete(id);
     this.events.delete(id);
     this.seats.delete(id);
-    this.authSessions.delete(id);
+    // Auth sessions are account-scoped; not cascade-deleted by campaign deletion.
 
     for (const [token, invite] of this.invites) {
       if (seatIds.has(invite.seatId)) {
@@ -294,6 +296,7 @@ export class InMemoryBackend implements StorageBackend {
       campaignId: data.campaignId,
       displayName: data.displayName,
       role: data.role,
+      accountId: null,
       isActive: true,
       createdAt: now,
       updatedAt: now,
@@ -318,7 +321,9 @@ export class InMemoryBackend implements StorageBackend {
   async updateSeat(
     campaignId: string,
     seatId: string,
-    data: Partial<Pick<Seat, 'displayName' | 'role' | 'isActive'>>,
+    data: Partial<
+      Pick<Seat, 'displayName' | 'role' | 'isActive' | 'accountId'>
+    >,
   ): Promise<void> {
     const seat = this.seats.get(campaignId)?.get(seatId);
     if (!seat)
@@ -384,12 +389,33 @@ export class InMemoryBackend implements StorageBackend {
   }
 
   // ---------------------------------------------------------------------------
+  // Player accounts
+  // ---------------------------------------------------------------------------
+
+  async createPlayerAccount(data: {
+    username: string;
+    passwordHash: string;
+  }): Promise<PlayerAccount> {
+    const now = Date.now();
+    const account: PlayerAccount = {
+      id: randomUUID(),
+      username: data.username,
+      passwordHash: data.passwordHash,
+      mustChangePassword: false,
+      createdAt: now,
+      updatedAt: now,
+      lastLoginAt: null,
+    };
+    this.playerAccounts.set(account.id, account);
+    return { ...account };
+  }
+
+  // ---------------------------------------------------------------------------
   // Auth sessions
   // ---------------------------------------------------------------------------
 
   async createAuthSession(data: {
-    campaignId: string;
-    seatId: string;
+    accountId: string;
     refreshTokenHash: string;
     accessTokenHash: string;
     expiresAt: number;
@@ -397,7 +423,7 @@ export class InMemoryBackend implements StorageBackend {
     const now = Date.now();
     const session: AuthSession = {
       id: randomUUID(),
-      seatId: data.seatId,
+      accountId: data.accountId,
       refreshTokenHash: data.refreshTokenHash,
       accessTokenHash: data.accessTokenHash,
       expiresAt: data.expiresAt,
@@ -405,52 +431,49 @@ export class InMemoryBackend implements StorageBackend {
       lastUsedAt: now,
       revokedAt: null,
     };
-    if (!this.authSessions.has(data.campaignId)) {
-      this.authSessions.set(data.campaignId, new Map());
-    }
-    this.authSessions.get(data.campaignId)!.set(session.id, session);
+    this.authSessions.set(session.id, session);
     return { ...session };
   }
 
   async getAuthSession(refreshTokenHash: string): Promise<AuthSession | null> {
-    for (const campaignSessions of this.authSessions.values()) {
-      for (const session of campaignSessions.values()) {
-        if (session.refreshTokenHash === refreshTokenHash)
-          return { ...session };
-      }
+    for (const session of this.authSessions.values()) {
+      if (
+        session.refreshTokenHash === refreshTokenHash &&
+        session.revokedAt === null
+      )
+        return { ...session };
     }
     return null;
   }
 
   async updateAuthSession(
-    campaignId: string,
     sessionId: string,
     data: Partial<
       Pick<AuthSession, 'refreshTokenHash' | 'accessTokenHash' | 'lastUsedAt'>
     >,
   ): Promise<void> {
-    const session = this.authSessions.get(campaignId)?.get(sessionId);
-    if (!session)
-      throw new Error(
-        `AuthSession ${sessionId} not found in campaign ${campaignId}`,
-      );
+    const session = this.authSessions.get(sessionId);
+    if (!session) throw new Error(`AuthSession ${sessionId} not found`);
     Object.assign(session, data);
   }
 
-  async revokeAuthSession(
-    campaignId: string,
-    sessionId: string,
-  ): Promise<void> {
-    const session = this.authSessions.get(campaignId)?.get(sessionId);
+  async revokeAuthSession(sessionId: string): Promise<void> {
+    const session = this.authSessions.get(sessionId);
     if (session) session.revokedAt = Date.now();
   }
 
-  async listAuthSessionsForSeat(
-    campaignId: string,
-    seatId: string,
-  ): Promise<AuthSession[]> {
-    return [...(this.authSessions.get(campaignId)?.values() ?? [])]
-      .filter((s) => s.seatId === seatId)
+  async revokeAllAuthSessionsForAccount(accountId: string): Promise<void> {
+    const now = Date.now();
+    for (const session of this.authSessions.values()) {
+      if (session.accountId === accountId && session.revokedAt === null) {
+        session.revokedAt = now;
+      }
+    }
+  }
+
+  async listAuthSessionsForAccount(accountId: string): Promise<AuthSession[]> {
+    return [...this.authSessions.values()]
+      .filter((s) => s.accountId === accountId)
       .map((s) => ({ ...s }));
   }
 }

@@ -61,6 +61,22 @@ export interface AdminSession {
 }
 
 /**
+ * PlayerAccount: A per-server player identity.
+ * One account per username per server. An account can hold seats across campaigns.
+ * The passwordHash is stored server-side only and is never sent to the client.
+ * See ADR-010 and docs/shared-types.md for the full model.
+ */
+export interface PlayerAccount {
+  id: string; // AccountId
+  username: string;
+  passwordHash: string; // scrypt hash; never sent to client
+  mustChangePassword: boolean;
+  createdAt: number; // Unix ms
+  updatedAt: number; // Unix ms
+  lastLoginAt: number | null; // Unix ms; null if never logged in
+}
+
+/**
  * Seat: Persistent identity within a campaign.
  * Seats survive server restarts and outlive AuthSessions.
  */
@@ -69,6 +85,7 @@ export interface Seat {
   campaignId: string;
   displayName: string; // Player's display name in this campaign
   role: SeatRole; // Campaign role (no 'admin' role)
+  accountId: string | null; // References PlayerAccount.id; null if unclaimed
   isActive: boolean; // Can be deactivated without deletion
   createdAt: number;
   updatedAt: number;
@@ -91,12 +108,13 @@ export interface Invite {
 }
 
 /**
- * AuthSession: Cookie-based authentication session for campaign participants.
+ * AuthSession: Cookie-based authentication session for a PlayerAccount.
+ * Account-scoped (not campaign/seat-scoped) per ADR-010.
  * Separate from AdminSession.
  */
 export interface AuthSession {
   id: string;
-  seatId: string; // References Seat.id
+  accountId: string; // References PlayerAccount.id
   refreshTokenHash: string; // Hashed refresh token
   accessTokenHash: string; // Hashed access token (short-lived)
   expiresAt: number; // Unix timestamp
@@ -216,7 +234,9 @@ export interface StorageBackend {
   updateSeat(
     campaignId: string,
     seatId: string,
-    data: Partial<Pick<Seat, 'displayName' | 'role' | 'isActive'>>,
+    data: Partial<
+      Pick<Seat, 'displayName' | 'role' | 'isActive' | 'accountId'>
+    >,
   ): Promise<void>;
   deleteSeat(campaignId: string, seatId: string): Promise<void>;
 
@@ -237,28 +257,32 @@ export interface StorageBackend {
   decrementInviteUses(inviteToken: string): Promise<void>;
 
   /**
-   * Auth session operations (seat-based authentication)
+   * Player account operations (step 5 adds getByUsername, updateLastLogin, etc.)
+   */
+  createPlayerAccount(data: {
+    username: string;
+    passwordHash: string;
+  }): Promise<PlayerAccount>;
+
+  /**
+   * Auth session operations (account-scoped per ADR-010)
    */
   createAuthSession(data: {
-    campaignId: string;
-    seatId: string;
+    accountId: string;
     refreshTokenHash: string;
     accessTokenHash: string;
     expiresAt: number;
   }): Promise<AuthSession>;
   getAuthSession(refreshTokenHash: string): Promise<AuthSession | null>;
   updateAuthSession(
-    campaignId: string,
     sessionId: string,
     data: Partial<
       Pick<AuthSession, 'refreshTokenHash' | 'accessTokenHash' | 'lastUsedAt'>
     >,
   ): Promise<void>;
-  revokeAuthSession(campaignId: string, sessionId: string): Promise<void>;
-  listAuthSessionsForSeat(
-    campaignId: string,
-    seatId: string,
-  ): Promise<AuthSession[]>;
+  revokeAuthSession(sessionId: string): Promise<void>;
+  revokeAllAuthSessionsForAccount(accountId: string): Promise<void>;
+  listAuthSessionsForAccount(accountId: string): Promise<AuthSession[]>;
 }
 
 /**
@@ -469,7 +493,9 @@ export class Storage {
   async updateSeat(
     campaignId: string,
     seatId: string,
-    data: Partial<Pick<Seat, 'displayName' | 'role' | 'isActive'>>,
+    data: Partial<
+      Pick<Seat, 'displayName' | 'role' | 'isActive' | 'accountId'>
+    >,
   ): Promise<void> {
     return this.backend.updateSeat(campaignId, seatId, data);
   }
@@ -512,11 +538,20 @@ export class Storage {
   }
 
   /**
+   * Player account operations
+   */
+  async createPlayerAccount(data: {
+    username: string;
+    passwordHash: string;
+  }): Promise<PlayerAccount> {
+    return this.backend.createPlayerAccount(data);
+  }
+
+  /**
    * Auth session operations
    */
   async createAuthSession(data: {
-    campaignId: string;
-    seatId: string;
+    accountId: string;
     refreshTokenHash: string;
     accessTokenHash: string;
     expiresAt: number;
@@ -529,26 +564,23 @@ export class Storage {
   }
 
   async updateAuthSession(
-    campaignId: string,
     sessionId: string,
     data: Partial<
       Pick<AuthSession, 'refreshTokenHash' | 'accessTokenHash' | 'lastUsedAt'>
     >,
   ): Promise<void> {
-    return this.backend.updateAuthSession(campaignId, sessionId, data);
+    return this.backend.updateAuthSession(sessionId, data);
   }
 
-  async revokeAuthSession(
-    campaignId: string,
-    sessionId: string,
-  ): Promise<void> {
-    return this.backend.revokeAuthSession(campaignId, sessionId);
+  async revokeAuthSession(sessionId: string): Promise<void> {
+    return this.backend.revokeAuthSession(sessionId);
   }
 
-  async listAuthSessionsForSeat(
-    campaignId: string,
-    seatId: string,
-  ): Promise<AuthSession[]> {
-    return this.backend.listAuthSessionsForSeat(campaignId, seatId);
+  async revokeAllAuthSessionsForAccount(accountId: string): Promise<void> {
+    return this.backend.revokeAllAuthSessionsForAccount(accountId);
+  }
+
+  async listAuthSessionsForAccount(accountId: string): Promise<AuthSession[]> {
+    return this.backend.listAuthSessionsForAccount(accountId);
   }
 }
