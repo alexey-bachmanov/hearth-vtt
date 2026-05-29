@@ -9,10 +9,15 @@
  * - Handles error response format: { error: { code, message } }
  * - Exposes typed methods for each endpoint group
  * - Includes auth credentials (cookies) in all requests
- *
- * Note: This is a stub implementation. Actual server integration
- * will be implemented when backend endpoints are ready.
  */
+
+import type {
+  MeResponse,
+  LoginResponse,
+  RefreshResponse,
+  ClaimInviteRequest,
+  ClaimInviteResponse,
+} from '@hearth-vtt/shared';
 
 /**
  * API error response format from server.
@@ -135,49 +140,63 @@ class HttpClient {
  * Authentication API client.
  */
 export class AuthApi {
-  // TODO: Add private http: HttpClient when implementing actual calls
+  constructor(private http: HttpClient) {}
+
+  /**
+   * Fetch the current authenticated session.
+   *
+   * @returns MeResponse on success.
+   * @throws ApiError with status 401 when not authenticated.
+   */
+  async me(): Promise<MeResponse> {
+    return this.http.get<MeResponse>('/auth/me');
+  }
+
+  /**
+   * Log in with username and password.
+   *
+   * On success the server sets the `hearth_refresh` HttpOnly cookie.
+   *
+   * @param username - Player username.
+   * @param password - Player password.
+   * @returns MeResponse (same shape as /api/auth/me).
+   * @throws ApiError 401 on bad credentials, 429 on rate-limit.
+   */
+  async login(username: string, password: string): Promise<LoginResponse> {
+    return this.http.post<LoginResponse>('/auth/login', { username, password });
+  }
+
+  /**
+   * Log out and revoke the current session.
+   *
+   * Clears the `hearth_refresh` cookie server-side.
+   */
+  async logout(): Promise<void> {
+    return this.http.post<void>('/auth/logout');
+  }
+
+  /**
+   * Refresh access token using the refresh token cookie.
+   *
+   * The refresh token is NOT rotated (stable refresh per ADR-010).
+   *
+   * @returns New access token.
+   * @throws ApiError 401 when refresh cookie absent or session revoked.
+   */
+  async refresh(): Promise<RefreshResponse> {
+    return this.http.post<RefreshResponse>('/auth/refresh');
+  }
 
   /**
    * Claim an invite and create an authenticated session.
    *
-   * @param inviteToken - Invite token from URL
-   * @param pin - PIN code for invite
-   * @param deviceName - Optional device name
-   * @returns Session info with redirect URL
+   * @param data - Discriminated union on `mode: 'login' | 'register'`.
+   * @returns Campaign / seat info for the newly bound seat.
+   * @throws ApiError 400 on invalid/expired invite, 401 on wrong PIN,
+   *   409 on username conflict (register mode).
    */
-  async claimInvite(params: {
-    inviteToken: string;
-    pin: string;
-    deviceName?: string;
-  }): Promise<{
-    campaignId: string;
-    seatId: string;
-    role: string;
-    redirectUrl: string;
-  }> {
-    console.log('[AuthApi] claimInvite() - stub', params);
-    throw new ApiError('NOT_IMPLEMENTED', 'claimInvite not yet implemented');
-  }
-
-  /**
-   * Refresh access token using refresh token cookie.
-   *
-   * @returns New access token and expiration
-   */
-  async refresh(): Promise<{
-    accessToken: string;
-    expiresIn: number;
-  }> {
-    console.log('[AuthApi] refresh() - stub');
-    throw new ApiError('NOT_IMPLEMENTED', 'refresh not yet implemented');
-  }
-
-  /**
-   * Logout and revoke session.
-   */
-  async logout(): Promise<void> {
-    console.log('[AuthApi] logout() - stub');
-    throw new ApiError('NOT_IMPLEMENTED', 'logout not yet implemented');
+  async claimInvite(data: ClaimInviteRequest): Promise<ClaimInviteResponse> {
+    return this.http.post<ClaimInviteResponse>('/auth/claim-invite', data);
   }
 }
 
@@ -418,7 +437,7 @@ export class Api {
   constructor(baseUrl = '/api') {
     this.http = new HttpClient(baseUrl);
 
-    this.auth = new AuthApi();
+    this.auth = new AuthApi(this.http);
     this.campaigns = new CampaignApi();
     this.seats = new SeatApi();
     this.invites = new InviteApi();

@@ -10,7 +10,12 @@ function makeMe() {
     accountId: 'acc-1',
     username: 'Testuser',
     seats: [
-      { campaignId: 'camp-1', campaignName: 'Test Campaign', seatId: 'seat-1', role: 'player' },
+      {
+        campaignId: 'camp-1',
+        campaignName: 'Test Campaign',
+        seatId: 'seat-1',
+        role: 'player',
+      },
     ],
   };
 }
@@ -48,11 +53,14 @@ describe('initial state', () => {
 describe('loadMe() — success', () => {
   it('sets me on 200', async () => {
     const me = makeMe();
-    vi.stubGlobal('fetch', vi.fn().mockResolvedValueOnce({
-      ok: true,
-      status: 200,
-      json: async () => me,
-    }));
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockResolvedValueOnce({
+        ok: true,
+        status: 200,
+        json: async () => me,
+      }),
+    );
 
     const result = await authState.loadMe();
 
@@ -71,9 +79,12 @@ describe('loadMe() — success', () => {
 
     await authState.loadMe();
 
-    expect(fetchMock).toHaveBeenCalledWith('/api/auth/me', expect.objectContaining({
-      credentials: 'include',
-    }));
+    expect(fetchMock).toHaveBeenCalledWith(
+      '/api/auth/me',
+      expect.objectContaining({
+        credentials: 'include',
+      }),
+    );
   });
 });
 
@@ -83,10 +94,13 @@ describe('loadMe() — success', () => {
 
 describe('loadMe() — 401', () => {
   it('sets me to null on 401', async () => {
-    vi.stubGlobal('fetch', vi.fn().mockResolvedValueOnce({
-      ok: false,
-      status: 401,
-    }));
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockResolvedValueOnce({
+        ok: false,
+        status: 401,
+      }),
+    );
 
     const result = await authState.loadMe();
 
@@ -95,10 +109,13 @@ describe('loadMe() — 401', () => {
   });
 
   it('does not throw on 401', async () => {
-    vi.stubGlobal('fetch', vi.fn().mockResolvedValueOnce({
-      ok: false,
-      status: 401,
-    }));
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockResolvedValueOnce({
+        ok: false,
+        status: 401,
+      }),
+    );
 
     await expect(authState.loadMe()).resolves.toBeNull();
   });
@@ -110,10 +127,13 @@ describe('loadMe() — 401', () => {
 
 describe('loadMe() — server error', () => {
   it('sets me to null on 500', async () => {
-    vi.stubGlobal('fetch', vi.fn().mockResolvedValueOnce({
-      ok: false,
-      status: 500,
-    }));
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockResolvedValueOnce({
+        ok: false,
+        status: 500,
+      }),
+    );
 
     const result = await authState.loadMe();
 
@@ -128,7 +148,10 @@ describe('loadMe() — server error', () => {
 
 describe('loadMe() — network error', () => {
   it('returns null on fetch rejection', async () => {
-    vi.stubGlobal('fetch', vi.fn().mockRejectedValueOnce(new Error('Network down')));
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockRejectedValueOnce(new Error('Network down')),
+    );
 
     const result = await authState.loadMe();
 
@@ -152,7 +175,10 @@ describe('loadMe() — concurrent calls', () => {
     });
     vi.stubGlobal('fetch', fetchMock);
 
-    const [r1, r2] = await Promise.all([authState.loadMe(), authState.loadMe()]);
+    const [r1, r2] = await Promise.all([
+      authState.loadMe(),
+      authState.loadMe(),
+    ]);
 
     expect(fetchMock).toHaveBeenCalledTimes(1);
     expect(r1).toEqual(me);
@@ -168,10 +194,13 @@ describe('logout()', () => {
   it('clears me after logout', async () => {
     authState.me = makeMe();
 
-    vi.stubGlobal('fetch', vi.fn().mockResolvedValueOnce({
-      ok: true,
-      status: 204,
-    }));
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockResolvedValueOnce({
+        ok: true,
+        status: 204,
+      }),
+    );
 
     // navigate() mutates history — stub it
     const { navigate } = await import('../app/routes.js');
@@ -188,15 +217,21 @@ describe('logout()', () => {
 
     await authState.logout();
 
-    expect(fetchMock).toHaveBeenCalledWith('/api/auth/logout', expect.objectContaining({
-      method: 'POST',
-      credentials: 'include',
-    }));
+    expect(fetchMock).toHaveBeenCalledWith(
+      '/api/auth/logout',
+      expect.objectContaining({
+        method: 'POST',
+        credentials: 'include',
+      }),
+    );
   });
 
   it('clears me even if logout fetch fails', async () => {
     authState.me = makeMe();
-    vi.stubGlobal('fetch', vi.fn().mockRejectedValueOnce(new Error('Network down')));
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockRejectedValueOnce(new Error('Network down')),
+    );
 
     await authState.logout();
 
