@@ -112,10 +112,9 @@ If a shared utility needs environment-specific behavior, define an interface in 
 
 **Goal:** ruleset definitions are portable and validated; runtime execution is constrained.
 
-- Ruleset packages should be treated as **data + constrained scripts/DSL**, not arbitrary executable code.
-- Engine-facing compilation/validation lives in code (`packages/ruleset-runtime` or similar), not inside ruleset content.
-
 **Hard rule:** no ruleset-supplied code may directly access network, filesystem, DOM, or Node APIs.
+
+Ruleset design is a work in progress, but is expected to be explicitly synchronous QuickJS-compatible code that runs in a sandboxed environment with a constrained API surface.
 
 ---
 
@@ -318,3 +317,13 @@ A change is “done” when:
 If code and docs disagree, update docs or create an ADR explaining the change.
 
 ---
+
+## Caveat
+
+The architecture of this project is still very D&D shaped, but we want to build it in a way that contains, by default, a minimal set of VTT features, and pushes gameplay-specific logic into rulesets.
+Example: the initiative tracker was integrated into the client UI early on, but it should be a ruleset-defined UI component that is passed to the client (Call of Cthulu has something like initiative, but Daggerheart uses spotlight, Powered by the Apocalypse moves on fiction, Pathfinder is... a lot, etc. etc.)
+The specifics are still in flux, but you should follow the principle that the core is the INTERSECTION of features needed by all rulesets + the minimal set of all USEFUL PRIMITIVES for rulesets to extend. Example: dice are in the core, not because they are universal, but because most games build on top of them.
+
+## Caveat to the caveat:
+
+Don't build abstractions just because you can. If you're not sure, have a few concrete examples, make spaghetti code, then refactor and abstract out what you need. (See ADR-011 for a real-world example of abstraction gone wrong.)

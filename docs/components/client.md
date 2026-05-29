@@ -46,30 +46,36 @@ HearthVTT uses a **capability-based join link** system with **cookie-based sessi
 2. **Claim Page**: Client renders the claim UI with mode toggle ("New player" / "Existing account")
 3. **Claim Request**: `POST /api/auth/claim-invite` with `{ inviteToken, pin, mode, username, password }`
 4. **Session Creation**: Server validates, binds seat to the PlayerAccount, sets HttpOnly refresh cookie, returns `{ accountId, campaignId, seatId, role }`
-5. **Redirect to Play**: Client navigates to `/play/<campaignId>` (no secrets in URL)
+5. **Redirect to Play**: Client directed back to `/play/<campaignId>`
 6. **Authenticated State**: Auth guard calls `GET /api/auth/me` on protected-route mounts; game UI loads
 
-**Returning player:**
+**Returning player with expired auth:**
 
-1. **Splash**: User visits `/` and clicks **Play** → `/play`
+1. **Splash**: User visits `/` and clicks **Play** → `/play` OR user visits `/play/<campaignId>`
 2. **Auth guard**: `GET /api/auth/me` called; on 401 redirect to `/play/login?returnTo=/play`
 3. **Login Page**: Username + password form. On success, session cookie set; redirect to `returnTo`
 4. **Campaign Picker**: `/play` lists all campaigns the account holds seats in
 
+**Returning player with valid auth:**
+
+1. **Campaign Page**: User visits `/play/<campaignId>`, usually from a saved link
+2. **Authenticated State**: Auth guard calls `GET /api/auth/me` on protected-route mounts
+3. **That's it**: Play UI loads, player sees no intermediate pages between clicking their link and their play UI loading
+
 ### Client-side Route Table
 
-| Route | Component | Auth required | Notes |
-|---|---|---|---|
-| `/` | `SplashPage` | No | 3 buttons; no session check on mount |
-| `/join/:token` | `JoinPage` | No | Login or register mode; redirects to `/play/<id>` on success |
-| `/play` | `CampaignPickerPage` | Yes | Lists `me.seats`; empty-state if no campaigns |
-| `/play/login` | `PlayLoginPage` | No | Accepts `?returnTo`; redirects after login |
-| `/play/account` | `PlayAccountPage` | Yes | Placeholder; Logout + back to `/play` |
-| `/play/:campaignId` | `PlayLayout` | Yes | Full game UI |
-| `/admin` | `AdminLayout` | Admin session | Tree SPA: Settings / Campaigns / Accounts |
-| `/admin/login` | `AdminLogin` | No | Admin password |
-| `/admin/setup` | `AdminSetup` | No | First-time PIN ceremony |
-| `*` | `NotFoundPage` | No | 404 with link back to `/play` |
+| Route               | Component            | Auth required | Notes                                                        |
+| ------------------- | -------------------- | ------------- | ------------------------------------------------------------ |
+| `/`                 | `SplashPage`         | No            | 3 buttons; no session check on mount                         |
+| `/join/:token`      | `JoinPage`           | No            | Login or register mode; redirects to `/play/<id>` on success |
+| `/play`             | `CampaignPickerPage` | Yes           | Lists `me.seats`; empty-state if no campaigns                |
+| `/play/login`       | `PlayLoginPage`      | No            | Accepts `?returnTo`; redirects after login                   |
+| `/play/account`     | `PlayAccountPage`    | Yes           | Placeholder; Logout + back to `/play`                        |
+| `/play/:campaignId` | `PlayLayout`         | Yes           | Full game UI                                                 |
+| `/admin`            | `AdminLayout`        | Admin session | Tree SPA: Settings / Campaigns / Accounts                    |
+| `/admin/login`      | `AdminLogin`         | No            | Admin password                                               |
+| `/admin/setup`      | `AdminSetup`         | No            | First-time PIN ceremony                                      |
+| `*`                 | `NotFoundPage`       | No            | 404 with link back to `/play`                                |
 
 ### Auth Guard Pattern
 
@@ -105,7 +111,7 @@ The client must support **two distinct interfaces**:
 - **Admin UI**: Server and campaign management interface
   - **Server-level access**: Used by server admin only (not tied to any seat)
   - **Separate authentication**: Uses `hearth_admin_session` cookie (not seat-based)
-  - **Tree-structured navigation**: Server → Campaigns → Seats hierarchy
+  - **Tree-structured navigation**: Server settings, Campaigns → Campaign1 → Seat1, Accounts → Account1 hierarchy.
   - No map/gameplay layer; focuses on:
     - **Server settings**: Admin password management, server configuration
     - **Campaign management**: Create, delete, import, export campaigns
@@ -123,18 +129,20 @@ The client must support **two distinct interfaces**:
 ```
 ┌─────────────────────────────────────────────────────────┐
 │  AdminLayout                                            │
-├──────────────┬──────────────────────────────────────────┤
-│              │                                          │
-│  AdminTree   │       Detail Panel                       │
-│  (Sidebar)   │                                          │
-│              │  • ServerSettings (root selected)        │
-│  ▼ Server    │  • CampaignDetail (campaign selected)    │
+├─────────────────┬───────────────────────────────────────┤
+│                 │                                       │
+│  AdminTree      │       Detail Panel                    │
+│  (Sidebar)      │                                       │
+│  ○ Settings     │  • ServerSettings (Settings selected) │
+│  ▼ Campaigns    │  • CampaignDetail (campaign selected) │
 │    ▼ Campaign 1 │  • SeatSettings (seat selected)       │
-│      ○ Seat A│                                          │
-│      ○ Seat B│                                          │
+│      ○ Seat A   │  • Accounts List (Accounts selected)  │
+│      ○ Seat B   │  • Account Info (Account selected)    │
 │    ○ Campaign 2 │                                       │
-│              │                                          │
-└──────────────┴──────────────────────────────────────────┘
+│  ▼ Accounts     │                                       │
+│    ○ Account X  │                                       │
+│                 │                                       │
+└─────────────────┴───────────────────────────────────────┘
 ```
 
 **Distinction**: Server admin manages **which campaigns exist** and **who can join them**. Campaign GMs manage **what happens in-game** (scenes, encounters, fog). These are separate roles that may be held by the same person in self-hosted scenarios.
@@ -381,8 +389,8 @@ The obstruction layer (walls, doors) is broadcast to clients as part of scene da
 
 While a token is being dragged:
 
-1. Client sends `token.move.preview` messages at ~15-20 updates/sec (throttled)
-2. Other clients render a "ghost" token at the preview position
+1. Client is responsible for its own token rendering, pathfinding, and validation (no phasing through walls)
+2. Client render a "ghost" token at the preview position, other clients see nothing
 3. On drop, client sends final `token.move` action
 4. Server validates and broadcasts authoritative position
 5. If server rejects (e.g., moved through wall due to race condition), client snaps token to server position
@@ -402,6 +410,7 @@ The chat log displays recent GameEvents as cards. Events are filtered by `Audien
 - Show latest **n** events (configurable, default ~100-200)
 - Events persist across Snapshots — if CampaignState = Snapshot + 30 events, previous events are still visible in chat
 - On reconnect, client receives recent EventRecord and renders accordingly
+- Many (probably most) game events are not rendered in chat. Token moves, fog updates, redacted events, etc. are for the client renderer, dice rolls, chat messages, and ruleset-defined actions (like attacks and damage rolls) are for the renderer and chat.
 
 ### Rich Embeds
 
@@ -610,6 +619,7 @@ Accessed via the Measurement icon in the left toolbar's "Quick Tools" section. O
 | Square         | Click and drag to show square area               |
 | Circle         | Click center, drag radius                        |
 | Cone           | Click origin, drag to set direction and length   |
+| Beam           | Click origin, drag to set direction and length   |
 
 ### Grid Support
 
