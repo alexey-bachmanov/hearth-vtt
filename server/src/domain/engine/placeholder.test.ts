@@ -12,12 +12,24 @@
  *   • optimistic-move accept / reject paths (token.move)
  *   • chat.send / dice.roll input validation
  *   • subscribe / unsubscribe lifecycle
+ *   • B6: restart persistence, replay correctness, dispatch serialisation,
+ *         close-on-throw, seq monotonicity across reopen
  */
 
-import { describe, it, expect, beforeEach } from 'vitest';
+import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { Storage, InMemoryBackend } from '../../storage/index.js';
 import { PlaceholderEngine } from './placeholder.js';
 import type { WireEvent, GameEvent, SeatView } from '@hearth-vtt/shared';
+
+// ---------------------------------------------------------------------------
+// Stable IDs used across all test worlds
+// ---------------------------------------------------------------------------
+
+const SCENE_ID = 'scene-test-001';
+const HERO_ACTOR_ID = 'actor-hero-001';
+const MONSTER_ACTOR_ID = 'actor-monster-001';
+const HERO_TOKEN_ID = 'token-hero-001';
+const MONSTER_TOKEN_ID = 'token-monster-001';
 
 // ---------------------------------------------------------------------------
 // Test world
@@ -38,7 +50,11 @@ interface TestWorld {
 }
 
 /**
- * Builds a minimal, isolated campaign in InMemory storage and opens an engine.
+ * Builds a minimal, isolated campaign via snapshot seeding and opens an engine.
+ *
+ * Seats are created in storage (always loaded fresh by open()).
+ * Scenes/tokens/actors are seeded via putSnapshot so open() can load them
+ * without touching the entities table.
  *
  * Entity relationships:
  *   scene ← heroToken (sceneId), monsterToken (sceneId)
@@ -68,47 +84,58 @@ async function buildTestWorld(): Promise<TestWorld> {
     role: 'spectator',
   });
 
-  // Scene must be created before tokens (tokens reference sceneEntity.id).
-  const sceneEntity = await storage.createEntity(campaignId, 'scene', {
-    name: 'Test Dungeon',
-    background: { kind: 'color', color: '#1a1a2e' },
-    gridType: 'square',
-    gridSize: 50,
-    gridScale: '5ft',
-    width: 2000,
-    height: 2000,
-  });
-
-  // Actors must be created before tokens (tokens reference actorEntity.id).
-  const heroActor = await storage.createEntity(campaignId, 'actor', {
-    name: 'Hero',
-    type: 'pc',
-    seatPermissions: { [playerSeat.id]: 'control' },
-    hp: { current: 10, max: 10 },
-    ac: 14,
-    conditions: [],
-  });
-  const monsterActor = await storage.createEntity(campaignId, 'actor', {
-    name: 'Goblin',
-    type: 'monster',
-    seatPermissions: {},
-    hp: { current: 4, max: 4 },
-    ac: 12,
-    conditions: [],
-  });
-
-  // Tokens in the active scene.
-  const heroToken = await storage.createEntity(campaignId, 'token', {
-    actorId: heroActor.id,
-    sceneId: sceneEntity.id,
-    position: { x: 100, y: 100 },
-    size: 1,
-  });
-  const monsterToken = await storage.createEntity(campaignId, 'token', {
-    actorId: monsterActor.id,
-    sceneId: sceneEntity.id,
-    position: { x: 300, y: 300 },
-    size: 1,
+  // Seed initial state via a genesis snapshot (seq=0).
+  // Engine no longer reads from the entities table on open().
+  await storage.putSnapshot(campaignId, 0, {
+    schemaVersion: 1,
+    activeSceneId: SCENE_ID,
+    scenes: {
+      [SCENE_ID]: {
+        id: SCENE_ID,
+        name: 'Test Dungeon',
+        gridType: 'square',
+        gridSize: 50,
+        gridScale: '5ft',
+        width: 2000,
+        height: 2000,
+      },
+    },
+    tokens: {
+      [HERO_TOKEN_ID]: {
+        id: HERO_TOKEN_ID,
+        actorId: HERO_ACTOR_ID,
+        sceneId: SCENE_ID,
+        position: { x: 100, y: 100 },
+        size: 1,
+      },
+      [MONSTER_TOKEN_ID]: {
+        id: MONSTER_TOKEN_ID,
+        actorId: MONSTER_ACTOR_ID,
+        sceneId: SCENE_ID,
+        position: { x: 300, y: 300 },
+        size: 1,
+      },
+    },
+    actors: {
+      [HERO_ACTOR_ID]: {
+        id: HERO_ACTOR_ID,
+        name: 'Hero',
+        type: 'pc',
+        seatPermissions: { [playerSeat.id]: 'control' },
+        hp: { current: 10, max: 10 },
+        ac: 14,
+        conditions: [],
+      },
+      [MONSTER_ACTOR_ID]: {
+        id: MONSTER_ACTOR_ID,
+        name: 'Goblin',
+        type: 'monster',
+        seatPermissions: {},
+        hp: { current: 4, max: 4 },
+        ac: 12,
+        conditions: [],
+      },
+    },
   });
 
   const engine = await PlaceholderEngine.open(campaignId, storage);
@@ -119,11 +146,11 @@ async function buildTestWorld(): Promise<TestWorld> {
     gmSeatId: gmSeat.id,
     playerSeatId: playerSeat.id,
     spectatorSeatId: spectatorSeat.id,
-    sceneEntityId: sceneEntity.id,
-    heroActorId: heroActor.id,
-    monsterActorId: monsterActor.id,
-    heroTokenId: heroToken.id,
-    monsterTokenId: monsterToken.id,
+    sceneEntityId: SCENE_ID,
+    heroActorId: HERO_ACTOR_ID,
+    monsterActorId: MONSTER_ACTOR_ID,
+    heroTokenId: HERO_TOKEN_ID,
+    monsterTokenId: MONSTER_TOKEN_ID,
     engine,
   };
 }
@@ -553,50 +580,35 @@ describe('PlaceholderEngine', () => {
   // ── deterministic dice ────────────────────────────────────────────────────
 
   describe('deterministic dice', () => {
-    it('same (campaignId, seq, actionType, payload) yields identical rolls', async () => {
+    it('rolls broadcast to subscriber match the rolls stored in the event', async () => {
+      // Phase B design: rolls are pre-computed with a random seed and stored
+      // in the event. Determinism is guaranteed by replay — the stored rolls
+      // are returned as-is by applyEvent, not recomputed.
       const { storage, campaignId, gmSeatId } = world;
 
-      // Open two independent engine instances against the same backing storage.
-      // Both start with seq=0; first dispatch on each will be seq=1,
-      // so (campaignId, seq=1, 'dice.roll', payload) will be identical.
-      const engine1 = await PlaceholderEngine.open(campaignId, storage);
-      const engine2 = await PlaceholderEngine.open(campaignId, storage);
-
-      const payload = { count: 5, sides: 20 };
-
-      let rolls1: number[] | undefined;
-      let rolls2: number[] | undefined;
-
-      engine1.subscribe(gmSeatId, (ev) => {
-        if (ev.kind === 'full') {
-          rolls1 = (ev.event.data as { rolls: number[] }).rolls;
-        }
-      });
-      engine2.subscribe(gmSeatId, (ev) => {
-        if (ev.kind === 'full') {
-          rolls2 = (ev.event.data as { rolls: number[] }).rolls;
+      let broadcastRolls: number[] | undefined;
+      world.engine.subscribe(gmSeatId, (ev) => {
+        if (ev.kind === 'full' && ev.event.type === 'dice.rolled') {
+          broadcastRolls = (ev.event.data as { rolls: number[] }).rolls;
         }
       });
 
-      await engine1.dispatch({
+      await world.engine.dispatch({
         seatId: gmSeatId,
         campaignId,
         actionType: 'dice.roll',
-        payload,
-      });
-      await engine2.dispatch({
-        seatId: gmSeatId,
-        campaignId,
-        actionType: 'dice.roll',
-        payload,
+        payload: { count: 5, sides: 20 },
       });
 
-      expect(rolls1).toBeDefined();
-      expect(rolls2).toBeDefined();
-      expect(rolls1).toEqual(rolls2);
+      expect(broadcastRolls).toBeDefined();
 
-      engine1.close();
-      engine2.close();
+      // The stored event must carry the same rolls so replay produces the same view.
+      const events = await storage.getEvents(campaignId);
+      const stored = events.find((e) => e.type === 'dice.rolled');
+      expect(stored).toBeDefined();
+      expect((stored!.data as { rolls: number[] }).rolls).toEqual(
+        broadcastRolls,
+      );
     });
 
     it('sequential rolls on the same engine differ between dispatches', async () => {
@@ -926,5 +938,345 @@ describe('PlaceholderEngine', () => {
       });
       expect(result.accepted).toBe(false);
     });
+  });
+});
+
+// ---------------------------------------------------------------------------
+// B6 — durability + queue + close-on-throw
+// ---------------------------------------------------------------------------
+
+describe('PlaceholderEngine — B6 durability + queue', () => {
+  // ── Restart persistence ───────────────────────────────────────────────────
+
+  it('token position is recovered after close + reopen', async () => {
+    const storage = new Storage(new InMemoryBackend());
+    await storage.init();
+    const { id: campaignId } = await storage.createCampaign('Persist');
+    const seat = await storage.createSeat({
+      campaignId,
+      displayName: 'GM',
+      role: 'gm',
+    });
+
+    await storage.putSnapshot(campaignId, 0, {
+      schemaVersion: 1,
+      activeSceneId: SCENE_ID,
+      scenes: {
+        [SCENE_ID]: {
+          id: SCENE_ID,
+          name: 'Map',
+          gridType: 'square',
+          gridSize: 50,
+          gridScale: '5ft',
+          width: 1000,
+          height: 1000,
+        },
+      },
+      tokens: {
+        [HERO_TOKEN_ID]: {
+          id: HERO_TOKEN_ID,
+          actorId: HERO_ACTOR_ID,
+          sceneId: SCENE_ID,
+          position: { x: 0, y: 0 },
+          size: 1,
+        },
+      },
+      actors: {
+        [HERO_ACTOR_ID]: {
+          id: HERO_ACTOR_ID,
+          name: 'Hero',
+          type: 'pc',
+          seatPermissions: {},
+          hp: { current: 10, max: 10 },
+          ac: 14,
+        },
+      },
+    });
+
+    const engine1 = await PlaceholderEngine.open(campaignId, storage);
+    await engine1.dispatch({
+      seatId: seat.id,
+      campaignId,
+      actionType: 'token.move',
+      payload: { tokenId: HERO_TOKEN_ID, position: { x: 200, y: 300 } },
+    });
+    await engine1.close();
+
+    // Open a fresh engine — it must replay the token.moved event.
+    const engine2 = await PlaceholderEngine.open(campaignId, storage);
+    const view = engine2.getView(seat.id);
+    const token = view.tokens.find((t) => t.id === HERO_TOKEN_ID);
+    expect(token?.position).toEqual({ x: 200, y: 300 });
+
+    await engine2.close();
+  });
+
+  // ── Replay correctness ────────────────────────────────────────────────────
+
+  it('replays hand-written snapshot + events into correct state', async () => {
+    const storage = new Storage(new InMemoryBackend());
+    await storage.init();
+    const { id: campaignId } = await storage.createCampaign('Replay');
+    const seat = await storage.createSeat({
+      campaignId,
+      displayName: 'GM',
+      role: 'gm',
+    });
+
+    // Genesis snapshot: token at (0,0), seq=0.
+    await storage.putSnapshot(campaignId, 0, {
+      schemaVersion: 1,
+      activeSceneId: SCENE_ID,
+      scenes: {
+        [SCENE_ID]: {
+          id: SCENE_ID,
+          name: 'Replay Map',
+          gridType: 'square',
+          gridSize: 50,
+          gridScale: '5ft',
+          width: 1000,
+          height: 1000,
+        },
+      },
+      tokens: {
+        [HERO_TOKEN_ID]: {
+          id: HERO_TOKEN_ID,
+          actorId: HERO_ACTOR_ID,
+          sceneId: SCENE_ID,
+          position: { x: 0, y: 0 },
+          size: 1,
+        },
+      },
+      actors: {
+        [HERO_ACTOR_ID]: {
+          id: HERO_ACTOR_ID,
+          name: 'Hero',
+          type: 'pc',
+          seatPermissions: {},
+          hp: { current: 10, max: 10 },
+          ac: 14,
+        },
+      },
+    });
+
+    // Hand-write three token.moved events directly into storage (bypassing engine).
+    await storage.appendEvent(campaignId, {
+      campaignId,
+      entityId: HERO_TOKEN_ID,
+      type: 'token.moved',
+      data: {
+        originSeatId: seat.id,
+        tokenId: HERO_TOKEN_ID,
+        from: { x: 0, y: 0 },
+        to: { x: 50, y: 0 },
+      },
+    });
+    await storage.appendEvent(campaignId, {
+      campaignId,
+      entityId: HERO_TOKEN_ID,
+      type: 'token.moved',
+      data: {
+        originSeatId: seat.id,
+        tokenId: HERO_TOKEN_ID,
+        from: { x: 50, y: 0 },
+        to: { x: 100, y: 0 },
+      },
+    });
+    await storage.appendEvent(campaignId, {
+      campaignId,
+      entityId: HERO_TOKEN_ID,
+      type: 'token.moved',
+      data: {
+        originSeatId: seat.id,
+        tokenId: HERO_TOKEN_ID,
+        from: { x: 100, y: 0 },
+        to: { x: 150, y: 0 },
+      },
+    });
+
+    const engine = await PlaceholderEngine.open(campaignId, storage);
+    const view = engine.getView(seat.id);
+    const token = view.tokens.find((t) => t.id === HERO_TOKEN_ID);
+    expect(token?.position).toEqual({ x: 150, y: 0 });
+    expect(view.lastSeq).toBe(3);
+
+    await engine.close();
+  });
+
+  // ── Dispatch serialisation ────────────────────────────────────────────────
+
+  it('3 concurrent dispatches produce seq=1,2,3 with no duplicates', async () => {
+    const storage = new Storage(new InMemoryBackend());
+    await storage.init();
+    const { id: campaignId } = await storage.createCampaign('Queue');
+    const seat = await storage.createSeat({
+      campaignId,
+      displayName: 'GM',
+      role: 'gm',
+    });
+
+    await storage.putSnapshot(campaignId, 0, {
+      schemaVersion: 1,
+      activeSceneId: null,
+      scenes: {},
+      tokens: {},
+      actors: {},
+    });
+
+    const engine = await PlaceholderEngine.open(campaignId, storage);
+
+    // Fire three dispatches concurrently without awaiting between them.
+    const [r1, r2, r3] = await Promise.all([
+      engine.dispatch({
+        seatId: seat.id,
+        campaignId,
+        actionType: 'chat.send',
+        payload: { text: 'one' },
+      }),
+      engine.dispatch({
+        seatId: seat.id,
+        campaignId,
+        actionType: 'chat.send',
+        payload: { text: 'two' },
+      }),
+      engine.dispatch({
+        seatId: seat.id,
+        campaignId,
+        actionType: 'chat.send',
+        payload: { text: 'three' },
+      }),
+    ]);
+
+    expect(r1.accepted).toBe(true);
+    expect(r2.accepted).toBe(true);
+    expect(r3.accepted).toBe(true);
+
+    // Cast to get seq values.
+    const seqs = [r1, r2, r3]
+      .filter((r) => r.accepted)
+      .map((r) => (r as { accepted: true; seq: number }).seq)
+      .sort((a, b) => a - b);
+
+    expect(seqs).toEqual([1, 2, 3]);
+
+    // Verify storage has 3 events with distinct seqs.
+    const events = await storage.getEvents(campaignId);
+    const storedSeqs = events.map((e) => e.seq).sort((a, b) => a - b);
+    expect(storedSeqs).toEqual([1, 2, 3]);
+
+    await engine.close();
+  });
+
+  // ── Close-on-apply-throw ──────────────────────────────────────────────────
+
+  it('engine closes itself if applyEvent throws, subsequent dispatches return {accepted:false}', async () => {
+    const storage = new Storage(new InMemoryBackend());
+    await storage.init();
+    const { id: campaignId } = await storage.createCampaign('Throw');
+    const seat = await storage.createSeat({
+      campaignId,
+      displayName: 'GM',
+      role: 'gm',
+    });
+
+    await storage.putSnapshot(campaignId, 0, {
+      schemaVersion: 1,
+      activeSceneId: null,
+      scenes: {},
+      tokens: {},
+      actors: {},
+    });
+
+    const engine = await PlaceholderEngine.open(campaignId, storage);
+
+    // Monkey-patch appendEvent to inject a malformed event that will cause
+    // applyEvent to throw by corrupting the stored event's type to force
+    // unexpected data (simplest: we override the private applyEvent via
+    // prototype patching to throw on the next call).
+    const proto = Object.getPrototypeOf(engine) as {
+      applyEvent: (e: unknown) => unknown;
+    };
+    const realApply = proto.applyEvent.bind(engine);
+    let callCount = 0;
+    vi.spyOn(proto, 'applyEvent').mockImplementation(function (
+      this: unknown,
+      ...args: unknown[]
+    ) {
+      callCount++;
+      if (callCount === 1) throw new Error('injected failure');
+      return realApply(...(args as [unknown]));
+    });
+
+    const r1 = await engine.dispatch({
+      seatId: seat.id,
+      campaignId,
+      actionType: 'chat.send',
+      payload: { text: 'boom' },
+    });
+    expect(r1.accepted).toBe(false);
+
+    // Give the close() scheduled via void to run.
+    await new Promise((r) => setImmediate(r));
+
+    const r2 = await engine.dispatch({
+      seatId: seat.id,
+      campaignId,
+      actionType: 'chat.send',
+      payload: { text: 'after close' },
+    });
+    expect(r2.accepted).toBe(false);
+    if (!r2.accepted) expect(r2.reason).toContain('closed');
+
+    vi.restoreAllMocks();
+  });
+
+  // ── Seq monotonicity across reopen ───────────────────────────────────────
+
+  it('seq continues from max stored seq after reopen (does not reset to 1)', async () => {
+    const storage = new Storage(new InMemoryBackend());
+    await storage.init();
+    const { id: campaignId } = await storage.createCampaign('SeqContinue');
+    const seat = await storage.createSeat({
+      campaignId,
+      displayName: 'GM',
+      role: 'gm',
+    });
+
+    await storage.putSnapshot(campaignId, 0, {
+      schemaVersion: 1,
+      activeSceneId: null,
+      scenes: {},
+      tokens: {},
+      actors: {},
+    });
+
+    const engine1 = await PlaceholderEngine.open(campaignId, storage);
+
+    await engine1.dispatch({
+      seatId: seat.id,
+      campaignId,
+      actionType: 'chat.send',
+      payload: { text: 'first' },
+    });
+    await engine1.dispatch({
+      seatId: seat.id,
+      campaignId,
+      actionType: 'chat.send',
+      payload: { text: 'second' },
+    });
+    await engine1.close();
+
+    const engine2 = await PlaceholderEngine.open(campaignId, storage);
+    const r3 = await engine2.dispatch({
+      seatId: seat.id,
+      campaignId,
+      actionType: 'chat.send',
+      payload: { text: 'third' },
+    });
+
+    expect(r3.accepted).toBe(true);
+    expect((r3 as { accepted: true; seq: number }).seq).toBe(3);
+
+    await engine2.close();
   });
 });
