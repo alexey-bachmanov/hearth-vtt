@@ -42,7 +42,7 @@ _Depends on Phase 1._
 - [x] **6. Domain helpers.** Add `server/src/domain/auth/account.ts`: `createAccount`, `verifyPassword`, `bindSeat`, `unbindSeat`.
 - [x] **7. Rewrite `server/src/routes/auth.ts`.** `POST /api/auth/claim-invite` — accept `mode`, branch login vs register, bind seat, create AuthSession bound to `account_id`. `POST /api/auth/login` — username+password, per-IP rate-limit (in-memory bucket; productionization is Tech Debt), return `MeResponse`. `POST /api/auth/logout` — revoke session, clear cookie. `POST /api/auth/refresh` — stable refresh (no rotation), reuse-detection on revoked tokens. `GET /api/auth/me` — return `MeResponse` (JOIN seats + campaigns for names).
 - [x] **8. Admin accounts routes.** Add `server/src/routes/admin-accounts.ts`: `GET /api/admin/accounts` (list with seat count + lastLoginAt), `POST /api/admin/accounts/:id/reset-password` (set temp password, set `must_change_password`, revoke all sessions), `POST /api/admin/accounts/:id/revoke-sessions`.
-- [ ] **9. WS seat-resolve.** Update `(authPrincipal, campaignId) → seatId` resolver in `server/src/routes/ws.ts` to follow `account_id` linkage.
+- [x] **9. WS seat-resolve.** Update `(authPrincipal, campaignId) → seatId` resolver in `server/src/routes/ws.ts` to follow `account_id` linkage.
 
 **Verification:** Unit tests for accounts repo + domain helpers. Integration tests: register-via-claim → login → me → logout → login-fails-after-logout; stable refresh; revoked-token detection. Manual: claim invite via curl → `GET /api/auth/me` returns seat.
 
