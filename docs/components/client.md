@@ -40,22 +40,58 @@ HearthVTT uses a **capability-based join link** system with **cookie-based sessi
 
 ### User Journey
 
-1. **Join Link**: User receives a link from admin: `GET /join/<inviteToken>`
-2. **Claim Page**: Client renders claim UI, prompts for PIN
-3. **Claim Request**: `POST /api/auth/claim-invite` with invite token + PIN
-4. **Session Creation**: Server validates, sets HttpOnly cookies (refresh token), returns session data
-5. **Redirect to Play**: Client redirects to `/play` (clean URL, no secrets)
-6. **Authenticated State**: All API calls and WebSocket connections use cookie session
+**New player joining a campaign:**
+
+1. **Join Link**: User receives an invite link from the GM/admin: `GET /join/<inviteToken>`
+2. **Claim Page**: Client renders the claim UI with mode toggle ("New player" / "Existing account")
+3. **Claim Request**: `POST /api/auth/claim-invite` with `{ inviteToken, pin, mode, username, password }`
+4. **Session Creation**: Server validates, binds seat to the PlayerAccount, sets HttpOnly refresh cookie, returns `{ accountId, campaignId, seatId, role }`
+5. **Redirect to Play**: Client navigates to `/play/<campaignId>` (no secrets in URL)
+6. **Authenticated State**: Auth guard calls `GET /api/auth/me` on protected-route mounts; game UI loads
+
+**Returning player:**
+
+1. **Splash**: User visits `/` and clicks **Play** → `/play`
+2. **Auth guard**: `GET /api/auth/me` called; on 401 redirect to `/play/login?returnTo=/play`
+3. **Login Page**: Username + password form. On success, session cookie set; redirect to `returnTo`
+4. **Campaign Picker**: `/play` lists all campaigns the account holds seats in
+
+### Client-side Route Table
+
+| Route | Component | Auth required | Notes |
+|---|---|---|---|
+| `/` | `SplashPage` | No | 3 buttons; no session check on mount |
+| `/join/:token` | `JoinPage` | No | Login or register mode; redirects to `/play/<id>` on success |
+| `/play` | `CampaignPickerPage` | Yes | Lists `me.seats`; empty-state if no campaigns |
+| `/play/login` | `PlayLoginPage` | No | Accepts `?returnTo`; redirects after login |
+| `/play/account` | `PlayAccountPage` | Yes | Placeholder; Logout + back to `/play` |
+| `/play/:campaignId` | `PlayLayout` | Yes | Full game UI |
+| `/admin` | `AdminLayout` | Admin session | Tree SPA: Settings / Campaigns / Accounts |
+| `/admin/login` | `AdminLogin` | No | Admin password |
+| `/admin/setup` | `AdminSetup` | No | First-time PIN ceremony |
+| `*` | `NotFoundPage` | No | 404 with link back to `/play` |
+
+### Auth Guard Pattern
+
+Protected routes (`play`, `play-account`, `play-campaign`) run an auth check on mount:
+
+```ts
+authState.loadMe().then((me) => {
+  if (!me) navigateWithReturnTo('/play/login', window.location.pathname);
+});
+```
+
+`loadMe()` calls `GET /api/auth/me`. Concurrent calls share one in-flight request. On 401 (or network failure), `me` is set to `null` and the guard redirects to `/play/login?returnTo=<currentPath>`. The `returnTo` value is validated as same-origin before use (see [returnTo contract in auth-join-flow.md](auth-join-flow.md#returnto-contract)).
 
 ### Client Responsibilities
 
-- **Join/Claim UI**: Render invite claim page with PIN input
+- **Join/Claim UI**: Render invite claim page with PIN input and login/register mode toggle
 - **Cookie Management**: Browser handles cookies automatically (HttpOnly, Secure, SameSite=Lax)
-- **Clean URLs**: Never bookmark join links; `/play` is the stable, bookmarkable URL
-- **Session Refresh**: Call `POST /api/auth/refresh` to rotate refresh token and get new access token
-- **Logout**: Call `POST /api/auth/logout` to revoke session
-- **Admin UI**: Separate interface for server admin (server and campaign management, not tied to any seat)
-- **Not Logged In**: If `/play` accessed without valid session, show "Not logged in" with instructions
+- **Clean URLs**: Never embed session secrets in URLs; `/play` and `/play/<campaignId>` are the stable bookmarkable routes
+- **Auth Guard**: Each protected route mounts → calls `authState.loadMe()` → on 401 redirects to `/play/login?returnTo=<currentPath>`
+- **Session Refresh**: Call `POST /api/auth/refresh` to get a new access token from the stable refresh cookie
+- **Logout**: Call `POST /api/auth/logout`, clear local state, navigate to `/` (splash)
+- **Admin UI**: Separate interface for server admin, accessed at `/admin` with its own cookie (`hearth_admin_session`)
 
 ### Admin UI vs Play UI
 

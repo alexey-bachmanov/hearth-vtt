@@ -8,94 +8,7 @@ As work completes, check off tasks.
 
 # Current Projects
 
-## UX Glue + Admin UI Overhaul (Phase 2.6)
-
-**Authority:** [ADR 010 — Per-Server PlayerAccount Model](decisions/010-player-account-model.md)
-
-Brings client routing in line with the PlayerAccount model, adds UX-glue pages (splash, login, campaign picker, account placeholder), restructures the admin UI as a tabbed SPA with a wired Accounts tab, and lands a minimal PlayerAccount backend slice.
-
-### Locked design decisions
-
-- **Route shape:** `/` splash (3 buttons, no auto-redirect), `/join/<inviteToken>`, `/play` (campaign picker), `/play/login` (accepts `?returnTo=<same-origin-path>`), `/play/account` (placeholder), `/play/<campaignId>` (game UI), `/admin` (tabbed SPA), `/admin/login`, `/admin/setup`.
-- **Logout destination:** splash (`/`).
-- **`returnTo` is a hard contract**, validated to same-origin pathname only (guards against open-redirect).
-- **`/play/<campaignId>` not found or no-access → 404 page** with "Back to /play" button.
-- **Auth guard** calls `GET /api/auth/me` per protected-route mount; on 401 redirects to `/play/login?returnTo=<currentPath>`.
-- **Admin tab state** is component-local; URL stays `/admin`. Refresh always lands on Campaigns tab.
-- **Account Settings in SettingsDrawer** opens `/play/account` in a new tab (`target="_blank"`).
-- **Dev DB is disposable** — schema changes require deleting `server/data/db/hearth.db`. No migration scaffolding.
-
-### Phase 1 — Shared types + protocol updates
-
-- [x] **1. Player auth schemas.** Add to `shared/src/protocol/http.ts`: request/response schemas for `POST /api/auth/login`, `POST /api/auth/logout`, `POST /api/auth/refresh`, `GET /api/auth/me`, and updated `POST /api/auth/claim-invite` (add `mode: 'login' | 'register'` field). Define `MeResponse = { accountId, username, seats: Array<{ campaignId, campaignName, seatId, role }> }`.
-- [x] **2. Admin account schemas.** Add schemas for `GET /api/admin/accounts`, `POST /api/admin/accounts/:id/reset-password`, `POST /api/admin/accounts/:id/revoke-sessions`.
-- [x] **3. `PlayerAccount` type.** Add `{ id, username, mustChangePassword, createdAt, lastLoginAt }` to `shared/src/entities.ts` (or new `shared/src/accounts.ts`). Update `docs/shared-types.md`.
-
-**Verification:** `npm test --workspace=shared`; `tsc --noEmit` from root.
-
-### Phase 2 — Server backend slice
-
-_Depends on Phase 1._
-
-- [x] **4. Schema.** Add `player_accounts` table to `hearth.db` schema. Add `account_id` FK on `seats`. Rebind `auth_sessions` to `account_id` (was `seat_id`). Delete `server/data/db/hearth.db` before testing.
-- [x] **5. Accounts repo.** Extend storage interface (`server/src/storage/index.ts`) with `accounts` repo: `getByUsername`, `create`, `updateLastLogin`, `setMustChangePassword`, `listAll`. Implement in `server/src/storage/sqlite/accounts.ts`. Reuse scrypt utility from admin auth.
-- [x] **6. Domain helpers.** Add `server/src/domain/auth/account.ts`: `createAccount`, `verifyPassword`, `bindSeat`, `unbindSeat`.
-- [x] **7. Rewrite `server/src/routes/auth.ts`.** `POST /api/auth/claim-invite` — accept `mode`, branch login vs register, bind seat, create AuthSession bound to `account_id`. `POST /api/auth/login` — username+password, per-IP rate-limit (in-memory bucket; productionization is Tech Debt), return `MeResponse`. `POST /api/auth/logout` — revoke session, clear cookie. `POST /api/auth/refresh` — stable refresh (no rotation), reuse-detection on revoked tokens. `GET /api/auth/me` — return `MeResponse` (JOIN seats + campaigns for names).
-- [x] **8. Admin accounts routes.** Add `server/src/routes/admin-accounts.ts`: `GET /api/admin/accounts` (list with seat count + lastLoginAt), `POST /api/admin/accounts/:id/reset-password` (set temp password, set `must_change_password`, revoke all sessions), `POST /api/admin/accounts/:id/revoke-sessions`.
-- [x] **9. WS seat-resolve.** Update `(authPrincipal, campaignId) → seatId` resolver in `server/src/routes/ws.ts` to follow `account_id` linkage.
-
-**Verification:** Unit tests for accounts repo + domain helpers. Integration tests: register-via-claim → login → me → logout → login-fails-after-logout; stable refresh; revoked-token detection. Manual: claim invite via curl → `GET /api/auth/me` returns seat.
-
-### Phase 3 — Client routing + auth guard + UX pages
-
-_Depends on Phase 1. Can run in parallel with Phase 2 against typed mocks._
-
-- [x] **10. Update `client/src/app/routes.ts`.** Extend `Route` union: `{ type: 'splash' }`, `{ type: 'play-login'; returnTo: string | null }`, `{ type: 'play-account' }`, `{ type: 'play-campaign'; campaignId: string }`, `{ type: 'not-found' }`. Drop `not-logged-in`. `parseRoute(pathname, search)` handles `/`, `/play/login` (extract + validate `returnTo`), `/play/account`, `/play/<id>`, fallthrough → `not-found`. Add `navigateWithReturnTo(path, returnTo?)` helper.
-- [x] **11. Auth state store.** New `client/src/state/auth.svelte.ts`: `me: MeResponse | null`, `loading: boolean`. `loadMe()` calls `GET /api/auth/me`. `logout()` calls `POST /api/auth/logout` then navigates to `/`.
-- [x] **12. Wire `AuthApi`.** Replace stubs in `client/src/api/http.ts` with real implementations: `login`, `logout`, `refresh`, `me`, `claimInvite` (with `mode` field).
-- [x] **13. Update Router.svelte.** Add branches for new routes. Protected routes (`play`, `play-account`, `play-campaign`) call `authState.loadMe()` on mount; on 401 redirect to `/play/login?returnTo=<currentPath>`.
-- [x] **14. New UX pages.** `SplashPage.svelte` (logo + 3 buttons: Play / Account / Admin; replaces `NotLoggedInPage.svelte`). `PlayLoginPage.svelte` (login form; `returnTo` redirect; "I forgot my password" → "Ask your admin" modal). `PlayAccountPage.svelte` (username, "Settings coming soon", Logout, link back to `/play`). `CampaignPickerPage.svelte` (list `me.seats`; empty state: "You are not signed up for any campaigns"). `NotFoundPage.svelte` (404 + "Back to /play").
-- [x] **15. Update `JoinPage.svelte`.** Add login/register mode toggle + username/password fields per ADR-010 claim flow. On success navigate to `/play/<campaignId>`.
-- [x] **16. Settings drawer affordance.** Add "Account Settings" link in `SettingsDrawer.svelte` that opens `/play/account` in a new tab.
-
-**Verification:** Unit tests for `parseRoute` (new routes + `returnTo` same-origin validation). Unit tests for `auth.svelte.ts` state transitions. Component tests for `PlayLoginPage` (returnTo flow) and `CampaignPickerPage` (empty + populated). Manual: splash → play → login → picker → campaign; logout → splash.
-
-### Phase 4 — Admin UI overhaul
-
-_Implemented as a pure tree (not tabs). All navigation goes through `adminTree.navigateTo()` in `admin.svelte.ts`._
-
-- [x] **17. Centralize admin tree state.** New `AdminTreeState` class in `admin.svelte.ts`: flat node map, `expandedIds`, `selectedId`, mock campaigns/seats/invites/accounts, `navigateTo()` (auto-expands ancestors), `toggleExpanded()`, lookup helpers (`getCampaign`, `getSeatsForCampaign`, `getSeat`, `getInvitesForSeat`, `getAccount`, `getAccountForSeat`, etc.).
-- [x] **18. Add `AccountDetail.svelte`.** Account info, seat list with "Go to Seat" cross-link, reset-password inline form, revoke-sessions, remove-account with confirm. All handlers mock with API endpoint comments.
-- [x] **19. Rewire `AdminTree.svelte`.** Remove all local state; drive from `adminTree` store. Recursive `{#snippet treeNode}` with chevron, depth-based indent, `aria-expanded`, `aria-current`. Three roots: ⚙ Settings, 📁 Campaigns, 👥 Accounts.
-- [x] **20. Rewire `AdminLayout.svelte` and all detail panels.** Remove local nav state; import `adminTree`; route on `selectedNodeType` / `selectedId`. Update `CampaignDetail`, `SeatSettings` (add "Go to Account" cross-link), `ServerSettings` — all remove callback props and use `adminTree.navigateTo()`.
-- [x] **21. Consolidate admin CSS.** New `client/src/styles/components-admin.css` with `btn--sm`, `btn--danger`, detail-section, info-grid, badge utilities, form helpers, seat-list, control-group styles. Imported from `AdminLayout.svelte` and `AccountDetail.svelte`.
-
-**Verification:** Component tests for `AccountsList` + `AccountDetail` against mocked endpoints. Tab switching works. Manual: 3 tabs visible; Accounts tab lists players; reset-password forces re-login; revoke-sessions kicks active player.
-
-### Phase 5 — Docs + todo
-
-_Depends on Phases 1–4._
-
-- [ ] **22. Update `docs/components/auth-join-flow.md`.** Revise URL routes section: add `/play/login`, `/play/account`, `/` splash, `returnTo` query contract.
-- [ ] **23. Add ADR-012.** `docs/decisions/012-client-route-shape.md`: final route shape, `returnTo` contract, splash-not-redirecting, admin-as-tabbed-SPA, Account Settings in new tab from drawer.
-- [ ] **24. Update `docs/components/client.md`.** Route table and auth-guard pattern.
-- [ ] **25. Promote completed Tech Debt items + remove this sprint from Current Projects.**
-
-### Cross-cutting verification
-
-- E2E (Playwright): fresh DB → admin setup → create campaign + invite → `/join/<token>` register → land on `/play/<id>`. Clear cookies → revisit `/play/<id>` → bounced to `/play/login?returnTo=...` → login → back at `/play/<id>`.
-- Admin smoke: 3 tabs; Accounts tab lists the player; reset-password forces re-login; revoke-sessions kicks active player.
-- `npm run lint` + `npm test` green from root.
-
-### Out of scope (explicit)
-
-- Multi-device active-sessions UI.
-- Self-service password reset / email recovery.
-- "No access to campaign" friendly error page (redirects to `/play`).
-- `must_change_password` enforcement on login.
-- Admin audit log UI.
-- Wiring real campaign/seat/invite APIs in admin Campaigns tab (mock data stays).
-- Discord-preview optimization for `/join/<token>`.
+_No active sprints. See [Future Milestones](#future-milestones-wishlist) and Tech Debt for backlog items._
 
 ---
 
@@ -117,12 +30,7 @@ Follow-on mini-sprint after the engine boundary is locked. Adds the remaining VT
 
 - [ ] **Snapshot creation, replay, pruning.** Engine `open(campaignId)` loads latest snapshot, replays events since. Snapshot triggered every N events. Implemented in SqliteBackend; wired through the existing `Storage` dependency on the engine.
 
-### Security (Not in Current Sprint)
-
-- **Critical (Stubs — handled in Phase 1):**
-  - Hardcoded PIN validation in auth.ts
-  - WebSocket has no authentication
-  - Session routes unauthenticated
+### Security
 
 - **Medium:**
   - [ ] CSRF token comparison uses `===` instead of `timingSafeEqual` in [admin-auth.ts](../server/src/routes/admin-auth.ts#L774)
@@ -177,7 +85,7 @@ Follow-on mini-sprint after the engine boundary is locked. Adds the remaining VT
 - [ ] Admin components bypass API layer with raw `fetch()`:
   - [ ] AdminLogin [AdminLogin.svelte](../client/src/ui/admin/AdminLogin.svelte#L36)
   - [ ] AdminSetup [AdminSetup.svelte](../client/src/ui/admin/AdminSetup.svelte#L40)
-  - [ ] JoinPage [JoinPage.svelte](../client/src/ui/auth/JoinPage.svelte#L30)
+- [ ] **Admin panel Campaigns/Accounts tabs use mock data** — wire `AccountDetail`, `CampaignDetail`, `SeatSettings` to real API endpoints once the admin API layer is built [admin.svelte.ts](../client/src/state/admin.svelte.ts)
 - [ ] WebSocket message handlers all stub (console.log only) [ws.ts](../client/src/api/ws.ts#L261-L342)
 - [ ] `adminFetch` in state layer should arguably be in API layer [admin.svelte.ts](../client/src/state/admin.svelte.ts#L55)
 
@@ -185,7 +93,6 @@ Follow-on mini-sprint after the engine boundary is locked. Adds the remaining VT
 
 - [ ] AdminLogin error branch calls `response.json()` without try/catch [AdminLogin.svelte](../client/src/ui/admin/AdminLogin.svelte#L94)
 - [ ] AdminSetup same issue [AdminSetup.svelte](../client/src/ui/admin/AdminSetup.svelte#L104)
-- [ ] JoinPage checks `err.status` but fetch errors lack that property (handled in Phase 3)
 
 ### Accessibility
 
@@ -236,9 +143,8 @@ These play UI features were deferred from the Play UI Overhaul sprint, pending i
 
 ## Documentation
 
-### Drift from Implementation (handled in Phase 4)
+### Drift from Implementation
 
-- [ ] `check-setup` documented as GET but implemented as POST
 - [ ] Cookie `sameSite` inconsistent (some docs say Lax, code is Strict)
 - [ ] Invite routes don't match docs (`/api/seats/:id/invites` vs `/api/campaigns/:id/invites`)
 - [ ] Storage constructor signature differs between docs and implementation
@@ -247,7 +153,6 @@ These play UI features were deferred from the Play UI Overhaul sprint, pending i
 ### Missing Documentation
 
 - [ ] Server-served SPA fallback behavior [server.ts](../server/src/server.ts#L136)
-- [ ] Client-side routing patterns [routes.ts](../client/src/app/routes.ts), [Router.svelte](../client/src/app/Router.svelte)
 - [ ] CORS configuration [server.ts](../server/src/server.ts#L82)
 - [ ] `GET /api/info` endpoint [health.ts](../server/src/routes/health.ts#L37)
 
@@ -281,7 +186,12 @@ These play UI features were deferred from the Play UI Overhaul sprint, pending i
 
 ## Testing
 
-- [ ] **E2E with Playwright** — install at root workspace, `e2e/` directory, 5–10 critical journeys: admin setup, login, campaign create, invite, join game. Deferred until WS message handlers and renderer are non-stub.
+- [ ] **E2E with Playwright** — `e2e/` directory exists at workspace root. Priority journeys:
+  - Auth flow: fresh DB → admin setup → create campaign + invite → `/join/<token>` register → land on `/play/<id>`.
+  - Session re-auth: clear cookies → revisit `/play/<id>` → bounced to `/play/login?returnTo=...` → login → back at `/play/<id>`.
+  - Admin smoke: admin tree navigation; Accounts node lists players; reset-password forces re-login; revoke-sessions kicks active player.
+  - Plus: campaign create, invite generate/revoke, seat management.
+  - Deferred until WS message handlers and renderer are non-stub.
 - [ ] No test-specific mocks (MockResolveContext, TestRngProvider, TestClock) — deferred until ruleset engine
 
 ---

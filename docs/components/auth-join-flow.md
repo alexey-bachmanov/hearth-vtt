@@ -48,6 +48,16 @@ All modes use the same routes and cookies.
 
 ## URL routes (public)
 
+### `GET /`
+
+Splash page. Entry point for the SPA.
+
+Behavior:
+
+- Renders three buttons: **Play** → `/play`, **Account** → `/play/account`, **Admin** → `/admin`.
+- No auto-redirect, even if a session cookie is present. The user always sees the splash and actively picks a destination.
+- Does **not** call `GET /api/auth/me` on load.
+
 ### `GET /join/<inviteToken>`
 
 Entry point from Discord/email/etc.
@@ -87,12 +97,33 @@ If the user is already logged in to a different account in the same browser, the
 
 ### `GET /play`
 
-Stable bookmarkable URL. Contains no secrets.
+Campaign picker. Stable bookmarkable URL. Contains no secrets.
 
 Behavior:
 
-- Not authenticated → render login page (username + password + "forgot password" link).
-- Authenticated → render **campaign picker** listing every campaign the account holds a seat in. Single-seat accounts may be auto-redirected to `/play/<campaignId>`.
+- Not authenticated → redirect to `/play/login?returnTo=/play`.
+- Authenticated → render campaign picker listing every campaign the account holds a seat in.
+
+### `GET /play/login`
+
+Player login page. Accepts `?returnTo=<same-origin-path>`.
+
+Behavior:
+
+- Already authenticated → redirect to `returnTo` (or `/play` if absent or invalid).
+- Renders username + password form. On success, creates an AuthSession, sets the refresh cookie, and redirects to `returnTo`.
+- **`returnTo` validation**: accepted values must be a same-origin pathname only (see [returnTo contract](#returnto-contract)).
+- "I forgot my password" → "Ask your admin" modal (no server-side recovery flow in self-hosted mode).
+
+### `GET /play/account`
+
+Account settings placeholder. Requires authentication.
+
+Behavior:
+
+- Not authenticated → redirect to `/play/login?returnTo=/play/account`.
+- Authenticated → renders username, "Settings coming soon", Logout button, and a link back to `/play`.
+- Full account management UI (password change, active sessions list, etc.) is deferred; see [Open Issues](#open-issues-deferred-for-later-design).
 
 ### `GET /play/<campaignId>`
 
@@ -100,9 +131,25 @@ Per-campaign play URL. Bookmarkable. Contains no secrets.
 
 Behavior:
 
-- Not authenticated → redirect to `/play` (with optional `?returnTo=...`).
-- Authenticated but no seat in this campaign → show "no access" page with link to `/play`.
+- Not authenticated → redirect to `/play/login?returnTo=/play/<campaignId>`.
+- Authenticated but no seat in this campaign → redirect to `/play` (no-access friendly error page is deferred; see [Open Issues](#open-issues-deferred-for-later-design)).
 - Authenticated with a seat → load the play UI for that campaign.
+
+### `returnTo` contract
+
+The `returnTo` query-string parameter carries a post-login redirect target. It is only consumed on `/play/login`.
+
+Validation rules (enforced in `validateReturnTo()` in `client/src/app/routes.ts`):
+
+- Must start with `/` (absolute same-origin pathname).
+- Must **not** start with `//` (rejects protocol-relative URLs).
+- Must **not** contain `://` (rejects `http://`, `javascript:`, etc.).
+- Must **not** contain `@` (rejects `user@host` authority variants).
+- Any value failing validation is silently dropped; the client falls back to `/play`.
+
+The client only ever inserts `returnTo` from known-safe values (the current `window.location.pathname` captured inside the auth guard). It is never constructed from untrusted user input.
+
+---
 
 ### `POST /api/auth/login`
 
@@ -207,7 +254,9 @@ A PlayerAccount is the durable identity for a player on a server. It owns sessio
 
 ### Account management routes (player-facing)
 
-The `/account` route is deferred (see Open Issues), but the eventual surface includes:
+`GET /play/account` is implemented as a **placeholder** that shows the username and a Logout button. The full account management surface is deferred (see [Open Issues](#open-issues-deferred-for-later-design)).
+
+Eventual surface (when implemented):
 
 - View account info (username, created date, list of seats across campaigns).
 - Change password.
