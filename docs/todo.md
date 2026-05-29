@@ -8,7 +8,58 @@ As work completes, check off tasks.
 
 # Current Projects
 
-_No active sprints. See [Future Milestones](#future-milestones-wishlist) and Tech Debt for backlog items._
+## Phase 3 — Durable Engine State + Two-Computer Sync
+
+**Goal:** Drag a token on one computer, see it on a second. Restart the server, see the token in its new position. Engine state is durable via snapshot-load + event-replay. Dispatch is serialized so concurrent actions can't corrupt in-memory state.
+
+**Out of scope:** auto-snapshot triggers + pruning, engine create-actions, admin entity-placement routes, real player auth (Phase 5), heavy renderer/UI work, schema migration (delete dev DB on schema change), `resume` replay optimisation.
+
+**Verification:** `npm test -w server` green (new engine + storage tests included). `npm run seed-dev-db` produces a seeded dev DB idempotently. Manual two-computer demo: drag token on computer A → appears on B. Kill server → restart → both clients reconnect → token still in new position.
+
+---
+
+### Phase A — Storage primitives
+
+- [ ] **A1.** Add `seq INTEGER NOT NULL` column to the `events` table CREATE statement in [`sqlite-storage.ts`](../server/src/storage/sqlite-storage.ts). Update `appendEvent` to accept + persist `seq`; update `getEvents` to return it. Mirror in [`in-memory-storage.ts`](../server/src/storage/in-memory-storage.ts).
+- [ ] **A2.** Add `getMaxEventSeq(campaignId): Promise<number>` to `StorageBackend` and `Storage` facade, returning `0` for empty campaigns. Implement in both backends.
+- [ ] **A3.** Add `afterSeq` filter option to `getEvents(campaignId, {afterSeq?: number})` in the interface and both backends. Used by `open()` to replay only events after the snapshot.
+- [ ] **A4.** Add `snapshots` table to SQLite schema: `(campaign_id TEXT PRIMARY KEY, seq INTEGER NOT NULL, data_json TEXT NOT NULL, created_at INTEGER NOT NULL)`. Single-row-per-campaign; write replaces the existing row.
+- [ ] **A5.** Add `getLatestSnapshot(campaignId): Promise<{seq: number, blob: unknown} | null>` and `putSnapshot(campaignId, seq, blob): Promise<void>` to `StorageBackend`, `Storage` facade, and both backends.
+- [ ] **A6.** Tests in [`sqlite-storage.test.ts`](../server/src/storage/sqlite-storage.test.ts): snapshot put/get round-trip; `seq` persistence on events; `getMaxEventSeq` for empty + populated campaigns; `afterSeq` filter; each new method covered in `InMemoryBackend` as well.
+
+---
+
+### Phase B — Engine refactor
+
+- [ ] **B1.** Define `SnapshotBlobV1` type inside [`placeholder.ts`](../server/src/domain/engine/placeholder.ts) (or a co-located `state.ts`): `{ schemaVersion: 1, activeSceneId: string | null, scenes: Record<string, Scene>, tokens: Record<string, Token>, actors: Record<string, Actor> }`. Type stays engine-internal — not exported to `shared/`.
+- [ ] **B2.** Split each action handler into two parts: (a) validate + build event (`validateTokenMove`, `validateChatSend`, `validateDiceRoll`) returning `{event, eventData} | {rejected, reason}`; (b) `apply(event)` that mutates `CampaignState` and appends to `recentEvents`. Live dispatch path becomes: validate → assign `nextSeq()` → `storage.appendEvent(seq)` → `apply(event)` → broadcast. Replay path: `apply(event)` only.
+- [ ] **B3.** Rewrite `PlaceholderEngine.open()`: load snapshot → seed `CampaignState` from blob (or empty state if null) → `storage.getEvents({afterSeq: snapshot?.seq ?? 0})` → replay each via `apply()` → `state.seq = await storage.getMaxEventSeq(campaignId)`. Stop calling `storage.listEntities` — remove from the `Promise.all`. Document that `state.seats` loads once and doesn't refresh until engine reopen (Phase 5 concern).
+- [ ] **B4.** Implement AsyncQueue inside `PlaceholderEngine`: private `dispatchQueue: Promise<unknown> = Promise.resolve()`. `dispatch(input)` chains onto the queue: `this.dispatchQueue = this.dispatchQueue.then(() => this.dispatchInternal(input)).catch(() => ...)`. Each `dispatchInternal` error is caught and returned as `{accepted: false}` so the queue chain never poisons on rejection. The `GameEngine` interface is unchanged.
+- [ ] **B5.** Implement close-on-apply-throw: wrap `apply(event)` inside `dispatchInternal` in try/catch. On throw: log the error, mark `state.closed = true`, schedule `void this.close()` on next tick. Subsequent `dispatch` calls return `{accepted: false, reason: 'engine closed'}`. `subscribe` after close is a no-op returning a no-op unsubscriber. `getView` after close returns an empty/zeroed `SeatView`.
+- [ ] **B6.** Tests in [`placeholder.test.ts`](../server/src/domain/engine/placeholder.test.ts) (using `InMemoryBackend`):
+  - **Restart persistence:** dispatch `token.move`, close, reopen with same storage, `getView()` shows new position.
+  - **Replay correctness:** hand-write snapshot + 3 events into `InMemoryBackend`, open engine, verify state.
+  - **Dispatch serialisation:** fire 3 concurrent `dispatch` calls, verify `seq` values are 1, 2, 3 in arrival order with no duplicates.
+  - **Close-on-throw:** monkey-patch `apply` to throw; dispatch; verify engine closes and subsequent dispatches return `{accepted: false}`.
+  - **Seq monotonicity across reopen:** dispatch 2 events, close, reopen, dispatch 1 more → `seq=3`, not `seq=1`.
+
+---
+
+### Phase C — Dev seed + dev-bypass extension
+
+- [ ] **C1.** Create [`server/src/domain/engine/dev-seed.ts`](../server/src/domain/engine/dev-seed.ts): exports `buildDevSeed(): SnapshotBlobV1` — one scene, two tokens, two actors. Actor `seatPermissions` assigns `seat-mock-001` (GM) `'control'` and `seat-mock-002` (player) `'control'` over their respective tokens. Pure function, no IO.
+- [ ] **C2.** Create [`scripts/seed-dev-db.ts`](../scripts/seed-dev-db.ts): CLI wrapper that opens `SqliteStorage` at the dev DB path, creates campaign `campaign-mock-001` (hardcoded, matches `DEV_CAMPAIGN_ID`), creates seats `seat-mock-001` (GM) and `seat-mock-002` (player), calls `storage.putSnapshot('campaign-mock-001', 0, buildDevSeed())`. Idempotent: if the campaign already exists, delete it and recreate. Add `"seed-dev-db": "tsx scripts/seed-dev-db.ts"` to root [`package.json`](../package.json).
+- [ ] **C3.** Extend dev-bypass in [`ws.ts`](../server/src/routes/ws.ts): if `NODE_ENV !== 'production'` and `?seat=<id>` is present, validate the seat exists in the requested campaign via `storage.listSeats`; if found, use it. Otherwise fall back to `DEV_SEAT_ID`. Add `DEV_SEAT_ID_2 = 'seat-mock-002'` constant for documentation purposes. Hard-gate: the `?seat=` param read is inside the `!isProduction` branch and cannot be reached in production.
+- [ ] **C4.** Tests in [`ws.integration.test.ts`](../server/src/routes/ws.integration.test.ts): `?seat=` accepted in dev when seat belongs to campaign; `?seat=` ignored (falls back to `DEV_SEAT_ID`) in prod (`NODE_ENV=production`); `?seat=` with unknown seat ID falls back to `DEV_SEAT_ID` in dev.
+
+---
+
+### Phase D — Doc updates + verification
+
+- [ ] **D1.** Update [Phase 3 in `implementation-strategy.md`](../docs/implementation-strategy.md): mark WS dispatch/broadcast/view.request as already shipped in Phase 2.5; mark snapshot auto-trigger + pruning as deferred to a separate mini-sprint; note `expectedSeq`-in-actions as rejected (AsyncQueue makes it unnecessary).
+- [ ] **D2.** Update [`todo.md`](../docs/todo.md) tech debt: remove "Snapshot chain (deferred to Phase 3)" bullet (partially landed — read path done, auto-trigger deferred). Add "Drop `entities` table and storage methods (engine no longer uses them)" under Code Quality.
+
+---
 
 ---
 
@@ -26,9 +77,10 @@ Follow-on mini-sprint after the engine boundary is locked. Adds the remaining VT
 - [ ] **`measurement.*`** — private and shared ruler/AoE measurements. Audience filter: private = originating seat only; shared = everyone.
 - [ ] **`label.*`** — text labels pinned to the scene.
 
-### Snapshot chain (deferred to Phase 3)
+### Snapshot chain (auto-trigger + pruning — deferred from Phase 3)
 
-- [ ] **Snapshot creation, replay, pruning.** Engine `open(campaignId)` loads latest snapshot, replays events since. Snapshot triggered every N events. Implemented in SqliteBackend; wired through the existing `Storage` dependency on the engine.
+- [ ] **Auto-snapshot trigger.** Engine emits a snapshot every N events. Trigger threshold TBD from real event-volume data. Implemented inside `PlaceholderEngine`; wired through `Storage.putSnapshot`.
+- [ ] **Snapshot pruning.** Retain the latest K snapshots per campaign; prune older rows. Schema already supports multi-row retention (`(campaign_id, seq)` PK); pruning logic not yet implemented.
 
 ### Security
 
@@ -69,6 +121,7 @@ Follow-on mini-sprint after the engine boundary is locked. Adds the remaining VT
 - [ ] TransactionStorage methods throw `'not implemented'` [sqlite-storage.ts](../server/src/storage/sqlite-storage.ts#L527-L541)
 - [ ] Storage facade hardcodes SqliteStorage implementation [storage.ts](../server/src/storage/storage.ts#L301) — can't inject backends for testing
 - [ ] `esbuild` in devDependencies but unused (may be dead dependency)
+- [ ] Drop `entities` table and corresponding `StorageBackend` methods (`createEntity`, `getEntity`, `updateEntity`, `deleteEntity`, `listEntities`) — engine no longer uses them (switched to snapshot + event-replay in Phase 3); no other callers exist
 
 ### Input Validation
 
