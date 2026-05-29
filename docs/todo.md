@@ -62,13 +62,13 @@ _Depends on Phase 1. Can run in parallel with Phase 2 against typed mocks._
 
 ### Phase 4 — Admin UI overhaul
 
-_Shell restructure can begin immediately; Accounts tab wiring depends on Phase 2._
+_Implemented as a pure tree (not tabs). All navigation goes through `adminTree.navigateTo()` in `admin.svelte.ts`._
 
-- [ ] **17. Tab shell.** Restructure `AdminLayout.svelte` into a tabbed SPA: tab bar with **Campaigns** | **Accounts** | **Server**. Tab state in component-local `$state`. Existing auth-guard logic unchanged.
-- [ ] **18. Campaigns tab.** Wrap `AdminTree` + `CampaignDetail` + `SeatSettings` in `CampaignsTab.svelte`. No behavior change; mock data preserved.
-- [ ] **19. Accounts tab.** New `AccountsTab.svelte` + `AccountsList.svelte` + `AccountDetail.svelte`. List wired to `GET /api/admin/accounts` (username, lastLoginAt, seat count). Detail: "Reset password" (prompts for temp password, shows result) and "Revoke all sessions" (with confirmation). Loading + error states match existing admin patterns.
-- [ ] **20. Server tab.** Wrap `ServerSettings.svelte` in `ServerTab.svelte`. No behavior change.
-- [ ] **21. Consolidate admin CSS.** Merge duplicate `.btn`, form, error-banner, and spinner styles into `client/src/styles/admin.css`. Update all admin components to use shared styles.
+- [x] **17. Centralize admin tree state.** New `AdminTreeState` class in `admin.svelte.ts`: flat node map, `expandedIds`, `selectedId`, mock campaigns/seats/invites/accounts, `navigateTo()` (auto-expands ancestors), `toggleExpanded()`, lookup helpers (`getCampaign`, `getSeatsForCampaign`, `getSeat`, `getInvitesForSeat`, `getAccount`, `getAccountForSeat`, etc.).
+- [x] **18. Add `AccountDetail.svelte`.** Account info, seat list with "Go to Seat" cross-link, reset-password inline form, revoke-sessions, remove-account with confirm. All handlers mock with API endpoint comments.
+- [x] **19. Rewire `AdminTree.svelte`.** Remove all local state; drive from `adminTree` store. Recursive `{#snippet treeNode}` with chevron, depth-based indent, `aria-expanded`, `aria-current`. Three roots: ⚙ Settings, 📁 Campaigns, 👥 Accounts.
+- [x] **20. Rewire `AdminLayout.svelte` and all detail panels.** Remove local nav state; import `adminTree`; route on `selectedNodeType` / `selectedId`. Update `CampaignDetail`, `SeatSettings` (add "Go to Account" cross-link), `ServerSettings` — all remove callback props and use `adminTree.navigateTo()`.
+- [x] **21. Consolidate admin CSS.** New `client/src/styles/components-admin.css` with `btn--sm`, `btn--danger`, detail-section, info-grid, badge utilities, form helpers, seat-list, control-group styles. Imported from `AdminLayout.svelte` and `AccountDetail.svelte`.
 
 **Verification:** Component tests for `AccountsList` + `AccountDetail` against mocked endpoints. Tab switching works. Manual: 3 tabs visible; Accounts tab lists players; reset-password forces re-login; revoke-sessions kicks active player.
 
