@@ -17,7 +17,7 @@
  */
 
 import Database from 'better-sqlite3';
-import { mkdirSync } from 'node:fs';
+import { existsSync, mkdirSync, rmSync } from 'node:fs';
 import { join, resolve, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { Storage } from '../server/src/storage/index.js';
@@ -43,21 +43,21 @@ async function main(): Promise<void> {
   console.log(`DATA_DIR: ${DATA_DIR}`);
   console.log(`DB_PATH:  ${DB_PATH}`);
 
-  // Ensure the DB directory exists before opening storage.
+  // Phase 1: full DB reset — delete the file so we start from a clean schema.
+  // A soft-delete (storage.deleteCampaign) is insufficient because SqliteStorage
+  // does not enable FK cascades, leaving orphaned child rows.
   mkdirSync(join(DATA_DIR, 'db'), { recursive: true });
-
-  // Phase 1: initialise the schema (creates all tables) and clean up any
-  // existing seed campaign so we start fresh.
+  if (existsSync(DB_PATH)) {
+    rmSync(DB_PATH);
+    console.log('Wiped existing DB');
+  }
   {
     const storage = new Storage(DATA_DIR);
     await storage.init();
-    await storage.deleteCampaign(DEV_CAMPAIGN_ID);
     storage.close();
   }
 
   // Phase 2: insert campaign + seats with stable hardcoded IDs.
-  // The Storage facade always generates random UUIDs, so we use better-sqlite3
-  // directly here. PRAGMA foreign_keys enables ON DELETE CASCADE for cleanup.
   {
     const db = new Database(DB_PATH);
     db.pragma('foreign_keys = ON');
@@ -116,9 +116,11 @@ async function main(): Promise<void> {
   console.log(`  Player   : ${DEV_SEAT_PLAYER_ID}`);
   console.log('');
   console.log('Connect at:');
-  console.log(`  ws://localhost:3000/ws?campaign=${DEV_CAMPAIGN_ID}`);
   console.log(
-    `  ws://localhost:3000/ws?campaign=${DEV_CAMPAIGN_ID}&seat=${DEV_SEAT_PLAYER_ID}`,
+    `  http://localhost:5173/play/${DEV_CAMPAIGN_ID}?seat=${DEV_SEAT_GM_ID}   (GM)`,
+  );
+  console.log(
+    `  http://localhost:5173/play/${DEV_CAMPAIGN_ID}?seat=${DEV_SEAT_PLAYER_ID}  (Player)`,
   );
 }
 

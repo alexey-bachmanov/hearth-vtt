@@ -20,7 +20,18 @@ export type Route =
   | { type: 'play' }
   | { type: 'play-login'; returnTo: string | null }
   | { type: 'play-account' }
-  | { type: 'play-campaign'; campaignId: string }
+  /**
+   * `/play/:campaignId[?seat=<seatId>]`
+   *
+   * `seatId` is a dev-only bypass: when present the auth guard and WS client
+   * skip normal cookie auth and use the given seat ID directly. Must be
+   * removed once Phase 5 (real player auth) lands.
+   *
+   * @see scripts/seed-dev-db.ts
+   * @see client/src/app/Router.svelte (auth guard bypass)
+   * @see client/src/api/ws.ts (seat param forwarding)
+   */
+  | { type: 'play-campaign'; campaignId: string; seatId?: string }
   | { type: 'admin' }
   | { type: 'admin-setup' }
   | { type: 'admin-login' }
@@ -90,7 +101,11 @@ export function parseRoute(pathname: string, search: string = ''): Route {
   // Match /play/:campaignId (non-empty segment, not a reserved word)
   const playCampaignMatch = path.match(/^\/play\/([^/]+)$/);
   if (playCampaignMatch) {
-    return { type: 'play-campaign', campaignId: playCampaignMatch[1] };
+    const params = new URLSearchParams(search);
+    // DEV HACK: ?seat= forwarded to bypass auth guard + WS auth.
+    // Remove after Phase 5 (real player auth).
+    const seatId = params.get('seat') ?? undefined;
+    return { type: 'play-campaign', campaignId: playCampaignMatch[1], seatId };
   }
 
   // Match /play (exact)

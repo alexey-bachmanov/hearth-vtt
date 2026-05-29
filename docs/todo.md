@@ -105,6 +105,17 @@ Follow-on mini-sprint after the engine boundary is locked. Adds the remaining VT
 - [ ] **Server-authoritative prompt state**: prompts should be stored with explicit `status: 'pending' | 'resolved' | 'cancelled'` and broadcast as state changes, not delivered as one-shot messages. Required for multi-device safety. See [auth-join-flow.md](../docs/components/auth-join-flow.md) and [realtime-ws.md](../docs/protocols/realtime-ws.md).
 - [ ] **Idempotent action handlers**: actions referencing resolved/cancelled prompts must return no-op, not error.
 
+### Dev auth bypass hack (remove in Phase 5)
+
+A temporary four-file shim that lets you reach `PlayLayout` and open a WS connection without a real auth session. Added so Phases 3–4 can be exercised without waiting for Phase 5.
+
+Files to clean up, tracked in [implementation-strategy.md Phase 5, task 7](../docs/implementation-strategy.md#phase-5--player-auth):
+
+- [ ] **`client/src/app/routes.ts`** — remove `seatId?: string` from the `play-campaign` route type and the `params.get('seat')` line in `parseRoute`.
+- [ ] **`client/src/app/Router.svelte`** — remove the `if (type === 'play-campaign' && currentRoute.seatId) return` bypass in the auth-guard `$effect`; remove `seatId` from the `<PlayLayout>` usage.
+- [ ] **`client/src/ui/layout/PlayLayout.svelte`** — remove `seatId` prop; remove it from the `wsClient.connect()` call.
+- [ ] **`client/src/api/ws.ts`** — remove `private seatId` field, the `seatId` parameter from `connect()`, and the `&seat=` URL append.
+
 ### Auth & Sessions
 
 - [ ] **`must_change_password` enforcement**: Phase 2.6 sets the flag when admin resets a player password, but the login flow does not enforce a forced-change screen. Enforce at `POST /api/auth/login` (and on WS connect as a secondary check).

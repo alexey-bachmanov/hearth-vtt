@@ -45,6 +45,13 @@ export class WebSocketClient {
   private shouldReconnect = true;
   /** Campaign ID appended as `?campaign=<id>` on each connect. */
   private campaignId: string | null = null;
+  /**
+   * Seat ID appended as `&seat=<id>` when present.
+   *
+   * DEV HACK: forwarded so the server WS dev-bypass can resolve a specific
+   * seeded seat. Remove after Phase 5 (real player auth).
+   */
+  private seatId: string | null = null;
 
   constructor(url = '/ws') {
     // Convert relative URL to absolute wss:// or ws://
@@ -64,10 +71,16 @@ export class WebSocketClient {
    *
    * @param campaignId - Campaign to join. Appended as `?campaign=<id>`.
    *   Persisted so reconnects re-join the same campaign automatically.
+   * @param seatId - (dev only) Seat to bypass auth with. Appended as
+   *   `&seat=<id>` when present. Remove after Phase 5.
    */
-  connect(campaignId?: string): void {
+  connect(campaignId?: string, seatId?: string): void {
     if (campaignId) {
       this.campaignId = campaignId;
+    }
+    // DEV HACK: persist seatId for reconnects. Remove after Phase 5.
+    if (seatId !== undefined) {
+      this.seatId = seatId;
     }
 
     if (
@@ -78,9 +91,13 @@ export class WebSocketClient {
       return;
     }
 
-    const connectUrl = this.campaignId
+    let connectUrl = this.campaignId
       ? `${this.url}?campaign=${encodeURIComponent(this.campaignId)}`
       : this.url;
+    // DEV HACK: append ?seat= for server dev-bypass. Remove after Phase 5.
+    if (this.seatId) {
+      connectUrl += `&seat=${encodeURIComponent(this.seatId)}`;
+    }
 
     console.log('[WebSocketClient] Connecting to', connectUrl);
     connectionState.setStatus('connecting');

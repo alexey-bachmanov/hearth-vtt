@@ -10,11 +10,32 @@
  * The base and overlay layers use flexbox for natural reflow when drawers/sidebar
  * open/close. This eliminates manual position calculations and provides better
  * encapsulation between components.
+ *
+ * Props:
+ *   campaignId - Campaign to connect to.
+ *   seatId     - (dev only) Seat override forwarded to wsClient.connect().
+ *                DEV HACK: remove `seatId` prop after Phase 5 (real player auth).
  */
 
+import { onMount } from 'svelte';
+import { wsClient } from '../../api/index.js';
 import PlayLayoutBase from './PlayLayoutBase.svelte';
 import PlayLayoutOverlay from './PlayLayoutOverlay.svelte';
-import { FloatingWindowLayer } from '../window'; import { ContextMenu } from '../canvas';</script>
+import { FloatingWindowLayer } from '../window';
+import { ContextMenu } from '../canvas';
+
+// DEV HACK: seatId prop threads the ?seat= bypass down from Router.
+// Remove seatId after Phase 5 (real player auth).
+let {
+  campaignId,
+  seatId,
+}: { campaignId?: string; seatId?: string } = $props();
+
+onMount(() => {
+  wsClient.connect(campaignId, seatId);
+  return () => wsClient.disconnect();
+});
+</script>
 
 <div class="play-layout">
   <!-- Skip link: off-screen by default, appears on keyboard focus. -->

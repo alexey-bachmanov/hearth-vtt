@@ -333,6 +333,12 @@ Replaces dev auth bypass with real invite→claim→session→WS-auth flow.
 
 6. **Admin seat management.** Wire `SeatSettings.svelte` to create invites, view/revoke seats via real API.
 
+7. **Remove dev-bypass hack.** After real auth is wired, delete or gate behind `DEV_BYPASS_AUTH` env var:
+   - Remove `seatId` prop from `PlayLayout.svelte` and `seatId` from the `play-campaign` route type in `routes.ts`.
+   - Remove `seatId` field and `&seat=` URL building from `WebSocketClient` in `ws.ts`.
+   - Remove auth-guard bypass (`if (type === 'play-campaign' && currentRoute.seatId) return`) in `Router.svelte`.
+   - The `?seat=` param in the server WS handler (`ws.ts`) was already hard-gated behind `!isProduction`; decide whether to keep or remove.
+
 #### Verification — M3
 
 > **Admin creates campaign → creates invite → shares link. Player opens link → enters PIN → joins campaign → sees synced state. Two players can see each other's token moves. Revoking a session disconnects the player.**
