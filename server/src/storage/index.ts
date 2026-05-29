@@ -10,6 +10,7 @@ export {
   type Seat,
   type Invite,
   type AuthSession,
+  type PlayerAccount,
 } from './storage.js';
 
 // Backend implementations
