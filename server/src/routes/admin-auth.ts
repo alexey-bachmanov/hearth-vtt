@@ -16,10 +16,14 @@
  */
 
 import type { FastifyInstance, FastifyRequest, FastifyReply } from 'fastify';
-import { randomBytes, scrypt, timingSafeEqual, createHash } from 'crypto';
-import { promisify } from 'util';
+import { randomBytes, createHash } from 'crypto';
 import type { Storage } from '../storage/storage';
 import { deleteSetupPinFile } from '../auth/setup-pin.js';
+import {
+  hashPassword,
+  verifyPassword,
+  MAX_PASSWORD_LENGTH,
+} from '../utils/password.js';
 
 // Augment FastifyRequest to include adminId set by requireAdminAuth middleware
 declare module 'fastify' {
@@ -28,12 +32,9 @@ declare module 'fastify' {
   }
 }
 
-const scryptAsync = promisify(scrypt);
-
 const COOKIE_NAME = 'hearth_admin_session';
 const SESSION_DURATION_MS = 30 * 24 * 60 * 60 * 1000; // 30 days
 const MIN_PASSWORD_LENGTH = 8; // Minimum password length requirement
-const MAX_PASSWORD_LENGTH = 1024; // bytes - prevent HashDoS via expensive scrypt computation
 
 /**
  * Rate limit tracking.
@@ -100,37 +101,6 @@ interface LoginBody {
 interface ChangePasswordBody {
   currentPassword: string;
   newPassword: string;
-}
-
-/**
- * Hash a password using scrypt with a random salt.
- *
- * @param password - Plain text password
- * @returns Hash string in format: salt:hash
- */
-async function hashPassword(password: string): Promise<string> {
-  const salt = randomBytes(16).toString('hex');
-  const derivedKey = (await scryptAsync(password, salt, 64)) as Buffer;
-  return `${salt}:${derivedKey.toString('hex')}`;
-}
-
-/**
- * Verify a password against a stored hash.
- *
- * @param password - Plain text password to verify
- * @param hash - Stored hash in format: salt:hash
- * @returns True if password matches
- */
-async function verifyPassword(
-  password: string,
-  hash: string,
-): Promise<boolean> {
-  const [salt, storedHash] = hash.split(':');
-  const derivedKey = (await scryptAsync(password, salt, 64)) as Buffer;
-  const storedBuffer = Buffer.from(storedHash, 'hex');
-
-  // Use timing-safe comparison to prevent timing attacks
-  return timingSafeEqual(derivedKey, storedBuffer);
 }
 
 /**

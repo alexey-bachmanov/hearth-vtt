@@ -1142,6 +1142,136 @@ export class SqliteStorage implements StorageBackend {
     return account;
   }
 
+  /**
+   * Get a player account by username. Case-sensitive (usernames are stored as-is).
+   */
+  async getPlayerAccountByUsername(
+    username: string,
+  ): Promise<PlayerAccount | null> {
+    const db = this.ensureDb();
+
+    const stmt = db.prepare(`
+      SELECT
+        id, username,
+        password_hash as passwordHash,
+        must_change_password as mustChangePassword,
+        created_at as createdAt,
+        updated_at as updatedAt,
+        last_login_at as lastLoginAt
+      FROM player_accounts
+      WHERE username = ?
+    `);
+
+    const row = stmt.get(username) as PlayerAccountRow | undefined;
+    if (!row) return null;
+    return { ...row, mustChangePassword: row.mustChangePassword === 1 };
+  }
+
+  /**
+   * Get a player account by ID.
+   */
+  async getPlayerAccountById(id: string): Promise<PlayerAccount | null> {
+    const db = this.ensureDb();
+
+    const stmt = db.prepare(`
+      SELECT
+        id, username,
+        password_hash as passwordHash,
+        must_change_password as mustChangePassword,
+        created_at as createdAt,
+        updated_at as updatedAt,
+        last_login_at as lastLoginAt
+      FROM player_accounts
+      WHERE id = ?
+    `);
+
+    const row = stmt.get(id) as PlayerAccountRow | undefined;
+    if (!row) return null;
+    return { ...row, mustChangePassword: row.mustChangePassword === 1 };
+  }
+
+  /**
+   * Set last_login_at to now for an account (called on successful login).
+   */
+  async updatePlayerAccountLastLogin(id: string): Promise<void> {
+    const db = this.ensureDb();
+    const now = Date.now();
+
+    const stmt = db.prepare(`
+      UPDATE player_accounts SET last_login_at = ?, updated_at = ? WHERE id = ?
+    `);
+    stmt.run(now, now, id);
+  }
+
+  /**
+   * Set must_change_password flag and optionally update the password hash.
+   * Used by admin reset-password flow.
+   */
+  async setPlayerAccountMustChangePassword(
+    id: string,
+    mustChangePassword: boolean,
+    newPasswordHash?: string,
+  ): Promise<void> {
+    const db = this.ensureDb();
+    const now = Date.now();
+
+    if (newPasswordHash !== undefined) {
+      const stmt = db.prepare(`
+        UPDATE player_accounts
+        SET must_change_password = ?, password_hash = ?, updated_at = ?
+        WHERE id = ?
+      `);
+      stmt.run(mustChangePassword ? 1 : 0, newPasswordHash, now, id);
+    } else {
+      const stmt = db.prepare(`
+        UPDATE player_accounts
+        SET must_change_password = ?, updated_at = ?
+        WHERE id = ?
+      `);
+      stmt.run(mustChangePassword ? 1 : 0, now, id);
+    }
+  }
+
+  /**
+   * List all player accounts, ordered by creation time descending.
+   */
+  async listPlayerAccounts(): Promise<PlayerAccount[]> {
+    const db = this.ensureDb();
+
+    const stmt = db.prepare(`
+      SELECT
+        id, username,
+        password_hash as passwordHash,
+        must_change_password as mustChangePassword,
+        created_at as createdAt,
+        updated_at as updatedAt,
+        last_login_at as lastLoginAt
+      FROM player_accounts
+      ORDER BY created_at DESC
+    `);
+
+    const rows = stmt.all() as PlayerAccountRow[];
+    return rows.map((row) => ({
+      ...row,
+      mustChangePassword: row.mustChangePassword === 1,
+    }));
+  }
+
+  /**
+   * Count the number of active seats linked to an account across all campaigns.
+   * Used for admin account listing.
+   */
+  async countSeatsForAccount(accountId: string): Promise<number> {
+    const db = this.ensureDb();
+
+    const stmt = db.prepare(`
+      SELECT COUNT(*) as count FROM seats WHERE account_id = ? AND is_active = 1
+    `);
+
+    const row = stmt.get(accountId) as { count: number };
+    return row.count;
+  }
+
   // ---------------------------------------------------------------------------
   // Auth session operations
   // ---------------------------------------------------------------------------

@@ -257,12 +257,22 @@ export interface StorageBackend {
   decrementInviteUses(inviteToken: string): Promise<void>;
 
   /**
-   * Player account operations (step 5 adds getByUsername, updateLastLogin, etc.)
+   * Player account operations
    */
   createPlayerAccount(data: {
     username: string;
     passwordHash: string;
   }): Promise<PlayerAccount>;
+  getPlayerAccountByUsername(username: string): Promise<PlayerAccount | null>;
+  getPlayerAccountById(id: string): Promise<PlayerAccount | null>;
+  updatePlayerAccountLastLogin(id: string): Promise<void>;
+  setPlayerAccountMustChangePassword(
+    id: string,
+    mustChangePassword: boolean,
+    newPasswordHash?: string,
+  ): Promise<void>;
+  listPlayerAccounts(): Promise<PlayerAccount[]>;
+  countSeatsForAccount(accountId: string): Promise<number>;
 
   /**
    * Auth session operations (account-scoped per ADR-010)
@@ -545,6 +555,40 @@ export class Storage {
     passwordHash: string;
   }): Promise<PlayerAccount> {
     return this.backend.createPlayerAccount(data);
+  }
+
+  async getPlayerAccountByUsername(
+    username: string,
+  ): Promise<PlayerAccount | null> {
+    return this.backend.getPlayerAccountByUsername(username);
+  }
+
+  async getPlayerAccountById(id: string): Promise<PlayerAccount | null> {
+    return this.backend.getPlayerAccountById(id);
+  }
+
+  async updatePlayerAccountLastLogin(id: string): Promise<void> {
+    return this.backend.updatePlayerAccountLastLogin(id);
+  }
+
+  async setPlayerAccountMustChangePassword(
+    id: string,
+    mustChangePassword: boolean,
+    newPasswordHash?: string,
+  ): Promise<void> {
+    return this.backend.setPlayerAccountMustChangePassword(
+      id,
+      mustChangePassword,
+      newPasswordHash,
+    );
+  }
+
+  async listPlayerAccounts(): Promise<PlayerAccount[]> {
+    return this.backend.listPlayerAccounts();
+  }
+
+  async countSeatsForAccount(accountId: string): Promise<number> {
+    return this.backend.countSeatsForAccount(accountId);
   }
 
   /**

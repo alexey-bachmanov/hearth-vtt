@@ -410,6 +410,59 @@ export class InMemoryBackend implements StorageBackend {
     return { ...account };
   }
 
+  async getPlayerAccountByUsername(
+    username: string,
+  ): Promise<PlayerAccount | null> {
+    for (const account of this.playerAccounts.values()) {
+      if (account.username === username) return { ...account };
+    }
+    return null;
+  }
+
+  async getPlayerAccountById(id: string): Promise<PlayerAccount | null> {
+    const account = this.playerAccounts.get(id);
+    return account ? { ...account } : null;
+  }
+
+  async updatePlayerAccountLastLogin(id: string): Promise<void> {
+    const account = this.playerAccounts.get(id);
+    if (account) {
+      const now = Date.now();
+      account.lastLoginAt = now;
+      account.updatedAt = now;
+    }
+  }
+
+  async setPlayerAccountMustChangePassword(
+    id: string,
+    mustChangePassword: boolean,
+    newPasswordHash?: string,
+  ): Promise<void> {
+    const account = this.playerAccounts.get(id);
+    if (!account) throw new Error(`PlayerAccount ${id} not found`);
+    account.mustChangePassword = mustChangePassword;
+    account.updatedAt = Date.now();
+    if (newPasswordHash !== undefined) {
+      account.passwordHash = newPasswordHash;
+    }
+  }
+
+  async listPlayerAccounts(): Promise<PlayerAccount[]> {
+    return [...this.playerAccounts.values()]
+      .sort((a, b) => b.createdAt - a.createdAt)
+      .map((a) => ({ ...a }));
+  }
+
+  async countSeatsForAccount(accountId: string): Promise<number> {
+    let count = 0;
+    for (const campaignSeats of this.seats.values()) {
+      for (const seat of campaignSeats.values()) {
+        if (seat.accountId === accountId && seat.isActive) count++;
+      }
+    }
+    return count;
+  }
+
   // ---------------------------------------------------------------------------
   // Auth sessions
   // ---------------------------------------------------------------------------
