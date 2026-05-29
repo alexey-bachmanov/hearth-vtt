@@ -471,3 +471,105 @@ describe('WS route — dispatch and event broadcast', () => {
     await closeWs(ws);
   });
 });
+
+// ---------------------------------------------------------------------------
+// C4 — dev-only ?seat= override
+// ---------------------------------------------------------------------------
+
+describe('WS route — ?seat= dev override', () => {
+  let server: FastifyInstance;
+  let storage: Storage;
+  let port: number;
+
+  beforeAll(async () => {
+    ({ server, storage, port } = await startTestServer());
+  });
+
+  afterAll(async () => {
+    await server.close();
+    storage.close();
+  });
+
+  /**
+   * Open a WS connection in dev mode (no auth cookie) with an optional ?seat= param.
+   * Returns the welcomed promise; resolves as soon as the welcome message arrives.
+   */
+  function openDevConnection(
+    campaignId: string,
+    seatId?: string,
+  ): { ws: WebSocket; welcomed: Promise<ServerMessage & { type: 'welcome' }> } {
+    let resolveWelcome!: (msg: ServerMessage & { type: 'welcome' }) => void;
+    const welcomed = new Promise<ServerMessage & { type: 'welcome' }>(
+      (res) => (resolveWelcome = res),
+    );
+    const url = seatId
+      ? `ws://127.0.0.1:${port}/ws?campaign=${campaignId}&seat=${seatId}`
+      : `ws://127.0.0.1:${port}/ws?campaign=${campaignId}`;
+    const ws = new WebSocket(url); // no auth cookie
+    ws.on('message', (raw) => {
+      const msg = JSON.parse(raw.toString()) as ServerMessage;
+      if (msg.type === 'welcome')
+        resolveWelcome(msg as ServerMessage & { type: 'welcome' });
+    });
+    return { ws, welcomed };
+  }
+
+  it('?seat= is used when the seat exists in the campaign (dev mode)', async () => {
+    const campaign = await storage.createCampaign('Seat Override Test');
+    const seat = await storage.createSeat({
+      campaignId: campaign.id,
+      displayName: 'Player Two',
+      role: 'player',
+    });
+
+    const { ws, welcomed } = openDevConnection(campaign.id, seat.id);
+    const welcome = await welcomed;
+
+    expect(welcome.seatId).toBe(seat.id);
+    expect(welcome.seatRole).toBe('player');
+
+    await closeWs(ws);
+  });
+
+  it('?seat= with an unknown seat ID falls back to DEV_SEAT_ID', async () => {
+    const campaign = await storage.createCampaign('Unknown Seat Fallback');
+
+    const { ws, welcomed } = openDevConnection(
+      campaign.id,
+      'seat-does-not-exist',
+    );
+    const welcome = await welcomed;
+
+    // Falls back to the hardcoded dev seat id.
+    expect(welcome.seatId).toBe('seat-mock-001');
+
+    await closeWs(ws);
+  });
+
+  it('?seat= is ignored in production — connection rejected without valid auth', async () => {
+    const original = process.env.NODE_ENV;
+    process.env.NODE_ENV = 'production';
+
+    try {
+      const campaign = await storage.createCampaign('Prod No Bypass');
+      const seat = await storage.createSeat({
+        campaignId: campaign.id,
+        displayName: 'Player',
+        role: 'player',
+      });
+
+      // In production, no valid cookie → 4001 regardless of ?seat=
+      const closeCode = await new Promise<number>((resolve) => {
+        const ws = new WebSocket(
+          `ws://127.0.0.1:${port}/ws?campaign=${campaign.id}&seat=${seat.id}`,
+          // No cookie.
+        );
+        ws.on('close', (code) => resolve(code));
+        ws.on('error', () => resolve(-1));
+      });
+      expect(closeCode).toBe(4001);
+    } finally {
+      process.env.NODE_ENV = original;
+    }
+  });
+});

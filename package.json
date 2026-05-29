@@ -29,7 +29,8 @@
     "test:coverage": "npm run test:coverage --workspaces --if-present",
     "e2e": "playwright test",
     "lint": "npm run lint --workspaces --if-present",
-    "clean": "node scripts/clean.js"
+    "clean": "node scripts/clean.js",
+    "seed-dev-db": "tsx scripts/seed-dev-db.ts"
   },
   "devDependencies": {
     "@playwright/test": "^1.60.0",

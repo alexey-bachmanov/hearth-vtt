@@ -39,6 +39,7 @@ import type {
   Capabilities,
 } from './index.js';
 import type { Token, Actor, Scene, Position } from '@hearth-vtt/shared';
+import type { SnapshotBlobV1 } from './snapshot-blob.js';
 
 // ============================================================================
 // Constants
@@ -102,28 +103,6 @@ interface CampaignState {
    * engine from snapshot + replay on the next connection.
    */
   closed: boolean;
-}
-
-// ============================================================================
-// Engine-internal snapshot blob
-// ============================================================================
-
-/**
- * Shape of the blob stored via `storage.putSnapshot`.
- *
- * Engine-private — never exported. Callers interact with it only through
- * the opaque `blob: unknown` of the storage interface.
- *
- * `seats` are excluded on purpose: they are always reloaded from storage on
- * `open()` so seat changes (role updates, new invites) take effect without
- * requiring a new snapshot.
- */
-interface SnapshotBlobV1 {
-  schemaVersion: 1;
-  activeSceneId: string | null;
-  scenes: Record<string, Scene>;
-  tokens: Record<string, Token>;
-  actors: Record<string, Actor>;
 }
 
 // ============================================================================

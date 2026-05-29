@@ -27,6 +27,8 @@ import type { CampaignManager } from '../domain/engine/index.js';
 const DEV_CAMPAIGN_ID = 'campaign-mock-001';
 const DEV_SEAT_ID = 'seat-mock-001';
 const DEV_SEAT_ROLE = 'player' as const;
+/** Second mock seat for two-player dev scenarios (e.g. `?seat=seat-mock-002`). */
+const _DEV_SEAT_ID_2 = 'seat-mock-002';
 
 // ── Auth resolution ───────────────────────────────────────────────────────────
 
@@ -81,14 +83,18 @@ export async function wsRoutes(
   options: { storage: Storage; campaignManager: CampaignManager },
 ) {
   /**
-   * GET /ws?campaign=<campaignId> - WebSocket upgrade endpoint
+   * GET /ws?campaign=<campaignId>[&seat=<seatId>] — WebSocket upgrade endpoint
    *
    * Query params:
    *   campaign — the campaign ID to connect to (required in production)
+   *   seat     — (dev only) override the seat ID used for this connection.
+   *              If the seat belongs to the campaign it is used directly;
+   *              otherwise the request falls back to `DEV_SEAT_ID`.
    *
    * In production, a valid `hearth_refresh` cookie is required. The cookie is
    * resolved to a seat via storage; the seat must belong to the requested
-   * campaign and be active.
+   * campaign and be active. The `seat` param is hard-gated inside the
+   * `!isProduction` branch and cannot be reached in production.
    *
    * In development (NODE_ENV !== 'production'), missing or invalid auth falls
    * back to the hardcoded mock seat so the client can connect without a full
@@ -110,23 +116,50 @@ export async function wsRoutes(
       if (resolved) {
         connection = resolved;
       } else if (!isProduction) {
-        // Dev-bypass: use mock seat but honour the provided campaignId so
-        // integration tests can target a real campaign.
+        // Dev-bypass: auth failed — resolve optional ?seat= override, then
+        // fall back to DEV_SEAT_ID. Hard-gated inside !isProduction so the
+        // ?seat= param is unreachable in production.
+        const seatParam = query['seat'];
+        let devSeatId = DEV_SEAT_ID;
+        let devSeatRole: ResolvedConnection['seatRole'] = DEV_SEAT_ROLE;
+        if (seatParam) {
+          const seats = await options.storage.listSeats(campaignIdParam);
+          const found = seats.find((s) => s.id === seatParam && s.isActive);
+          if (found) {
+            devSeatId = found.id;
+            devSeatRole = found.role;
+          }
+        }
+        // Use mock seat but honour the provided campaignId so integration
+        // tests can target a real campaign.
         connection = {
           campaignId: campaignIdParam,
-          seatId: DEV_SEAT_ID,
-          seatRole: DEV_SEAT_ROLE,
+          seatId: devSeatId,
+          seatRole: devSeatRole,
         };
       } else {
         socket.close(4001, 'Unauthorized');
         return;
       }
     } else if (!isProduction) {
-      // Dev-bypass: no campaign param — use fully hardcoded mock connection.
+      // Dev-bypass: no campaign param — resolve optional ?seat= override
+      // against DEV_CAMPAIGN_ID, then fall back to DEV_SEAT_ID.
+      // Hard-gated inside !isProduction so unreachable in production.
+      const seatParam = query['seat'];
+      let devSeatId = DEV_SEAT_ID;
+      let devSeatRole: ResolvedConnection['seatRole'] = DEV_SEAT_ROLE;
+      if (seatParam) {
+        const seats = await options.storage.listSeats(DEV_CAMPAIGN_ID);
+        const found = seats.find((s) => s.id === seatParam && s.isActive);
+        if (found) {
+          devSeatId = found.id;
+          devSeatRole = found.role;
+        }
+      }
       connection = {
         campaignId: DEV_CAMPAIGN_ID,
-        seatId: DEV_SEAT_ID,
-        seatRole: DEV_SEAT_ROLE,
+        seatId: devSeatId,
+        seatRole: devSeatRole,
       };
     } else {
       socket.close(4400, 'Missing campaign query parameter');
