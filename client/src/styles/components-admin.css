@@ -1,0 +1,365 @@
+/**
+ * components-admin.css — shared styles for the admin panel
+ *
+ * Imported by admin detail components (AccountDetail, CampaignDetail, etc.)
+ * and by AdminLayout. Uses CSS custom properties from tokens.css.
+ *
+ * Contents
+ * --------
+ * 1. Button modifiers (btn--sm, btn--danger)
+ * 2. Admin detail panels (page-header, detail-section, info-grid, etc.)
+ * 3. Badge utilities (badge--success, badge--warning)
+ * 4. Form helpers (form-group, form-actions, inline-form)
+ * 5. List utilities (seat-list, seat-row)
+ * 6. Typography helpers (text-muted, mono, empty-state)
+ * 7. Control groups (control-group, control-group--danger)
+ */
+
+/* ============================================================================
+   1. Button modifiers
+   ============================================================================ */
+
+/** Small button variant — use alongside .btn */
+.btn--sm {
+  padding: var(--space-xs) var(--space-sm);
+  font-size: var(--font-size-xs);
+  border-radius: var(--radius-xs);
+}
+
+/** Danger/destructive button variant — use alongside .btn */
+.btn--danger {
+  background-color: var(--color-danger);
+  border-color: var(--color-danger);
+  color: #fff;
+}
+
+.btn--danger:hover:not(:disabled) {
+  background-color: var(
+    --color-danger-hover,
+    color-mix(in srgb, var(--color-danger) 85%, black)
+  );
+  border-color: var(
+    --color-danger-hover,
+    color-mix(in srgb, var(--color-danger) 85%, black)
+  );
+}
+
+/* ============================================================================
+   2. Admin detail panels
+   ============================================================================ */
+
+.detail-empty {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 100%;
+  color: var(--color-text-tertiary);
+  font-size: var(--font-size-md);
+}
+
+.detail-header {
+  display: flex;
+  align-items: center;
+  gap: var(--space-md);
+  margin-bottom: var(--space-xl);
+  flex-wrap: wrap;
+}
+
+.detail-title {
+  margin: 0;
+  font-size: var(--font-size-xl);
+  font-weight: var(--font-weight-semibold);
+  color: var(--color-text-primary);
+  display: flex;
+  align-items: center;
+  gap: var(--space-sm);
+}
+
+.account-icon {
+  font-size: var(--font-size-xl);
+}
+
+.page-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: var(--space-xl);
+  gap: var(--space-md);
+  flex-wrap: wrap;
+}
+
+.detail-section {
+  background-color: var(--color-bg-secondary);
+  border: 1px solid var(--color-border-default);
+  border-radius: var(--radius-md);
+  padding: var(--space-lg) var(--space-xl);
+  margin-bottom: var(--space-xl);
+}
+
+.detail-section h2 {
+  margin: 0 0 var(--space-lg) 0;
+  font-size: var(--font-size-lg);
+  font-weight: var(--font-weight-semibold);
+  color: var(--color-text-primary);
+}
+
+.detail-section--controls {
+  border-color: var(--color-border-subtle, var(--color-border-default));
+}
+
+.section-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: var(--space-lg);
+  gap: var(--space-md);
+}
+
+.section-header h2 {
+  margin: 0;
+}
+
+.section-actions {
+  display: flex;
+  gap: var(--space-sm);
+  flex-wrap: wrap;
+}
+
+/* Definition-list info grid */
+.info-grid {
+  display: grid;
+  grid-template-columns: max-content 1fr;
+  gap: var(--space-sm) var(--space-xl);
+  margin: 0;
+}
+
+.info-grid dt {
+  font-size: var(--font-size-sm);
+  font-weight: var(--font-weight-semibold);
+  color: var(--color-text-secondary);
+  white-space: nowrap;
+}
+
+.info-grid dd {
+  margin: 0;
+  color: var(--color-text-primary);
+  font-size: var(--font-size-sm);
+}
+
+/* ============================================================================
+   3. Badge utilities
+   ============================================================================ */
+
+.badge {
+  display: inline-flex;
+  align-items: center;
+  padding: 2px var(--space-sm);
+  border-radius: var(--radius-full, 9999px);
+  font-size: var(--font-size-xs);
+  font-weight: var(--font-weight-semibold);
+  letter-spacing: 0.02em;
+}
+
+.badge--success {
+  background-color: var(
+    --color-success-faint,
+    color-mix(in srgb, var(--color-success) 15%, transparent)
+  );
+  color: var(--color-success);
+  border: 1px solid var(--color-success);
+}
+
+.badge--warning {
+  background-color: var(
+    --color-warning-faint,
+    color-mix(in srgb, var(--color-warning) 15%, transparent)
+  );
+  color: var(--color-warning);
+  border: 1px solid var(--color-warning);
+}
+
+/* ============================================================================
+   4. Form helpers
+   ============================================================================ */
+
+.inline-form {
+  background-color: var(--color-bg-tertiary);
+  border: 1px solid var(--color-border-default);
+  border-radius: var(--radius-md);
+  padding: var(--space-lg);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-md);
+}
+
+.inline-form h3 {
+  margin: 0;
+  font-size: var(--font-size-md);
+  font-weight: var(--font-weight-semibold);
+  color: var(--color-text-primary);
+}
+
+.form-group {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-xs);
+}
+
+.form-group label {
+  font-size: var(--font-size-sm);
+  font-weight: var(--font-weight-medium);
+  color: var(--color-text-secondary);
+}
+
+.form-group input {
+  padding: var(--space-sm) var(--space-md);
+  background-color: var(--color-bg-primary);
+  border: 1px solid var(--color-border-default);
+  border-radius: var(--radius-sm);
+  color: var(--color-text-primary);
+  font-size: var(--font-size-sm);
+  max-width: 320px;
+}
+
+.form-group input:focus {
+  outline: none;
+  border-color: var(--color-accent-primary);
+}
+
+.form-actions {
+  display: flex;
+  gap: var(--space-sm);
+  align-items: center;
+}
+
+/* Feedback messages */
+.error-message {
+  color: var(--color-danger);
+  font-size: var(--font-size-sm);
+  margin: 0;
+}
+
+.success-message {
+  color: var(--color-success);
+  font-size: var(--font-size-sm);
+  margin: 0;
+}
+
+.danger-warning {
+  color: var(--color-danger);
+  font-size: var(--font-size-sm);
+  margin: 0 0 var(--space-sm) 0;
+}
+
+/* ============================================================================
+   5. List utilities
+   ============================================================================ */
+
+.seat-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-sm);
+}
+
+.seat-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: var(--space-sm) var(--space-md);
+  background-color: var(--color-bg-tertiary);
+  border: 1px solid var(--color-border-default);
+  border-radius: var(--radius-sm);
+  gap: var(--space-md);
+  flex-wrap: wrap;
+}
+
+.seat-row__info {
+  display: flex;
+  align-items: center;
+  gap: var(--space-sm);
+}
+
+.seat-role-icon {
+  font-size: var(--font-size-md);
+  flex-shrink: 0;
+}
+
+.seat-row__labels {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.seat-row__name {
+  font-size: var(--font-size-sm);
+  font-weight: var(--font-weight-medium);
+  color: var(--color-text-primary);
+}
+
+.seat-row__actions {
+  display: flex;
+  gap: var(--space-sm);
+  flex-wrap: wrap;
+  align-items: center;
+}
+
+/* ============================================================================
+   6. Typography helpers
+   ============================================================================ */
+
+.text-muted {
+  color: var(--color-text-tertiary);
+  font-size: var(--font-size-sm);
+}
+
+.mono {
+  font-family: var(--font-family-mono, monospace);
+  font-size: var(--font-size-xs);
+}
+
+.empty-state {
+  color: var(--color-text-tertiary);
+  font-size: var(--font-size-sm);
+  font-style: italic;
+  margin: 0;
+}
+
+/* ============================================================================
+   7. Control groups
+   ============================================================================ */
+
+.control-group {
+  padding: var(--space-md) 0;
+  border-bottom: 1px solid var(--color-border-default);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-sm);
+}
+
+.control-group:last-child {
+  border-bottom: none;
+  padding-bottom: 0;
+}
+
+.control-description {
+  font-size: var(--font-size-xs);
+  color: var(--color-text-tertiary);
+  margin: 0;
+}
+
+.control-group--danger {
+  border-color: var(
+    --color-danger-faint,
+    color-mix(in srgb, var(--color-danger) 20%, transparent)
+  );
+  background-color: var(
+    --color-danger-faint,
+    color-mix(in srgb, var(--color-danger) 5%, transparent)
+  );
+  border-radius: var(--radius-sm);
+  padding: var(--space-md);
+  margin-top: var(--space-md);
+}

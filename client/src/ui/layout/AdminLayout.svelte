@@ -24,6 +24,7 @@ import ServerSettings from '../admin/ServerSettings.svelte';
 import CampaignDetail from '../admin/CampaignDetail.svelte';
 import SeatSettings from '../admin/SeatSettings.svelte';
 import AccountDetail from '../admin/AccountDetail.svelte';
+import '../../styles/components-admin.css';
 
 let isCheckingAuth = $state(true);
 let isAuthenticated = $state(false);

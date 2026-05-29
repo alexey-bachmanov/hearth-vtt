@@ -15,6 +15,7 @@
  */
 
 import { adminTree, type MockAccount, type MockSeat } from '../../state/admin.svelte.js';
+import '../../styles/components-admin.css';
 
 interface Props {
   accountId: string;
