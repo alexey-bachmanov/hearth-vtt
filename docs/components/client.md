@@ -95,8 +95,10 @@ authState.loadMe().then((me) => {
 - **Cookie Management**: Browser handles cookies automatically (HttpOnly, Secure, SameSite=Lax)
 - **Clean URLs**: Never embed session secrets in URLs; `/play` and `/play/<campaignId>` are the stable bookmarkable routes
 - **Auth Guard**: Each protected route mounts → calls `authState.loadMe()` → on 401 redirects to `/play/login?returnTo=<currentPath>`
-- **Session Refresh**: Call `POST /api/auth/refresh` to get a new access token from the stable refresh cookie
-- **Logout**: Call `POST /api/auth/logout`, clear local state, navigate to `/` (splash)
+- **CSRF Token**: Login (`POST /api/auth/login`), claim-invite, and refresh responses return a `csrfToken` in the response body. The client stores it in `authState.csrfToken` (in-memory). All state-changing requests (logout, logout-all, change-password) send it via the `X-CSRF-Token` header. The token is cleared on logout or unexpected 401.
+- **Session Refresh**: `POST /api/auth/refresh` returns `{ accessToken, csrfToken }`. On WS close code 4401, the client attempts one silent refresh; on success stores the new `csrfToken` and reconnects; on failure redirects to login.
+- **Forced password change**: When `authState.me.mustChangePassword` is `true`, `PlayLayout` shows a blocking modal that cannot be dismissed. On successful `POST /api/auth/change-password` the flag is cleared and gameplay loads.
+- **Logout**: Call `POST /api/auth/logout` (with `X-CSRF-Token` header), clear local state, navigate to `/` (splash)
 - **Admin UI**: Separate interface for server admin, accessed at `/admin` with its own cookie (`hearth_admin_session`)
 
 ### Admin UI vs Play UI

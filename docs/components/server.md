@@ -108,20 +108,19 @@ Within `server/` (current structure):
 - `server/src/server.ts` — Fastify app setup and build function
 - `server/src/index.ts` — process entry point (env/flags, start server)
 - `server/src/routes/` — HTTP routes and WebSocket handler
-  - `routes/admin-auth.ts` — Admin authentication endpoints
-  - `routes/auth.ts` — Player auth stubs
+  - `routes/admin-auth.ts` — Admin authentication endpoints (setup, login, logout, change-password)
+  - `routes/auth.ts` — Player authentication (login, logout, logout-all, refresh, change-password, me, claim-invite)
   - `routes/campaigns.ts` — Campaign management
   - `routes/health.ts` — Health checks and server info
   - `routes/invites.ts` — Invite management
   - `routes/seats.ts` — Seat management
-  - `routes/sessions.ts` — Session stubs
   - `routes/ws.ts` — WebSocket handler
 - `server/src/storage/` — Storage class + backend implementations (SQLite, etc.)
 - `server/src/auth/` — Auth utilities (setup PIN generation)
 
 Runtime data directory:
 
-- `${DATA_DIR}/db.sqlite` — SQLite database file
+- `${DATA_DIR}/db/hearth.db` — SQLite database file
 - `${DATA_DIR}/assets/` — uploaded maps/tokens/etc.
 - `${DATA_DIR}/imports/` — optional staging for campaign import
 - `${DATA_DIR}/exports/` — optional staging for campaign export

@@ -176,12 +176,14 @@ See [auth-join-flow.md](components/auth-join-flow.md), [ADR 005](decisions/005-n
 - **Cookie hardening**: `httpOnly`, `secure: true`, `sameSite: 'strict'` attributes enforced on admin cookies
 - **Cookie signing**: Cookies signed with secret to prevent tampering (auto-generated or via `COOKIE_SECRET` env var)
 
-**Player session security** (partial implementation):
+**Player session security** (implemented):
 
 - PIN-protected invite claims with rate limiting and expiry
 - Cookie-based sessions with HttpOnly, Secure, SameSite=Lax
-- Session revocation by admin or user logout
-- CSRF protection via SameSite cookies + Origin validation (token-based CSRF not yet implemented for player sessions)
+- Stable refresh token (no rotation) with session-only lifetime on HTTP, configurable persistent lifetime on HTTPS (default 30 days)
+- CSRF synchronizer-token pattern on all player state-changing routes (`POST /api/auth/logout`, `logout-all`, `change-password`): token returned in login/claim/refresh response body, sent back as `X-CSRF-Token` header
+- Session revocation by admin (`POST /api/admin/accounts/:id/revoke-sessions`) or user (`POST /api/auth/logout`, `logout-all`)
+- `mustChangePassword` flag: set by admin on temporary-password reset; cleared on first successful password change by the player; forces a blocking modal in the game UI until resolved
 
 See [ADR 007 Security Implementation](decisions/007-server-level-admin.md#security-implementation-2026-02-06) for detailed security architecture.
 

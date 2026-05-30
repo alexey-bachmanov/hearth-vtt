@@ -87,11 +87,24 @@ Server behavior on success:
 
 - Validates PIN; if invalid, applies rate limit (see PIN policy).
 - Validates/creates the PlayerAccount.
+- Atomically consumes the invite (guards against concurrent claims — see `INVITE_RACE_LOST` below).
 - Binds `seats.accountId = <claiming account>`.
 - Creates an AuthSession bound to the PlayerAccount.
 - Sets the refresh cookie.
-- Returns minimal boot JSON: `{ accountId, campaignId, seatId, roles }`.
+- Returns `ClaimInviteResponse`: `{ accountId, campaignId, seatId, role, csrfToken }`. Client stores `csrfToken` in memory.
 - Client redirects to `/play/<campaignId>`.
+
+Error codes:
+
+- `400 INVALID_REQUEST` — missing or invalid fields.
+- `401 INVALID_PIN` — wrong PIN.
+- `401 INVALID_CREDENTIALS` — wrong password (login mode).
+- `404 INVITE_NOT_FOUND` — invite token unknown.
+- `409 USERNAME_TAKEN` — username collision (register mode).
+- `409 SEAT_ALREADY_BOUND` — seat bound to a different account.
+- `410 INVITE_REVOKED` — invite was revoked.
+- `410 INVITE_RACE_LOST` — invite was valid but consumed by a concurrent claim (race condition); player should ask the GM for a new invite.
+- `429 RATE_LIMITED` — too many login attempts.
 
 If the user is already logged in to a different account in the same browser, the claim page still shows the login/register choice — it does **not** auto-bind to the current cookie. (Households sharing a browser need this.)
 
@@ -157,25 +170,57 @@ Log into an existing PlayerAccount.
 
 Inputs: `{ username, password }`.
 
-On success: creates AuthSession, sets refresh cookie, returns `{ accountId }` and the list of campaigns/seats the account holds.
+On success: creates AuthSession, sets refresh cookie, returns `LoginResponse` (extends `MeResponse`): `{ accountId, username, seats, mustChangePassword, csrfToken }`. Client stores `csrfToken` in memory.
 
 Rate-limited per IP (see PIN/password policy).
 
+### `GET /api/auth/me`
+
+Returns the `MeResponse` for the currently authenticated player.
+
+- Reads the `hearth_refresh` cookie to resolve the session.
+- Returns `{ accountId, username, seats, mustChangePassword }`.
+- When `mustChangePassword` is `true` the client (PlayLayout) shows a blocking forced-change modal that cannot be dismissed; the player must submit a new password via `POST /api/auth/change-password` before gameplay is accessible.
+- 401 when not authenticated, session expired, or revoked.
+
 ### `POST /api/auth/refresh`
 
-Uses refresh cookie to mint a new short-lived access token.
+Uses the `hearth_refresh` cookie to mint a new short-lived access token.
 
 - **Refresh token is stable across normal use** (does not rotate on every refresh). This intentionally diverges from strict OAuth BCP to support multi-tab and multi-device usage, which are the norm for a VTT.
-- **Reuse detection still applies to revoked tokens**: presenting a refresh token whose session has been revoked (by logout, admin kick, or password change) revokes the entire session chain defensively and forces re-login.
+- **Reuse detection still applies to revoked tokens**: presenting a refresh token whose session has been revoked (by logout, admin kick, or password change) returns 401.
+- Returns `{ accessToken, csrfToken }`. Client stores `csrfToken` in memory (replaces any previously stored value).
 - Refresh tokens have a finite max lifetime (default 30 days, configurable) after which the user must log in again.
 
 ### `POST /api/auth/logout`
 
 Revokes the current AuthSession (server-side) and clears the refresh cookie. Other devices remain logged in.
 
+Requires `X-CSRF-Token` header (CSRF synchronizer pattern — see [CSRF considerations](#csrf-considerations)).
+
+### `POST /api/auth/logout-all`
+
+Revokes **all** active AuthSessions for the account ("log out everywhere") and clears the refresh cookie. The current session is also revoked; the client redirects to login.
+
+Requires `X-CSRF-Token` header.
+
+### `POST /api/auth/change-password`
+
+Changes the current player's password. On success:
+
+- Clears the `mustChangePassword` flag.
+- Returns the updated `MeResponse` (200) so the client can refresh state without a separate `/me` call.
+- **Does not** revoke existing sessions (password change by the account owner is not treated as a security reset — sessions remain valid).
+
+Inputs: `{ currentPassword, newPassword }`. `newPassword` minimum 8 characters, maximum 256.
+
+Requires `X-CSRF-Token` header.
+
+400 on validation failure; 401 on wrong current password; 403 on CSRF failure.
+
 ### `POST /api/auth/forgot-password` (player; admin-mediated)
 
-For self-hosted: returns a generic "contact your admin" response. The actual reset is performed by the admin via `PATCH /api/admin/accounts/:id/reset-password`, which sets a temporary password the player must change on first login.
+For self-hosted: returns a generic "contact your admin" response. The actual reset is performed by the admin via `POST /api/admin/accounts/:id/reset-password`, which sets a temporary password the player must change on first login (`mustChangePassword = true`).
 
 For cloud-hosted: handled by the platform's account management, not by HearthVTT. See Open Issues.
 
@@ -285,8 +330,9 @@ Purpose: mitigate invite link leakage.
 
 ### Tokens
 
-- **Refresh token**: long-lived secret bound to the PlayerAccount, stored in HttpOnly cookie. Default lifetime 30 days. Used only against `/api/auth/refresh` and during WS upgrade.
-- **Access token**: short-lived bearer token (default 15 minutes). Returned by `/api/auth/refresh` as JSON; client stores it in memory and sends it on API requests as `Authorization: Bearer <token>`. WS upgrade may use either the refresh cookie or an access token query header (cookie is preferred).
+- **Refresh token**: long-lived secret bound to the PlayerAccount, stored in the `hearth_refresh` HttpOnly cookie. Default lifetime 30 days on HTTPS, session-only on HTTP (see Cookies below). Used for `/api/auth/refresh` and WS upgrade.
+- **CSRF token**: 32-byte random hex value stored in the session row, returned in the response body of login / claim-invite / refresh. Client stores it in memory (`authState.csrfToken`) and sends it via the `X-CSRF-Token` header on all state-changing requests (logout, logout-all, change-password). Not stored in a cookie (an HttpOnly cookie for CSRF provides no protection — attacker-controlled pages can trigger cookies automatically).
+- **Access token**: also returned by `/api/auth/refresh` alongside the csrfToken. Currently not used for regular HTTP API auth (cookie + CSRF covers that) but is available for future use (e.g., bearer auth, WS sub-protocol extension).
 
 The refresh token is **stable** — it does not rotate on every successful refresh. This is a deliberate departure from strict OAuth BCP, motivated by:
 
@@ -300,10 +346,11 @@ Reuse detection still applies to **revoked** refresh tokens: presenting a refres
 
 Refresh cookie:
 
-- `HttpOnly`
-- `Secure` (hosted/tunnel; in direct mode may be false)
+- `HttpOnly` — always
+- `Secure` — set when HTTPS is detected (directly or via a trusted reverse proxy); absent on HTTP
 - `SameSite=Lax` (player sessions; admin sessions use `Strict`)
 - `Path=/`
+- `maxAge` — on HTTPS: default 30 days, admin-configurable via the `refresh_cookie_max_days` server setting (0–30; 0 = session-only even on HTTPS). On HTTP (dev without proxy): no `maxAge` — session-only cookie, discarded when the browser closes.
 
 Name:
 
@@ -332,18 +379,17 @@ User actions:
 
 Client connects to:
 
-- `wss://<origin>/ws?campaignId=<campaignId>` (hosted/tunnel)
-- `ws://<origin>/ws?campaignId=<campaignId>` (direct/LAN)
+- `wss://<origin>/ws?campaign=<campaignId>` (hosted/tunnel)
+- `ws://<origin>/ws?campaign=<campaignId>` (direct/LAN)
 
-The `campaignId` query parameter selects which seat the connection is for (one account may hold seats in multiple campaigns; the connection is per-seat).
+The `campaign` query parameter selects which campaign (and thus which seat) to connect to. One account may hold seats in multiple campaigns; the connection is per-seat.
 
 Auth mechanism:
 
-- Server reads the refresh cookie during WS upgrade.
-- Validates the AuthSession → PlayerAccount.
-- Resolves the seat: `SELECT * FROM seats WHERE account_id = ? AND campaign_id = ?`.
-- If no seat → close with 4403.
-- If valid → maps the connection to `{accountId, campaignId, seatId, roles}` and registers it in the seat's connection set.
+- Server reads the `hearth_refresh` cookie during WS upgrade.
+- Missing `campaign` parameter → close with 4400.
+- Invalid/expired/revoked session OR no active seat bound in the requested campaign → close with 4401.
+- If valid → maps the connection to `{accountId, campaignId, seatId, seatRole}` and registers it in the campaign engine's seat connection set.
 
 ### Multiple connections per seat
 
@@ -362,8 +408,11 @@ Handshake messages (minimum):
 
 If not authenticated:
 
-- Server closes with 4401 (no session) or 4403 (session valid but no seat in this campaign).
-- Client attempts one silent `/api/auth/refresh` before showing the re-auth UI. If the refresh succeeds, reconnect with the new access token; only if refresh also fails does the user see a login page.
+- **4400**: missing `?campaign=` query parameter.
+- **4401**: auth failure — covers all of: no cookie, session not found, session revoked/expired, and no active seat bound in the requested campaign. (The server currently collapses these into a single 4401; distinguishing "no seat" from "no session" is a future refinement.)
+- **4403**: seat revoked after connection was established (planned; not yet sent by the server). The client handles it by navigating to the campaign picker.
+
+On receiving 4401: client attempts one silent `POST /api/auth/refresh`; on success stores the new `csrfToken` and reconnects; on failure redirects to `/play/login`.
 
 ### Reconnect behavior
 
@@ -379,15 +428,21 @@ On reconnect:
 
 ## CSRF considerations
 
-Because we use cookies:
+HearthVTT uses the **synchronizer-token pattern** for both admin and player state-changing routes:
 
-- Prefer using refresh cookie only for `/api/auth/refresh` and use access tokens for other APIs.
-- For cookie-authenticated POST endpoints, use one of:
-  - CSRF tokens (all admin endpoints use this)
-  - SameSite protections (Lax for player sessions, Strict for admin) + ensure no cross-site POST endpoints are sensitive
-  - Origin checks on state-changing endpoints
+1. Server mints a random CSRF token on session creation and stores it in the session row.
+2. Token is returned in the response body (NOT as a cookie) from `POST /api/auth/login`, `POST /api/auth/claim-invite`, and `POST /api/auth/refresh`.
+3. Client stores it in memory (`authState.csrfToken`).
+4. Client sends it as `X-CSRF-Token` header on all state-changing requests.
+5. Server validates the header value against the stored token using a constant-time comparison.
 
-Hosted mode should validate `Origin` for WS and sensitive endpoints.
+Player routes that require `X-CSRF-Token`: `POST /api/auth/logout`, `POST /api/auth/logout-all`, `POST /api/auth/change-password`.
+
+Admin routes that require `X-CSRF-Token`: all POST/PATCH/DELETE admin endpoints.
+
+The `SameSite=Lax` cookie attribute on player sessions provides a baseline defence for any future endpoint not covered by the token check. Admin sessions use `SameSite=Strict`.
+
+Hosted mode additionally validates the `Origin` header on WS upgrades.
 
 ---
 
@@ -440,18 +495,31 @@ Server admin authentication is **separate** from seat-based player authenticatio
 
 ### Admin password reset (forgotten password)
 
-If the admin forgets their password, recovery uses the **filesystem-flag** pattern:
+#### Development mode
 
-1. The admin (who has filesystem access — that's the point of self-hosting) creates an empty file at `DATA_DIR/admin-reset.flag`.
-2. On next server startup (or via a `POST /api/admin/reset` endpoint that only works when the flag is present), the server:
-   - Nulls `password_hash` on the `server_admin` record.
-   - Re-runs the initial-setup ceremony: generates a new setup PIN, writes it to `DATA_DIR/admin-setup-pin.txt`, logs it to console.
-   - Deletes `admin-reset.flag` (so the reset is not re-triggered on every subsequent startup).
-3. The admin visits `/admin/setup` and completes setup as if it were a fresh install. **Campaigns, seats, and player accounts are untouched.**
+Recovery is performed via a **dev-only script** bundled in the repository:
 
-The admin login page exposes an "I forgot my password" button that displays instructions for creating the flag file (it cannot trigger the reset directly without filesystem access, by design).
+```bash
+npm run dev:reset-setup
+```
+
+This runs `scripts/reset-admin-setup.ts`, which:
+
+1. Deletes all `admin_sessions` rows.
+2. Deletes the `server_admin` row.
+3. Removes `DATA_DIR/admin-setup-pin.txt` if present.
+
+On next server startup, first-time setup re-triggers automatically: a new setup PIN is generated, written to `admin-setup-pin.txt`, and logged to console. The admin visits `/admin/setup` and completes setup as if it were a fresh install. **Campaigns, seats, and player accounts are untouched.**
+
+The script is hard-gated: it throws immediately when `NODE_ENV=production`.
+
+#### Cloud deployments
 
 For cloud-hosted deployments, the platform provides admin credential recovery through its own channel (same one used to deliver the initial `ADMIN_SETUP_PIN`).
+
+#### Self-hosted deployments
+
+FIX ME: Server admin login page should have a password reset control. This would wipe the current admin account password, and replay the first-time PIN setup ceremony.
 
 ---
 
@@ -550,7 +618,7 @@ For cloud-hosted deployments, the platform provides admin credential recovery th
 | ---------------- | ------------------------------------------ | --------------------------- |
 | **Purpose**      | Server management                          | Campaign participation      |
 | **UI**           | `/admin` (server/campaign/seat management) | `/play` (gameplay)          |
-| **Cookie**       | `hearth_admin_session`                     | `hearth_session`            |
+| **Cookie**       | `hearth_admin_session`                     | `hearth_refresh`            |
 | **Database**     | `server_admin`, `admin_sessions`           | `seats`, `auth_sessions`    |
 | **Scope**        | Server-wide (all campaigns)                | Per-campaign (single seat)  |
 | **Auth flow**    | Setup PIN → password                       | Invite claim → PIN          |
@@ -757,7 +825,9 @@ This design needs concrete protocol shape, security analysis, and prototype befo
 
 ### 2. Player-facing `/account` route
 
-Self-hosted servers need a player-facing account management page (change password, list seats, log out everywhere). The route exists conceptually but is not designed in detail. Deferred until the lightweight-accounts implementation lands and account management becomes a felt pain point.
+The `POST /api/auth/change-password` and `POST /api/auth/logout-all` server routes are implemented. The `mustChangePassword` forced-change modal on `PlayLayout` is also implemented.
+
+What remains deferred is the full self-service `/play/account` UI surface: a page listing active seats across campaigns, a voluntary password-change form, and a "log out everywhere" button. The route renders a placeholder (username + Logout button) until this UI is built.
 
 For cloud-hosted deployments, `/account` is not exposed — account settings are handled by the platform. The decision of how to route around this (404? redirect to platform settings URL passed via config?) is part of Open Issue #1.
 

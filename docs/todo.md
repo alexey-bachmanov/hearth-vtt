@@ -65,8 +65,8 @@ As work completes, check off tasks.
 
 ### Phase 5E — Documentation sync
 
-- [ ] **5E-1.** Update [`auth-join-flow.md`](components/auth-join-flow.md): add CSRF to player flow, `INVITE_RACE_LOST` error code, per-mode cookie defaults, `mustChangePassword` round-trip, `POST /api/auth/logout-all`, CSP strategy.
-- [ ] **5E-2.** Add `docs/decisions/012-player-csrf-tokens.md` if Decision 6 (CSRF for player flow) contradicts ADR-010.
+- [x] **5E-1.** Update [`auth-join-flow.md`](components/auth-join-flow.md): add CSRF to player flow, `INVITE_RACE_LOST` error code, per-mode cookie defaults, `mustChangePassword` round-trip, `POST /api/auth/logout-all`, CSP strategy.
+- [x] **5E-2.** Add `docs/decisions/012-player-csrf-tokens.md` if Decision 6 (CSRF for player flow) contradicts ADR-010. (No ADR needed — player CSRF is additive and consistent with ADR-010's session model.)
 
 ---
 
