@@ -25,6 +25,7 @@ function makeClaimResponse() {
     campaignId: 'camp-1',
     seatId: 'seat-1',
     role: 'player',
+    csrfToken: 'csrf-xyz',
   };
 }
 
@@ -99,6 +100,7 @@ afterEach(() => {
   vi.restoreAllMocks();
   vi.useRealTimers();
   authState.me = null;
+  authState.csrfToken = null;
 });
 
 // ---------------------------------------------------------------------------
@@ -250,6 +252,20 @@ describe('JoinPage successful claim', () => {
     ).toBeInTheDocument();
   });
 
+  it('stores csrfToken from claim-invite response in authState', async () => {
+    vi.mocked(fetch)
+      .mockResolvedValueOnce(makeOkResponse(makeClaimResponse()))
+      .mockResolvedValueOnce(makeOkResponse(makeMeResponse()));
+
+    authState.csrfToken = null;
+    render(JoinPage, { props: { token: 'valid-token' } });
+
+    await fillAndSubmit();
+
+    await screen.findByText('Welcome!');
+    expect(authState.csrfToken).toBe('csrf-xyz');
+  });
+
   it('sends inviteToken, pin, mode, username and password in request body', async () => {
     vi.mocked(fetch)
       .mockResolvedValueOnce(makeOkResponse(makeClaimResponse()))
@@ -314,6 +330,30 @@ describe('JoinPage error states', () => {
     await fillAndSubmit();
 
     await screen.findByText(/already taken/);
+  });
+
+  it('shows INVITE_RACE_LOST message when invite was already claimed', async () => {
+    vi.mocked(fetch).mockResolvedValue(
+      makeErrorResponse(409, 'INVITE_RACE_LOST'),
+    );
+
+    render(JoinPage, { props: { token: 'tok' } });
+    await fillAndSubmit();
+
+    await screen.findByText(/Someone just claimed this invite/);
+  });
+
+  it('shows USERNAME_TAKEN inline on username field (not generic error)', async () => {
+    vi.mocked(fetch).mockResolvedValue(
+      makeErrorResponse(409, 'USERNAME_TAKEN'),
+    );
+
+    render(JoinPage, { props: { token: 'tok' } });
+    await fillAndSubmit();
+
+    // USERNAME_TAKEN renders inline below the username field, not in the main error div
+    await screen.findByText('That username is already taken.');
+    expect(screen.queryByText(/Try logging in instead/)).not.toBeInTheDocument();
   });
 
   it('shows generic error on 500', async () => {

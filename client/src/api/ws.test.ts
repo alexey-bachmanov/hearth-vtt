@@ -12,6 +12,7 @@
 
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { notificationState } from '../state/notifications.svelte';
+import { authState } from '../state/auth.svelte.js';
 
 // ---------------------------------------------------------------------------
 // WebSocket mock
@@ -84,6 +85,8 @@ beforeEach(() => {
 afterEach(() => {
   vi.restoreAllMocks();
   vi.unstubAllGlobals();
+  authState.csrfToken = null;
+  authState.me = null;
 });
 
 // ---------------------------------------------------------------------------
@@ -122,6 +125,91 @@ describe('WebSocketClient ACTION_REJECTED error handling', () => {
     expect(errorSpy).toHaveBeenCalledWith(
       'Server error during dispatch',
       'ephemeral',
+    );
+    wsClient.disconnect();
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Close code handling
+// ---------------------------------------------------------------------------
+
+describe('WebSocketClient close code handling', () => {
+  it('redirects to /play?error=campaign-access-revoked on close code 4403', async () => {
+    const pushStateSpy = vi
+      .spyOn(window.history, 'pushState')
+      .mockImplementation(() => {});
+    vi.spyOn(window, 'dispatchEvent').mockImplementation(() => true);
+
+    const { wsClient } = await import('./ws');
+    wsClient.connect('camp-1', 'player');
+
+    mockWsFactory.emit('close', { code: 4403, reason: 'Forbidden' });
+
+    expect(pushStateSpy).toHaveBeenCalledWith(
+      null,
+      '',
+      '/play?error=campaign-access-revoked',
+    );
+    wsClient.disconnect();
+  });
+
+  it('attempts silent refresh on close code 4401 (success path)', async () => {
+    const fetchMock = vi.fn().mockResolvedValue(
+      new Response(
+        JSON.stringify({ accessToken: 'new-at', csrfToken: 'new-csrf' }),
+        { status: 200, headers: { 'Content-Type': 'application/json' } },
+      ),
+    );
+    vi.stubGlobal('fetch', fetchMock);
+    vi.spyOn(window, 'dispatchEvent').mockImplementation(() => true);
+
+    authState.csrfToken = 'old-csrf';
+
+    const { wsClient } = await import('./ws');
+    wsClient.connect('camp-1', 'player');
+
+    mockWsFactory.emit('close', { code: 4401, reason: 'Unauthorized' });
+
+    // Allow microtask queue to flush
+    await new Promise((r) => setTimeout(r, 0));
+
+    expect(fetchMock).toHaveBeenCalledWith(
+      '/api/auth/refresh',
+      expect.objectContaining({ method: 'POST' }),
+    );
+    expect(authState.csrfToken).toBe('new-csrf');
+    wsClient.disconnect();
+  });
+
+  it('calls handleUnauthenticated on close code 4401 when refresh fails', async () => {
+    const fetchMock = vi.fn().mockResolvedValue(
+      new Response(JSON.stringify({ error: { code: 'EXPIRED' } }), {
+        status: 401,
+      }),
+    );
+    vi.stubGlobal('fetch', fetchMock);
+    const pushStateSpy = vi
+      .spyOn(window.history, 'pushState')
+      .mockImplementation(() => {});
+    vi.spyOn(window, 'dispatchEvent').mockImplementation(() => true);
+
+    // Simulate an active session so handleUnauthenticated redirects
+    authState.me = { accountId: 'a', username: 'u', seats: [], csrfToken: 'x' };
+
+    const { wsClient } = await import('./ws');
+    wsClient.connect('camp-1', 'player');
+
+    mockWsFactory.emit('close', { code: 4401, reason: 'Unauthorized' });
+
+    await new Promise((r) => setTimeout(r, 0));
+
+    // handleUnauthenticated clears me and navigates to /play/login
+    expect(authState.me).toBeNull();
+    expect(pushStateSpy).toHaveBeenCalledWith(
+      null,
+      '',
+      expect.stringContaining('/play/login'),
     );
     wsClient.disconnect();
   });

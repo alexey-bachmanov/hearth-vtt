@@ -50,7 +50,7 @@ As work completes, check off tasks.
 - [x] **5C-7.** CSRF rotation on refresh. `POST /api/auth/refresh` always returns `{ accessToken, csrfToken }`. Client overwrites both atomically.
 - [x] **5C-8.** Forced password-change modal. When `authState.me.mustChangePassword === true`, render a blocking modal in `PlayLayout` and campaign picker. Posts to `POST /api/auth/change-password`. Re-loads `me` on success.
 - [x] **5C-9.** "Log out everywhere" button on [`AccountPage.svelte`](../client/src/ui/auth/AccountPage.svelte) (create if absent). Posts to `POST /api/auth/logout-all`, navigates to `/play/login`.
-- [ ] **5C-10.** Client tests: CSRF injection (sent on mutating requests, absent on GETs); silent-refresh-on-4401; forced-password-change modal render/submit; campaign-picker stale-seat toast; join page `INVITE_RACE_LOST` rendering.
+- [x] **5C-10.** Client tests: CSRF injection (sent on mutating requests, absent on GETs); silent-refresh-on-4401; forced-password-change modal render/submit; campaign-picker stale-seat toast; join page `INVITE_RACE_LOST` rendering.
 
 ---
 

@@ -9,8 +9,9 @@
  * happy-dom.
  */
 
-import { describe, it, expect, vi } from 'vitest';
-import { render, screen } from '@testing-library/svelte';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
+import { render, screen, fireEvent, waitFor } from '@testing-library/svelte';
+import { authState } from '../../state/auth.svelte.js';
 
 // Must be declared before the component imports so Vitest can hoist it.
 vi.mock('../../render', () => ({
@@ -29,6 +30,23 @@ vi.mock('../../render', () => ({
 }));
 
 import PlayLayout from './PlayLayout.svelte';
+
+// ---------------------------------------------------------------------------
+// Setup / teardown
+// ---------------------------------------------------------------------------
+
+beforeEach(() => {
+  authState.me = null;
+  authState.csrfToken = null;
+  vi.stubGlobal('fetch', vi.fn());
+});
+
+afterEach(() => {
+  vi.restoreAllMocks();
+  vi.unstubAllGlobals();
+  authState.me = null;
+  authState.csrfToken = null;
+});
 
 describe('PlayLayout landmarks and skip link', () => {
   it('has a skip-link to the main content', () => {
@@ -57,5 +75,126 @@ describe('PlayLayout landmarks and skip link', () => {
     expect(
       screen.getByRole('complementary', { name: 'Chat' }),
     ).toBeInTheDocument();
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Forced password-change modal
+// ---------------------------------------------------------------------------
+
+describe('PlayLayout forced-password-change modal', () => {
+  it('does not render the modal when mustChangePassword is false', () => {
+    authState.me = {
+      accountId: 'a',
+      username: 'u',
+      csrfToken: 'c',
+      seats: [],
+      mustChangePassword: false,
+    };
+    render(PlayLayout);
+
+    expect(
+      screen.queryByRole('dialog', { name: /Change your password/i }),
+    ).not.toBeInTheDocument();
+  });
+
+  it('renders a blocking modal when mustChangePassword is true', () => {
+    authState.me = {
+      accountId: 'a',
+      username: 'u',
+      csrfToken: 'c',
+      seats: [],
+      mustChangePassword: true,
+    };
+    render(PlayLayout);
+
+    expect(
+      screen.getByRole('dialog', { name: /Change your password/i }),
+    ).toBeInTheDocument();
+    expect(screen.getByLabelText('New password')).toBeInTheDocument();
+  });
+
+  it('shows validation error when passwords do not match', async () => {
+    authState.me = {
+      accountId: 'a',
+      username: 'u',
+      csrfToken: 'c',
+      seats: [],
+      mustChangePassword: true,
+    };
+    render(PlayLayout);
+
+    fireEvent.input(screen.getByLabelText('Current password'), {
+      target: { value: 'oldpassword' },
+    });
+    fireEvent.input(screen.getByLabelText('New password'), {
+      target: { value: 'newpassword1' },
+    });
+    fireEvent.input(screen.getByLabelText('Confirm new password'), {
+      target: { value: 'newpassword2' },
+    });
+    fireEvent.submit(
+      screen
+        .getByRole('dialog', { name: /Change your password/i })
+        .querySelector('form')!,
+    );
+
+    await waitFor(() => {
+      expect(screen.getByRole('alert')).toHaveTextContent(
+        'Passwords do not match.',
+      );
+    });
+  });
+
+  it('calls POST /api/auth/change-password on submit with matching passwords', async () => {
+    authState.me = {
+      accountId: 'a',
+      username: 'u',
+      csrfToken: 'csrf-tok',
+      seats: [],
+      mustChangePassword: true,
+    };
+    authState.csrfToken = 'csrf-tok';
+    const fetchMock = vi.mocked(fetch);
+    // First call: change-password; second: GET /api/auth/me (loadMe)
+    fetchMock
+      .mockResolvedValueOnce(
+        new Response(JSON.stringify({}), {
+          status: 200,
+          headers: { 'Content-Type': 'application/json' },
+        }),
+      )
+      .mockResolvedValueOnce(
+        new Response(
+          JSON.stringify({ accountId: 'a', username: 'u', csrfToken: 'c', seats: [], mustChangePassword: false }),
+          { status: 200, headers: { 'Content-Type': 'application/json' } },
+        ),
+      );
+
+    render(PlayLayout);
+
+    fireEvent.input(screen.getByLabelText('Current password'), {
+      target: { value: 'oldpassword' },
+    });
+    fireEvent.input(screen.getByLabelText('New password'), {
+      target: { value: 'newpassword1' },
+    });
+    fireEvent.input(screen.getByLabelText('Confirm new password'), {
+      target: { value: 'newpassword1' },
+    });
+    fireEvent.submit(
+      screen
+        .getByRole('dialog', { name: /Change your password/i })
+        .querySelector('form')!,
+    );
+
+    await waitFor(() => {
+      const [url, opts] = fetchMock.mock.calls[0] as [string, RequestInit];
+      expect(url).toBe('/api/auth/change-password');
+      expect(JSON.parse(opts.body as string)).toMatchObject({
+        currentPassword: 'oldpassword',
+        newPassword: 'newpassword1',
+      });
+    });
   });
 });

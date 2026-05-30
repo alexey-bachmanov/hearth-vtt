@@ -23,6 +23,7 @@ function makeMe() {
   return {
     accountId: 'acc-1',
     username: 'testplayer',
+    csrfToken: 'csrf-abc',
     seats: [],
   };
 }
@@ -49,6 +50,7 @@ let pushStateSpy: ReturnType<typeof vi.spyOn>;
 
 beforeEach(() => {
   authState.me = null;
+  authState.csrfToken = null;
   // @ts-expect-error reset loading state
   authState.loading = false;
   global.fetch = vi.fn();
@@ -61,6 +63,7 @@ beforeEach(() => {
 afterEach(() => {
   vi.restoreAllMocks();
   authState.me = null;
+  authState.csrfToken = null;
 });
 
 // ---------------------------------------------------------------------------
@@ -173,6 +176,29 @@ describe('PlayLoginPage — successful login', () => {
 
     await waitFor(() => {
       expect(authState.me).toEqual(me);
+    });
+  });
+
+  it('stores csrfToken from login response in authState', async () => {
+    const me = makeMe();
+    (global.fetch as ReturnType<typeof vi.fn>).mockResolvedValue(
+      makeOkResponse(me),
+    );
+
+    authState.csrfToken = null;
+
+    render(PlayLoginPage, { props: { returnTo: null } });
+
+    fireEvent.input(screen.getByLabelText('Username'), {
+      target: { value: 'testplayer' },
+    });
+    fireEvent.input(screen.getByLabelText('Password'), {
+      target: { value: 'password123' },
+    });
+    fireEvent.click(screen.getByRole('button', { name: 'Sign In' }));
+
+    await waitFor(() => {
+      expect(authState.csrfToken).toBe('csrf-abc');
     });
   });
 });

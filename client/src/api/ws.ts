@@ -84,6 +84,9 @@ export class WebSocketClient {
     if (seatId !== undefined) {
       this.seatId = seatId;
     }
+    // Calling connect() signals intent to reconnect; reset the flag so
+    // a prior disconnect() or failed auth refresh doesn't block it.
+    this.shouldReconnect = true;
 
     if (
       this.ws?.readyState === WebSocket.OPEN ||

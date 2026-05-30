@@ -6,11 +6,13 @@
  * - Populated state listing campaign entries
  * - Navigation when a campaign is clicked
  * - Account link navigation
+ * - Stale-seat error toast: ?error=campaign-access-revoked on mount
  */
 
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { render, screen, fireEvent } from '@testing-library/svelte';
+import { render, screen, fireEvent, waitFor } from '@testing-library/svelte';
 import { authState } from '../../state/auth.svelte.js';
+import { notificationState } from '../../state/notifications.svelte.js';
 import CampaignPickerPage from './CampaignPickerPage.svelte';
 
 // ---------------------------------------------------------------------------
@@ -129,5 +131,75 @@ describe('CampaignPickerPage — account link', () => {
     fireEvent.click(screen.getByText('testplayer'));
 
     expect(pushStateSpy).toHaveBeenCalledWith(null, '', '/play/account');
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Stale-seat error toast
+// ---------------------------------------------------------------------------
+
+describe('CampaignPickerPage — stale-seat toast', () => {
+  let warningSpy: ReturnType<typeof vi.spyOn>;
+  let replaceStateSpy: ReturnType<typeof vi.spyOn>;
+
+  beforeEach(() => {
+    warningSpy = vi.spyOn(notificationState, 'warning').mockImplementation(
+      () => ({ id: '1', type: 'persistent', kind: 'warning', message: '' }),
+    );
+    replaceStateSpy = vi
+      .spyOn(window.history, 'replaceState')
+      .mockImplementation(() => {});
+  });
+
+  it('shows a warning toast when ?error=campaign-access-revoked is in the URL', async () => {
+    Object.defineProperty(window, 'location', {
+      value: { ...window.location, search: '?error=campaign-access-revoked' },
+      writable: true,
+      configurable: true,
+    });
+
+    authState.me = { accountId: 'acc-1', username: 'player', seats: [] };
+    render(CampaignPickerPage);
+
+    await waitFor(() => {
+      expect(warningSpy).toHaveBeenCalledWith(
+        expect.stringContaining('revoked'),
+        'ephemeral',
+      );
+    });
+  });
+
+  it('strips the error param from the URL', async () => {
+    Object.defineProperty(window, 'location', {
+      value: {
+        ...window.location,
+        pathname: '/play',
+        search: '?error=campaign-access-revoked',
+      },
+      writable: true,
+      configurable: true,
+    });
+
+    authState.me = { accountId: 'acc-1', username: 'player', seats: [] };
+    render(CampaignPickerPage);
+
+    await waitFor(() => {
+      expect(replaceStateSpy).toHaveBeenCalledWith(null, '', '/play');
+    });
+  });
+
+  it('does not show a toast when no error param is present', async () => {
+    Object.defineProperty(window, 'location', {
+      value: { ...window.location, search: '' },
+      writable: true,
+      configurable: true,
+    });
+
+    authState.me = { accountId: 'acc-1', username: 'player', seats: [] };
+    render(CampaignPickerPage);
+
+    await waitFor(() => {
+      expect(warningSpy).not.toHaveBeenCalled();
+    });
   });
 });
