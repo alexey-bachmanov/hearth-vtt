@@ -89,6 +89,8 @@ export {
   engineInputSchema,
   type EngineInput,
   type DispatchResult,
+  diceRollPayloadSchema,
+  type DiceRollPayload,
 } from './engine';
 
 // ── Shared visibility geometry (Phase 2.5) ───────────────────────────────────

@@ -19,7 +19,7 @@
  * @see docs/todo.md — Engine Boundary Refactor, step 6
  */
 
-import { createHash, randomUUID } from 'node:crypto';
+import { createHash } from 'node:crypto';
 import type {
   Storage,
   Seat,
@@ -40,6 +40,7 @@ import type {
 } from './index.js';
 import type { Token, Actor, Scene, Position } from '@hearth-vtt/shared';
 import type { SnapshotBlobV1 } from './snapshot-blob.js';
+import { evaluate } from './dice/index.js';
 
 // ============================================================================
 // Constants
@@ -141,9 +142,7 @@ interface _ChatMessageData extends BaseEventData {
 }
 
 interface _DiceRolledData extends BaseEventData {
-  count: number;
-  sides: number;
-  modifier: number;
+  formula: string;
   rolls: number[];
   total: number;
 }
@@ -223,16 +222,8 @@ function deriveActionId(
  * Each (actionId, rollIndex) pair is independently seeded via sha256, so
  * individual dice within a roll are uncorrelated.
  */
-function deterministicRoll(
-  actionId: string,
-  rollIndex: number,
-  sides: number,
-): number {
-  const buf = createHash('sha256').update(`${actionId}:${rollIndex}`).digest();
-  // Use first 4 bytes as a big-endian uint32, then reduce to [0, sides).
-  const n = buf.readUInt32BE(0);
-  return (n % sides) + 1;
-}
+// NOTE: deterministicRoll removed in Phase A4. Rolls now delegated to
+// evaluate() in ./dice/index.ts, which uses pure-rand + rpg-dice-roller.
 
 // ============================================================================
 // PlaceholderEngine
@@ -703,43 +694,28 @@ export class PlaceholderEngine implements GameEngine {
    * the source of truth on replay — no recomputation is needed.
    */
   private validateDiceRoll(seatId: string, payload: unknown): ValidationResult {
-    if (!payload || typeof payload !== 'object') {
-      return {
-        ok: false,
-        reason:
-          'dice.roll requires { count: number, sides: number, modifier?: number }',
-      };
+    if (!payload || typeof payload !== 'object' || !('formula' in payload)) {
+      return { ok: false, reason: 'dice.roll requires { formula: string }' };
     }
-    const p = payload as Record<string, unknown>;
-    const count = p['count'];
-    const sides = p['sides'];
-    const modifier = p['modifier'] ?? 0;
-
-    if (
-      typeof count !== 'number' ||
-      !Number.isInteger(count) ||
-      count < 1 ||
-      count > 100
-    ) {
-      return {
-        ok: false,
-        reason: 'count must be an integer between 1 and 100',
-      };
-    }
-    if (typeof sides !== 'number' || !Number.isInteger(sides) || sides < 2) {
-      return { ok: false, reason: 'sides must be an integer \u2265 2' };
-    }
-    if (typeof modifier !== 'number' || !Number.isInteger(modifier)) {
-      return { ok: false, reason: 'modifier must be an integer' };
+    const formula = (payload as { formula: unknown }).formula;
+    if (typeof formula !== 'string') {
+      return { ok: false, reason: 'formula must be a string' };
     }
 
-    // Rolls are computed here and stored in the event so replay can read them
-    // directly without recomputation.
-    const rollSeed = randomUUID();
-    const rolls = Array.from({ length: count }, (_, i) =>
-      deterministicRoll(rollSeed, i, sides),
+    // Pre-compute the anticipated actionId using seq + 1. Safe because
+    // dispatchQueue serialises all dispatches: no other dispatch can advance
+    // seq between here and appendEvent(storable) below.
+    const anticipatedSeed = deriveActionId(
+      this.state.campaignId,
+      this.state.seq + 1,
+      'dice.roll',
+      { formula },
     );
-    const total = rolls.reduce((sum, r) => sum + r, 0) + modifier;
+
+    const result = evaluate(formula, anticipatedSeed);
+    if (!result.ok) {
+      return { ok: false, reason: result.reason };
+    }
 
     return {
       ok: true,
@@ -747,7 +723,12 @@ export class PlaceholderEngine implements GameEngine {
         campaignId: this.state.campaignId,
         entityId: null,
         type: 'dice.rolled',
-        data: { originSeatId: seatId, count, sides, modifier, rolls, total },
+        data: {
+          originSeatId: seatId,
+          formula,
+          rolls: result.rolls,
+          total: result.total,
+        },
       },
     };
   }

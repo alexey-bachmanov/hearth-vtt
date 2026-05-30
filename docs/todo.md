@@ -29,9 +29,9 @@ As work completes, check off tasks.
 - [x] **A1.** Add `@dice-roller/rpg-dice-roller` and `pure-rand` to `server/package.json`.
 - [x] **A2.** Create `server/src/domain/engine/dice/` module. Export `evaluate(formula: string, seed: string): { ok: true; rolls: number[]; total: number } | { ok: false; reason: string }`. Internally: derive a deterministic PRNG from `sha256(seed)` using `pure-rand`; adapt to rpg-dice-roller's `NumberGenerator` interface; cap formula length at 200 chars before invoking the library (bound parser work); catch all library throws and return them as `{ ok: false, reason: 'invalid dice formula' }` — no stack traces exposed.
 - [x] **A3.** Unit tests for the wrapper (`dice.test.ts`): same seed → same result; different seed → different result (probabilistic check over several dice); malformed formulas → `{ ok: false }` with stable reason; oversize formula → rejected before parse; no library exception leaks to caller.
-- [ ] **A4.** Migrate `PlaceholderEngine.validateDiceRoll`: change payload from `{ count, sides, modifier }` to `{ formula: string }`. Dispatch path derives `actionId` (already done for the hash), calls `evaluate(formula, actionId)`, writes event `type: 'dice.rolled'` with `data: { originSeatId, formula, rolls, total }`. Rolls are stored in the event; replay reads storage, never re-evaluates the formula.
-- [ ] **A5.** Update `dice.roll` Zod schema in `shared/` to `{ formula: z.string() }`.
-- [ ] **A6.** Update [`placeholder.test.ts`](../server/src/domain/engine/placeholder.test.ts) for the new payload shape and event-data fields. Add a seed-determinism test (same formula + same seed via same actionId → same rolls).
+- [x] **A4.** Migrate `PlaceholderEngine.validateDiceRoll`: change payload from `{ count, sides, modifier }` to `{ formula: string }`. Dispatch path derives `actionId` (already done for the hash), calls `evaluate(formula, actionId)`, writes event `type: 'dice.rolled'` with `data: { originSeatId, formula, rolls, total }`. Rolls are stored in the event; replay reads storage, never re-evaluates the formula.
+- [x] **A5.** Update `dice.roll` Zod schema in `shared/` to `{ formula: z.string() }`.
+- [x] **A6.** Update [`placeholder.test.ts`](../server/src/domain/engine/placeholder.test.ts) for the new payload shape and event-data fields. Add a seed-determinism test (same formula + same seed via same actionId → same rolls).
 
 ---
 

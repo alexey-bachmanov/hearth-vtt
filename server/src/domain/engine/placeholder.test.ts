@@ -241,13 +241,14 @@ describe('PlaceholderEngine', () => {
         seatId: gmSeatId,
         campaignId,
         actionType: 'dice.roll',
-        payload: { count: 2, sides: 6 },
+        payload: { formula: '2d6' },
       });
 
       expect(events).toHaveLength(1);
       const full = events[0] as { kind: 'full'; event: GameEvent };
       expect(full.event.type).toBe('dice.rolled');
-      const data = full.event.data as { rolls: number[]; total: number };
+      const data = full.event.data as { formula: string; rolls: number[]; total: number };
+      expect(data.formula).toBe('2d6');
       expect(data.rolls).toHaveLength(2);
       for (const roll of data.rolls) {
         expect(roll).toBeGreaterThanOrEqual(1);
@@ -501,7 +502,7 @@ describe('PlaceholderEngine', () => {
   // ── dice.roll ─────────────────────────────────────────────────────────────
 
   describe('dice.roll', () => {
-    it('accepted with valid params and results are in [1, sides]', async () => {
+    it('accepted with valid formula and results are in dice range', async () => {
       const { engine, campaignId, gmSeatId } = world;
       const { events, unsubscribe } = collectEvents(engine, gmSeatId, 1);
 
@@ -509,69 +510,67 @@ describe('PlaceholderEngine', () => {
         seatId: gmSeatId,
         campaignId,
         actionType: 'dice.roll',
-        payload: { count: 4, sides: 8, modifier: 3 },
+        payload: { formula: '4d8+3' },
       });
 
       expect(result.accepted).toBe(true);
       const full = events[0] as { kind: 'full'; event: GameEvent };
       const data = full.event.data as {
+        formula: string;
         rolls: number[];
         total: number;
-        modifier: number;
-        count: number;
-        sides: number;
       };
+      expect(data.formula).toBe('4d8+3');
       expect(data.rolls).toHaveLength(4);
       for (const roll of data.rolls) {
         expect(roll).toBeGreaterThanOrEqual(1);
         expect(roll).toBeLessThanOrEqual(8);
       }
       expect(data.total).toBe(data.rolls.reduce((a, b) => a + b, 0) + 3);
-      expect(data.modifier).toBe(3);
 
       unsubscribe();
     });
 
-    it('rejected when count < 1', async () => {
+    it('rejected when formula is missing', async () => {
       const { engine, campaignId, gmSeatId } = world;
       const result = await engine.dispatch({
         seatId: gmSeatId,
         campaignId,
         actionType: 'dice.roll',
-        payload: { count: 0, sides: 6 },
+        payload: {},
       });
       expect(result.accepted).toBe(false);
     });
 
-    it('rejected when count > 100', async () => {
+    it('rejected when formula is not a string', async () => {
       const { engine, campaignId, gmSeatId } = world;
       const result = await engine.dispatch({
         seatId: gmSeatId,
         campaignId,
         actionType: 'dice.roll',
-        payload: { count: 101, sides: 6 },
+        payload: { formula: 42 },
       });
       expect(result.accepted).toBe(false);
     });
 
-    it('rejected when sides < 2', async () => {
+    it('rejected for invalid/malformed formula', async () => {
       const { engine, campaignId, gmSeatId } = world;
       const result = await engine.dispatch({
         seatId: gmSeatId,
         campaignId,
         actionType: 'dice.roll',
-        payload: { count: 1, sides: 1 },
+        payload: { formula: 'not a dice formula!@#' },
       });
       expect(result.accepted).toBe(false);
     });
 
-    it('rejected for missing payload', async () => {
+    it('rejected for oversize formula (> 200 chars)', async () => {
       const { engine, campaignId, gmSeatId } = world;
       const result = await engine.dispatch({
         seatId: gmSeatId,
         campaignId,
         actionType: 'dice.roll',
-        payload: { count: 2 }, // missing sides
+        payload: { formula: 'd20+'.repeat(60) },
       });
       expect(result.accepted).toBe(false);
     });
@@ -581,9 +580,9 @@ describe('PlaceholderEngine', () => {
 
   describe('deterministic dice', () => {
     it('rolls broadcast to subscriber match the rolls stored in the event', async () => {
-      // Phase B design: rolls are pre-computed with a random seed and stored
-      // in the event. Determinism is guaranteed by replay — the stored rolls
-      // are returned as-is by applyEvent, not recomputed.
+      // Determinism guarantee: rolls are pre-computed with a seed derived from
+      // the anticipated actionId and stored in the event. Replay reads the stored
+      // rolls directly — no re-evaluation of the formula.
       const { storage, campaignId, gmSeatId } = world;
 
       let broadcastRolls: number[] | undefined;
@@ -597,7 +596,7 @@ describe('PlaceholderEngine', () => {
         seatId: gmSeatId,
         campaignId,
         actionType: 'dice.roll',
-        payload: { count: 5, sides: 20 },
+        payload: { formula: '5d20' },
       });
 
       expect(broadcastRolls).toBeDefined();
@@ -624,7 +623,7 @@ describe('PlaceholderEngine', () => {
         }
       });
 
-      const payload = { count: 5, sides: 20 };
+      const payload = { formula: '5d20' };
       await engine.dispatch({
         seatId: gmSeatId,
         campaignId,

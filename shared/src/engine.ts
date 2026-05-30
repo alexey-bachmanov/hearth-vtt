@@ -189,3 +189,13 @@ export type EngineInput = z.infer<typeof engineInputSchema>;
 export type DispatchResult =
   | { accepted: true; seq: number; actionId: string }
   | { accepted: false; reason: string };
+
+// ============================================================================
+// Per-action payload schemas
+// ============================================================================
+
+/** Payload schema for the built-in `dice.roll` action type. */
+export const diceRollPayloadSchema = z.object({
+  formula: z.string().max(200),
+});
+export type DiceRollPayload = z.infer<typeof diceRollPayloadSchema>;
