@@ -13,6 +13,12 @@
 
 import { navigate } from '../../app/routes.js';
 import { authState } from '../../state/auth.svelte.js';
+import { api } from '../../api/index.js';
+
+async function logoutAll() {
+  await api.auth.logoutAll();
+  navigate('/play/login');
+}
 </script>
 
 <div class="centered-page">
@@ -35,6 +41,9 @@ import { authState } from '../../state/auth.svelte.js';
       </button>
       <button class="btn btn-danger" onclick={() => authState.logout()}>
         Log Out
+      </button>
+      <button class="btn btn-danger-outline" onclick={logoutAll}>
+        Log Out Everywhere
       </button>
     </div>
   </div>
@@ -124,5 +133,16 @@ import { authState } from '../../state/auth.svelte.js';
     background-color: transparent;
     color: var(--color-error, #dc2626);
     border-color: var(--color-error, #dc2626);
+  }
+
+  .btn-danger-outline {
+    background-color: transparent;
+    color: var(--color-error, #dc2626);
+    border: 1px solid var(--color-error, #dc2626);
+    opacity: 0.8;
+  }
+
+  .btn-danger-outline:hover:not(:disabled) {
+    opacity: 1;
   }
 </style>
