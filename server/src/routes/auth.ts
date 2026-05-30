@@ -23,10 +23,15 @@ import { randomBytes, createHash } from 'crypto';
 import type { Storage, PlayerAccount, Seat } from '../storage/index.js';
 import type { MeResponse, SeatSummary } from '@hearth-vtt/shared';
 import {
+  generateCsrfToken,
+  requirePlayerCsrfToken,
+} from '../auth/csrf.js';
+import {
   createAccount,
   bindSeat,
   AccountError,
 } from '../domain/auth/account.js';
+
 import { verifyPassword, hashPassword } from '../utils/password.js';
 
 // ============================================================================
@@ -191,7 +196,7 @@ async function resolvePlayerSession(
   request: FastifyRequest,
   reply: FastifyReply,
   storage: Storage,
-): Promise<{ account: PlayerAccount; sessionId: string } | null> {
+): Promise<{ account: PlayerAccount; sessionId: string; csrfToken: string } | null> {
   const refreshToken = request.cookies[REFRESH_COOKIE];
 
   if (!refreshToken) {
@@ -238,7 +243,7 @@ async function resolvePlayerSession(
     return null;
   }
 
-  return { account, sessionId: session.id };
+  return { account, sessionId: session.id, csrfToken: session.csrfToken };
 }
 
 // ============================================================================
@@ -428,12 +433,14 @@ export async function authRoutes(
     // --- Create auth session ---
     const refreshToken = generateToken();
     const accessToken = generateToken();
+    const csrfToken = generateCsrfToken();
     const now = Date.now();
 
     await storage.createAuthSession({
       accountId: account.id,
       refreshTokenHash: hashToken(refreshToken),
       accessTokenHash: hashToken(accessToken),
+      csrfToken,
       expiresAt: now + REFRESH_DURATION_MS,
     });
 
@@ -453,6 +460,7 @@ export async function authRoutes(
       campaignId,
       seatId: seat.id,
       role: seat.role,
+      csrfToken,
     };
   });
 
@@ -518,12 +526,14 @@ export async function authRoutes(
 
       const refreshToken = generateToken();
       const accessToken = generateToken();
+      const csrfToken = generateCsrfToken();
       const now = Date.now();
 
       await storage.createAuthSession({
         accountId: account.id,
         refreshTokenHash: hashToken(refreshToken),
         accessTokenHash: hashToken(accessToken),
+        csrfToken,
         expiresAt: now + REFRESH_DURATION_MS,
       });
 
@@ -538,7 +548,7 @@ export async function authRoutes(
       });
 
       reply.code(200);
-      return buildMeResponse(account, storage);
+      return { ...await buildMeResponse(account, storage), csrfToken };
     },
   );
 
@@ -551,7 +561,10 @@ export async function authRoutes(
    *
    * Returns 204 regardless of whether a valid session was found (idempotent).
    */
-  server.post('/api/auth/logout', async (request, reply) => {
+  server.post(
+    '/api/auth/logout',
+    { preHandler: requirePlayerCsrfToken(storage) },
+    async (request, reply) => {
     const refreshToken = request.cookies[REFRESH_COOKIE];
 
     if (refreshToken) {
@@ -584,7 +597,7 @@ export async function authRoutes(
     const resolved = await resolvePlayerSession(request, reply, storage);
     if (!resolved) return;
 
-    const { sessionId } = resolved;
+    const { sessionId, csrfToken } = resolved;
     const newAccessToken = generateToken();
 
     await storage.updateAuthSession(sessionId, {
@@ -593,7 +606,7 @@ export async function authRoutes(
     });
 
     reply.code(200);
-    return { accessToken: newAccessToken };
+    return { accessToken: newAccessToken, csrfToken };
   });
 
   // --------------------------------------------------------------------------

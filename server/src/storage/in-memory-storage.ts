@@ -518,6 +518,7 @@ export class InMemoryBackend implements StorageBackend {
     accountId: string;
     refreshTokenHash: string;
     accessTokenHash: string;
+    csrfToken: string;
     expiresAt: number;
   }): Promise<AuthSession> {
     const now = Date.now();
@@ -526,6 +527,7 @@ export class InMemoryBackend implements StorageBackend {
       accountId: data.accountId,
       refreshTokenHash: data.refreshTokenHash,
       accessTokenHash: data.accessTokenHash,
+      csrfToken: data.csrfToken,
       expiresAt: data.expiresAt,
       createdAt: now,
       lastUsedAt: now,

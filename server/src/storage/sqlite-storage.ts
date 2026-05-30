@@ -225,6 +225,7 @@ export class SqliteStorage implements StorageBackend {
         account_id TEXT NOT NULL,
         refresh_token_hash TEXT NOT NULL UNIQUE,
         access_token_hash TEXT NOT NULL,
+        csrf_token TEXT NOT NULL DEFAULT '',
         expires_at INTEGER NOT NULL,
         created_at INTEGER NOT NULL,
         last_used_at INTEGER NOT NULL,
@@ -251,6 +252,27 @@ export class SqliteStorage implements StorageBackend {
   }
 
   /**
+   * Incremental schema migrations for databases created before columns were
+   * added. Each migration is guarded so it is safe to run on every startup.
+   *
+   * Pattern: check PRAGMA table_info; alter only if the column is absent.
+   * SQLite does not support "ALTER TABLE … ADD COLUMN IF NOT EXISTS".
+   */
+  private migrateSchema(): void {
+    const db = this.ensureDb();
+
+    // Migration: add csrf_token to auth_sessions (introduced in 5A-4)
+    const authCols = db
+      .prepare("PRAGMA table_info('auth_sessions')")
+      .all() as { name: string }[];
+    if (!authCols.some((c) => c.name === 'csrf_token')) {
+      db.exec(
+        "ALTER TABLE auth_sessions ADD COLUMN csrf_token TEXT NOT NULL DEFAULT ''",
+      );
+    }
+  }
+
+  /**
    * Initialize the storage system.
    * Opens (or creates) the database file and ensures the schema is up to date.
    * Pass dataDir ':memory:' for an in-memory database (tests only).
@@ -264,6 +286,7 @@ export class SqliteStorage implements StorageBackend {
     this.db.pragma('foreign_keys = ON');
     this.db.pragma('journal_mode = WAL');
     this.initSchema();
+    this.migrateSchema();
   }
 
   /**
@@ -1365,6 +1388,7 @@ export class SqliteStorage implements StorageBackend {
     accountId: string;
     refreshTokenHash: string;
     accessTokenHash: string;
+    csrfToken: string;
     expiresAt: number;
   }): Promise<AuthSession> {
     const db = this.ensureDb();
@@ -1376,6 +1400,7 @@ export class SqliteStorage implements StorageBackend {
       accountId: data.accountId,
       refreshTokenHash: data.refreshTokenHash,
       accessTokenHash: data.accessTokenHash,
+      csrfToken: data.csrfToken,
       expiresAt: data.expiresAt,
       createdAt: now,
       lastUsedAt: now,
@@ -1385,15 +1410,16 @@ export class SqliteStorage implements StorageBackend {
     const stmt = db.prepare(`
       INSERT INTO auth_sessions (
         id, account_id, refresh_token_hash, access_token_hash,
-        expires_at, created_at, last_used_at, revoked_at
+        csrf_token, expires_at, created_at, last_used_at, revoked_at
       )
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
     `);
     stmt.run(
       session.id,
       session.accountId,
       session.refreshTokenHash,
       session.accessTokenHash,
+      session.csrfToken,
       session.expiresAt,
       session.createdAt,
       session.lastUsedAt,
@@ -1415,6 +1441,7 @@ export class SqliteStorage implements StorageBackend {
         account_id as accountId,
         refresh_token_hash as refreshTokenHash,
         access_token_hash as accessTokenHash,
+        csrf_token as csrfToken,
         expires_at as expiresAt,
         created_at as createdAt,
         last_used_at as lastUsedAt,

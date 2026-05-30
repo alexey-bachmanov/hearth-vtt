@@ -119,6 +119,7 @@ export interface AuthSession {
   accountId: string; // References PlayerAccount.id
   refreshTokenHash: string; // Hashed refresh token
   accessTokenHash: string; // Hashed access token (short-lived)
+  csrfToken: string; // CSRF token (plain text, returned to client in response body)
   expiresAt: number; // Unix timestamp
   createdAt: number;
   lastUsedAt: number;
@@ -310,6 +311,7 @@ export interface StorageBackend {
     accountId: string;
     refreshTokenHash: string;
     accessTokenHash: string;
+    csrfToken: string;
     expiresAt: number;
   }): Promise<AuthSession>;
   getAuthSession(refreshTokenHash: string): Promise<AuthSession | null>;
@@ -650,6 +652,7 @@ export class Storage {
     accountId: string;
     refreshTokenHash: string;
     accessTokenHash: string;
+    csrfToken: string;
     expiresAt: number;
   }): Promise<AuthSession> {
     return this.backend.createAuthSession(data);

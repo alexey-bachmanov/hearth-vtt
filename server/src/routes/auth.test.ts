@@ -370,7 +370,7 @@ describe('POST /api/auth/logout', () => {
   it('clears the cookie and returns 204 (with valid session)', async () => {
     await createAccount('logoutuser', USER_PASSWORD, storage);
 
-    // Login first
+    // Login first — response now includes csrfToken
     const loginRes = await server.inject({
       method: 'POST',
       url: '/api/auth/login',
@@ -378,12 +378,14 @@ describe('POST /api/auth/logout', () => {
       payload: { username: 'logoutuser', password: USER_PASSWORD },
     });
     const cookie = extractRefreshCookie(loginRes)!;
+    const { csrfToken } = loginRes.json();
     expect(cookie).not.toBeNull();
+    expect(typeof csrfToken).toBe('string');
 
     const res = await server.inject({
       method: 'POST',
       url: '/api/auth/logout',
-      headers: { cookie },
+      headers: { cookie, 'x-csrf-token': csrfToken },
     });
 
     expect(res.statusCode).toBe(204);
@@ -395,12 +397,32 @@ describe('POST /api/auth/logout', () => {
     expect(cookieHeader).toContain('hearth_refresh=;');
   });
 
-  it('returns 204 even with no cookie (idempotent)', async () => {
+  it('returns 403 with no cookie and no CSRF header', async () => {
     const res = await server.inject({
       method: 'POST',
       url: '/api/auth/logout',
     });
-    expect(res.statusCode).toBe(204);
+    expect(res.statusCode).toBe(403);
+    expect(res.json().error.code).toBe('CSRF_TOKEN_MISSING');
+  });
+
+  it('returns 403 with cookie but missing CSRF token', async () => {
+    await createAccount('logoutnocsrf', USER_PASSWORD, storage);
+    const loginRes = await server.inject({
+      method: 'POST',
+      url: '/api/auth/login',
+      remoteAddress: SUITE_IP,
+      payload: { username: 'logoutnocsrf', password: USER_PASSWORD },
+    });
+    const cookie = extractRefreshCookie(loginRes)!;
+
+    const res = await server.inject({
+      method: 'POST',
+      url: '/api/auth/logout',
+      headers: { cookie }, // no X-CSRF-Token
+    });
+    expect(res.statusCode).toBe(403);
+    expect(res.json().error.code).toBe('CSRF_TOKEN_MISSING');
   });
 
   it('session is revoked after logout — subsequent /me returns 401', async () => {
@@ -413,11 +435,12 @@ describe('POST /api/auth/logout', () => {
       payload: { username: 'logoutme', password: USER_PASSWORD },
     });
     const cookie = extractRefreshCookie(loginRes)!;
+    const { csrfToken } = loginRes.json();
 
     await server.inject({
       method: 'POST',
       url: '/api/auth/logout',
-      headers: { cookie },
+      headers: { cookie, 'x-csrf-token': csrfToken },
     });
 
     const meRes = await server.inject({
@@ -512,11 +535,12 @@ describe('POST /api/auth/refresh', () => {
       payload: { username: 'refreshuser', password: USER_PASSWORD },
     });
     const cookie = extractRefreshCookie(loginRes)!;
+    const { csrfToken } = loginRes.json();
 
     await server.inject({
       method: 'POST',
       url: '/api/auth/logout',
-      headers: { cookie },
+      headers: { cookie, 'x-csrf-token': csrfToken },
     });
 
     const res = await server.inject({

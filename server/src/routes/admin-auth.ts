@@ -16,14 +16,22 @@
  */
 
 import type { FastifyInstance, FastifyRequest, FastifyReply } from 'fastify';
-import { randomBytes, createHash, timingSafeEqual } from 'crypto';
+import { randomBytes, createHash } from 'crypto';
 import type { Storage } from '../storage/storage';
 import { deleteSetupPinFile } from '../auth/setup-pin.js';
+import {
+  generateCsrfToken,
+  requireAdminCsrfToken,
+} from '../auth/csrf.js';
 import {
   hashPassword,
   verifyPassword,
   MAX_PASSWORD_LENGTH,
 } from '../utils/password.js';
+
+/** Backward-compatible alias — used internally AND re-exported for other route modules. */
+const requireCsrfToken = requireAdminCsrfToken;
+export { requireCsrfToken };
 
 // Augment FastifyRequest to include adminId set by requireAdminAuth middleware
 declare module 'fastify' {
@@ -109,15 +117,6 @@ interface ChangePasswordBody {
  * @returns 32-byte hex token
  */
 function generateSessionToken(): string {
-  return randomBytes(32).toString('hex');
-}
-
-/**
- * Generate a CSRF token.
- *
- * @returns 32-byte hex token
- */
-function generateCsrfToken(): string {
   return randomBytes(32).toString('hex');
 }
 
@@ -762,73 +761,5 @@ export function requireAdminAuth(storage: Storage) {
 }
 
 /**
- * Middleware to require CSRF token validation.
- *
- * Checks for X-CSRF-Token header and validates it against the session.
- * Must be used after requireAdminAuth middleware.
- *
- * Usage:
- *   server.post('/api/admin/campaigns', {
- *     preHandler: [requireAdminAuth(storage), requireCsrfToken(storage)]
- *   }, handler);
+ * Backward-compatible alias is defined and exported near the top of this file.
  */
-export function requireCsrfToken(storage: Storage) {
-  return async (request: FastifyRequest, reply: FastifyReply) => {
-    const csrfToken = request.headers['x-csrf-token'];
-
-    if (!csrfToken || typeof csrfToken !== 'string') {
-      reply.code(403);
-      return reply.send({
-        error: {
-          code: 'CSRF_TOKEN_MISSING',
-          message: 'CSRF token is required',
-        },
-      });
-    }
-
-    // Get session from cookie (should exist after requireAdminAuth)
-    const sessionToken = request.cookies[COOKIE_NAME];
-
-    if (!sessionToken) {
-      reply.code(401);
-      return reply.send({
-        error: {
-          code: 'UNAUTHORIZED',
-          message: 'Admin authentication required',
-        },
-      });
-    }
-
-    // Verify CSRF token matches session
-    const sessionTokenHash = hashSessionToken(sessionToken);
-    const session = await storage.getAdminSession(sessionTokenHash);
-
-    if (!session) {
-      reply.code(401);
-      return reply.send({
-        error: {
-          code: 'INVALID_SESSION',
-          message: 'Admin session not found or has been revoked',
-        },
-      });
-    }
-
-    // Timing-safe comparison: prevent leaking token validity via response time.
-    // Both tokens are 64-char hex strings (same length) but we guard against
-    // length-mismatch to avoid a timingSafeEqual throw.
-    const expectedBuf = Buffer.from(session.csrfToken, 'utf8');
-    const receivedBuf = Buffer.from(csrfToken, 'utf8');
-    const tokenValid =
-      expectedBuf.length === receivedBuf.length &&
-      timingSafeEqual(expectedBuf, receivedBuf);
-    if (!tokenValid) {
-      reply.code(403);
-      return reply.send({
-        error: {
-          code: 'CSRF_TOKEN_INVALID',
-          message: 'Invalid CSRF token',
-        },
-      });
-    }
-  };
-}

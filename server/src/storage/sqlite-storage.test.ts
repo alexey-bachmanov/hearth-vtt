@@ -801,6 +801,7 @@ describe('SqliteStorage (:memory: mode)', () => {
         refreshTokenHash: 'refresh-hash-xyz',
         accessTokenHash: 'access-hash-xyz',
         expiresAt: Date.now() + 3600_000,
+        csrfToken: 'csrf-xyz',
       });
 
       const retrieved = await storage.getAuthSession('refresh-hash-xyz');
@@ -814,6 +815,7 @@ describe('SqliteStorage (:memory: mode)', () => {
         refreshTokenHash: 'to-revoke-hash',
         accessTokenHash: 'access-hash',
         expiresAt: Date.now() + 3600_000,
+        csrfToken: 'csrf-revoke',
       });
 
       await storage.revokeAuthSession(session.id);
@@ -826,6 +828,7 @@ describe('SqliteStorage (:memory: mode)', () => {
         refreshTokenHash: 'old-refresh-hash',
         accessTokenHash: 'access-hash',
         expiresAt: Date.now() + 3600_000,
+        csrfToken: 'csrf-update',
       });
 
       await storage.updateAuthSession(session.id, {
@@ -847,12 +850,14 @@ describe('SqliteStorage (:memory: mode)', () => {
         refreshTokenHash: 'hash-s1',
         accessTokenHash: 'access-s1',
         expiresAt: Date.now() + 3600_000,
+        csrfToken: 'csrf-s1',
       });
       await storage.createAuthSession({
         accountId: otherAccount.id,
         refreshTokenHash: 'hash-s2',
         accessTokenHash: 'access-s2',
         expiresAt: Date.now() + 3600_000,
+        csrfToken: 'csrf-s2',
       });
 
       const sessions = await storage.listAuthSessionsForAccount(accountId);
@@ -866,12 +871,14 @@ describe('SqliteStorage (:memory: mode)', () => {
         refreshTokenHash: 'hash-b1',
         accessTokenHash: 'access-b1',
         expiresAt: Date.now() + 3600_000,
+        csrfToken: 'csrf-b1',
       });
       await storage.createAuthSession({
         accountId,
         refreshTokenHash: 'hash-b2',
         accessTokenHash: 'access-b2',
         expiresAt: Date.now() + 3600_000,
+        csrfToken: 'csrf-b2',
       });
 
       await storage.revokeAllAuthSessionsForAccount(accountId);
