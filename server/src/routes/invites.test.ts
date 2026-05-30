@@ -1,7 +1,7 @@
 // ---------------------------------------------------------------------------
 // Module-level environment setup — must appear before any imports.
 // ---------------------------------------------------------------------------
-process.env.NODE_ENV = 'development'; // Prevents 501 guard in inviteRoutes
+process.env.NODE_ENV = 'development';
 process.env.ADMIN_ALLOW_REMOTE = 'true'; // Allows inject() to use any IP
 process.env.COOKIE_SECRET = 'test-cookie-secret-value-must-be-at-least-32-chars';
 
@@ -20,9 +20,7 @@ const TEST_PIN = 'TESTPIN1';
 const TEST_PASSWORD = 'secure-test-password-123';
 const DATA_DIR = tmpdir();
 
-const CAMPAIGN_ID = 'campaign-mock-001';
-const KNOWN_INVITE_ID = 'invite-001';
-const UNKNOWN_INVITE_ID = 'invite-does-not-exist';
+const UNKNOWN_INVITE_TOKEN = 'nonexistent-token-that-does-not-exist';
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -106,12 +104,39 @@ describe('GET /api/campaigns/:id/invites', () => {
   let server: FastifyInstance;
   let storage: Storage;
   let validCookie: string;
+  let campaignId: string;
 
   beforeAll(async () => {
     ({ server, storage } = await createTestServer());
     await seedAdmin(storage);
     const { cookie } = await setupViaApi(server, '10.20.0.0');
     validCookie = cookie;
+
+    // Seed a campaign with 1 seat and 2 invites
+    const campaign = await storage.createCampaign('Get Invites Campaign');
+    campaignId = campaign.id;
+    const seat = await storage.createSeat({
+      campaignId,
+      displayName: 'Player Seat',
+      role: 'player',
+    });
+    const pinHash = await hashPin(TEST_PIN);
+    await storage.createInvite({
+      campaignId,
+      seatId: seat.id,
+      inviteToken: 'test-invite-token-alpha',
+      pinHash,
+      maxUses: 1,
+      expiresAt: Date.now() + 3600 * 1000,
+    });
+    await storage.createInvite({
+      campaignId,
+      seatId: seat.id,
+      inviteToken: 'test-invite-token-beta',
+      pinHash,
+      maxUses: 1,
+      expiresAt: Date.now() + 3600 * 1000,
+    });
   });
 
   afterAll(async () => {
@@ -122,7 +147,7 @@ describe('GET /api/campaigns/:id/invites', () => {
   it('returns 401 when unauthenticated', async () => {
     const res = await server.inject({
       method: 'GET',
-      url: `/api/campaigns/${CAMPAIGN_ID}/invites`,
+      url: `/api/campaigns/${campaignId}/invites`,
       remoteAddress: '10.20.0.1',
     });
 
@@ -132,7 +157,7 @@ describe('GET /api/campaigns/:id/invites', () => {
   it('returns 200 with invites array of count 2 for a known campaign', async () => {
     const res = await server.inject({
       method: 'GET',
-      url: `/api/campaigns/${CAMPAIGN_ID}/invites`,
+      url: `/api/campaigns/${campaignId}/invites`,
       headers: { Cookie: validCookie },
       remoteAddress: '10.20.0.2',
     });
@@ -168,6 +193,8 @@ describe('POST /api/campaigns/:id/invites', () => {
   let storage: Storage;
   let validCookie: string;
   let validCsrfToken: string;
+  let campaignId: string;
+  let seatId: string;
 
   beforeAll(async () => {
     ({ server, storage } = await createTestServer());
@@ -176,6 +203,15 @@ describe('POST /api/campaigns/:id/invites', () => {
     const { cookie, csrfToken } = await loginFresh(server, '10.21.0.1');
     validCookie = cookie;
     validCsrfToken = csrfToken;
+
+    const campaign = await storage.createCampaign('Post Invite Campaign');
+    campaignId = campaign.id;
+    const seat = await storage.createSeat({
+      campaignId,
+      displayName: 'Player Seat',
+      role: 'player',
+    });
+    seatId = seat.id;
   });
 
   afterAll(async () => {
@@ -186,13 +222,8 @@ describe('POST /api/campaigns/:id/invites', () => {
   it('returns 401 when unauthenticated', async () => {
     const res = await server.inject({
       method: 'POST',
-      url: `/api/campaigns/${CAMPAIGN_ID}/invites`,
-      payload: {
-        seatId: 'seat-player-001',
-        rolesGranted: ['player'],
-        pin: '1234',
-        expiresIn: 3600,
-      },
+      url: `/api/campaigns/${campaignId}/invites`,
+      payload: { seatId, pin: '1234', expiresIn: 3600 },
       remoteAddress: '10.21.0.2',
     });
 
@@ -202,14 +233,9 @@ describe('POST /api/campaigns/:id/invites', () => {
   it('returns 403 when CSRF token is missing', async () => {
     const res = await server.inject({
       method: 'POST',
-      url: `/api/campaigns/${CAMPAIGN_ID}/invites`,
+      url: `/api/campaigns/${campaignId}/invites`,
       headers: { Cookie: validCookie },
-      payload: {
-        seatId: 'seat-player-001',
-        rolesGranted: ['player'],
-        pin: '1234',
-        expiresIn: 3600,
-      },
+      payload: { seatId, pin: '1234', expiresIn: 3600 },
       remoteAddress: '10.21.0.3',
     });
 
@@ -219,7 +245,7 @@ describe('POST /api/campaigns/:id/invites', () => {
   it('returns 400 INVALID_REQUEST when required body fields are missing', async () => {
     const res = await server.inject({
       method: 'POST',
-      url: `/api/campaigns/${CAMPAIGN_ID}/invites`,
+      url: `/api/campaigns/${campaignId}/invites`,
       headers: { Cookie: validCookie, 'X-CSRF-Token': validCsrfToken },
       payload: {},
       remoteAddress: '10.21.0.4',
@@ -234,14 +260,9 @@ describe('POST /api/campaigns/:id/invites', () => {
   it('returns 201 with invite containing inviteToken and inviteUrl on valid request', async () => {
     const res = await server.inject({
       method: 'POST',
-      url: `/api/campaigns/${CAMPAIGN_ID}/invites`,
+      url: `/api/campaigns/${campaignId}/invites`,
       headers: { Cookie: validCookie, 'X-CSRF-Token': validCsrfToken },
-      payload: {
-        seatId: 'seat-player-001',
-        rolesGranted: ['player'],
-        pin: '1234',
-        expiresIn: 3600,
-      },
+      payload: { seatId, pin: '1234', expiresIn: 3600 },
       remoteAddress: '10.21.0.5',
     });
 
@@ -251,19 +272,22 @@ describe('POST /api/campaigns/:id/invites', () => {
     }>();
     expect(body).toHaveProperty('invite');
     expect(typeof body.invite.inviteToken).toBe('string');
+    expect(body.invite.inviteToken.length).toBeGreaterThan(0);
     expect(typeof body.invite.inviteUrl).toBe('string');
   });
 });
 
 // ---------------------------------------------------------------------------
-// DELETE /api/campaigns/:id/invites/:inviteId
+// DELETE /api/campaigns/:id/invites/:inviteToken
 // ---------------------------------------------------------------------------
 
-describe('DELETE /api/campaigns/:id/invites/:inviteId', () => {
+describe('DELETE /api/campaigns/:id/invites/:inviteToken', () => {
   let server: FastifyInstance;
   let storage: Storage;
   let validCookie: string;
   let validCsrfToken: string;
+  let campaignId: string;
+  let knownInviteToken: string;
 
   beforeAll(async () => {
     ({ server, storage } = await createTestServer());
@@ -272,6 +296,25 @@ describe('DELETE /api/campaigns/:id/invites/:inviteId', () => {
     const { cookie, csrfToken } = await loginFresh(server, '10.22.0.1');
     validCookie = cookie;
     validCsrfToken = csrfToken;
+
+    // Seed a campaign + seat + invite to revoke
+    const campaign = await storage.createCampaign('Delete Invite Campaign');
+    campaignId = campaign.id;
+    const seat = await storage.createSeat({
+      campaignId,
+      displayName: 'Player Seat',
+      role: 'player',
+    });
+    const pinHash = await hashPin(TEST_PIN);
+    knownInviteToken = 'test-revoke-token-12345';
+    await storage.createInvite({
+      campaignId,
+      seatId: seat.id,
+      inviteToken: knownInviteToken,
+      pinHash,
+      maxUses: 1,
+      expiresAt: Date.now() + 3600 * 1000,
+    });
   });
 
   afterAll(async () => {
@@ -282,17 +325,17 @@ describe('DELETE /api/campaigns/:id/invites/:inviteId', () => {
   it('returns 401 when unauthenticated', async () => {
     const res = await server.inject({
       method: 'DELETE',
-      url: `/api/campaigns/${CAMPAIGN_ID}/invites/${KNOWN_INVITE_ID}`,
+      url: `/api/campaigns/${campaignId}/invites/${knownInviteToken}`,
       remoteAddress: '10.22.0.2',
     });
 
     expect(res.statusCode).toBe(401);
   });
 
-  it('returns 404 INVITE_NOT_FOUND for an unknown inviteId', async () => {
+  it('returns 404 INVITE_NOT_FOUND for an unknown inviteToken', async () => {
     const res = await server.inject({
       method: 'DELETE',
-      url: `/api/campaigns/${CAMPAIGN_ID}/invites/${UNKNOWN_INVITE_ID}`,
+      url: `/api/campaigns/${campaignId}/invites/${UNKNOWN_INVITE_TOKEN}`,
       headers: { Cookie: validCookie, 'X-CSRF-Token': validCsrfToken },
       remoteAddress: '10.22.0.3',
     });
@@ -303,10 +346,10 @@ describe('DELETE /api/campaigns/:id/invites/:inviteId', () => {
     );
   });
 
-  it('returns 204 on successful deletion of a known inviteId', async () => {
+  it('returns 204 on successful revocation of a known inviteToken', async () => {
     const res = await server.inject({
       method: 'DELETE',
-      url: `/api/campaigns/${CAMPAIGN_ID}/invites/${KNOWN_INVITE_ID}`,
+      url: `/api/campaigns/${campaignId}/invites/${knownInviteToken}`,
       headers: { Cookie: validCookie, 'X-CSRF-Token': validCsrfToken },
       remoteAddress: '10.22.0.4',
     });

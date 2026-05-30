@@ -654,3 +654,256 @@ describe('GET /api/auth/me', () => {
     expect(res.statusCode).toBe(401);
   });
 });
+
+// ============================================================================
+// POST /api/auth/change-password
+// ============================================================================
+
+describe('POST /api/auth/change-password', () => {
+  let server: FastifyInstance;
+  let storage: Storage;
+
+  const SUITE_IP = '10.0.6.1';
+
+  beforeAll(async () => {
+    ({ server, storage } = await createTestServer());
+  });
+
+  afterAll(async () => {
+    await server.close();
+    storage.close();
+  });
+
+  it('returns 403 with no session cookie (CSRF check fires first)', async () => {
+    const res = await server.inject({
+      method: 'POST',
+      url: '/api/auth/change-password',
+      remoteAddress: SUITE_IP,
+      payload: { currentPassword: USER_PASSWORD, newPassword: 'newpassword99' },
+    });
+    expect(res.statusCode).toBe(403);
+  });
+
+  it('returns 403 when CSRF token is missing', async () => {
+    await createAccount('nocsrf', USER_PASSWORD, storage);
+    const loginRes = await server.inject({
+      method: 'POST',
+      url: '/api/auth/login',
+      remoteAddress: SUITE_IP,
+      payload: { username: 'nocsrf', password: USER_PASSWORD },
+    });
+    const cookie = extractRefreshCookie(loginRes)!;
+
+    const res = await server.inject({
+      method: 'POST',
+      url: '/api/auth/change-password',
+      remoteAddress: SUITE_IP,
+      headers: { cookie },
+      payload: { currentPassword: USER_PASSWORD, newPassword: 'newpassword99' },
+    });
+    expect(res.statusCode).toBe(403);
+  });
+
+  it('returns 401 WRONG_PASSWORD when current password is incorrect', async () => {
+    await createAccount('wrongpw', USER_PASSWORD, storage);
+    const loginRes = await server.inject({
+      method: 'POST',
+      url: '/api/auth/login',
+      remoteAddress: SUITE_IP,
+      payload: { username: 'wrongpw', password: USER_PASSWORD },
+    });
+    const cookie = extractRefreshCookie(loginRes)!;
+    const { csrfToken } = loginRes.json<{ csrfToken: string }>();
+
+    const res = await server.inject({
+      method: 'POST',
+      url: '/api/auth/change-password',
+      remoteAddress: SUITE_IP,
+      headers: { cookie, 'x-csrf-token': csrfToken },
+      payload: { currentPassword: 'wrong-password', newPassword: 'newpassword99' },
+    });
+    expect(res.statusCode).toBe(401);
+    expect(res.json<{ error: { code: string } }>().error.code).toBe(
+      'WRONG_PASSWORD',
+    );
+  });
+
+  it('mustChangePassword round-trip: set via admin reset, cleared via change-password', async () => {
+    await createAccount('mustchange', USER_PASSWORD, storage);
+
+    // Simulate admin reset: set mustChangePassword=true
+    const account = await storage.getPlayerAccountByUsername('mustchange');
+    expect(account).not.toBeNull();
+    await storage.setPlayerAccountMustChangePassword(account!.id, true);
+
+    // Login — response should include mustChangePassword=true
+    const loginRes = await server.inject({
+      method: 'POST',
+      url: '/api/auth/login',
+      remoteAddress: SUITE_IP,
+      payload: { username: 'mustchange', password: USER_PASSWORD },
+    });
+    expect(loginRes.statusCode).toBe(200);
+    const loginBody = loginRes.json<{ mustChangePassword: boolean; csrfToken: string }>();
+    expect(loginBody.mustChangePassword).toBe(true);
+
+    // Change password — clears mustChangePassword
+    const cookie = extractRefreshCookie(loginRes)!;
+    const changeRes = await server.inject({
+      method: 'POST',
+      url: '/api/auth/change-password',
+      remoteAddress: SUITE_IP,
+      headers: { cookie, 'x-csrf-token': loginBody.csrfToken },
+      payload: { currentPassword: USER_PASSWORD, newPassword: 'newpassword123' },
+    });
+    expect(changeRes.statusCode).toBe(200);
+    const changeBody = changeRes.json<{ mustChangePassword: boolean }>();
+    expect(changeBody.mustChangePassword).toBe(false);
+
+    // GET /api/auth/me also reflects mustChangePassword=false
+    const meRes = await server.inject({
+      method: 'GET',
+      url: '/api/auth/me',
+      remoteAddress: SUITE_IP,
+      headers: { cookie },
+    });
+    expect(meRes.statusCode).toBe(200);
+    expect(meRes.json<{ mustChangePassword: boolean }>().mustChangePassword).toBe(false);
+  });
+});
+
+// ============================================================================
+// POST /api/auth/logout-all
+// ============================================================================
+
+describe('POST /api/auth/logout-all', () => {
+  let server: FastifyInstance;
+  let storage: Storage;
+
+  const SUITE_IP = '10.0.7.1';
+
+  beforeAll(async () => {
+    ({ server, storage } = await createTestServer());
+  });
+
+  afterAll(async () => {
+    await server.close();
+    storage.close();
+  });
+
+  it('returns 403 with no session cookie (CSRF check fires first)', async () => {
+    const res = await server.inject({
+      method: 'POST',
+      url: '/api/auth/logout-all',
+      remoteAddress: SUITE_IP,
+    });
+    expect(res.statusCode).toBe(403);
+  });
+
+  it('returns 403 when CSRF token is missing', async () => {
+    await createAccount('nocsrf2', USER_PASSWORD, storage);
+    const loginRes = await server.inject({
+      method: 'POST',
+      url: '/api/auth/login',
+      remoteAddress: SUITE_IP,
+      payload: { username: 'nocsrf2', password: USER_PASSWORD },
+    });
+    const cookie = extractRefreshCookie(loginRes)!;
+
+    const res = await server.inject({
+      method: 'POST',
+      url: '/api/auth/logout-all',
+      remoteAddress: SUITE_IP,
+      headers: { cookie },
+    });
+    expect(res.statusCode).toBe(403);
+  });
+
+  it('revokes all sessions for the account; subsequent requests return 401', async () => {
+    await createAccount('logoutall', USER_PASSWORD, storage);
+
+    // Create two sessions
+    const loginA = await server.inject({
+      method: 'POST',
+      url: '/api/auth/login',
+      remoteAddress: SUITE_IP,
+      payload: { username: 'logoutall', password: USER_PASSWORD },
+    });
+    const cookieA = extractRefreshCookie(loginA)!;
+    const { csrfToken } = loginA.json<{ csrfToken: string }>();
+
+    const loginB = await server.inject({
+      method: 'POST',
+      url: '/api/auth/login',
+      remoteAddress: SUITE_IP,
+      payload: { username: 'logoutall', password: USER_PASSWORD },
+    });
+    const cookieB = extractRefreshCookie(loginB)!;
+
+    // logout-all via session A
+    const res = await server.inject({
+      method: 'POST',
+      url: '/api/auth/logout-all',
+      remoteAddress: SUITE_IP,
+      headers: { cookie: cookieA, 'x-csrf-token': csrfToken },
+    });
+    expect(res.statusCode).toBe(204);
+
+    // Both sessions are now revoked
+    const meA = await server.inject({
+      method: 'GET',
+      url: '/api/auth/me',
+      remoteAddress: SUITE_IP,
+      headers: { cookie: cookieA },
+    });
+    expect(meA.statusCode).toBe(401);
+
+    const meB = await server.inject({
+      method: 'GET',
+      url: '/api/auth/me',
+      remoteAddress: SUITE_IP,
+      headers: { cookie: cookieB },
+    });
+    expect(meB.statusCode).toBe(401);
+  });
+
+  it('logout-all does not affect sessions of other accounts', async () => {
+    await createAccount('victim', USER_PASSWORD, storage);
+    await createAccount('actor', USER_PASSWORD, storage);
+
+    const victimLogin = await server.inject({
+      method: 'POST',
+      url: '/api/auth/login',
+      remoteAddress: SUITE_IP,
+      payload: { username: 'victim', password: USER_PASSWORD },
+    });
+    const victimCookie = extractRefreshCookie(victimLogin)!;
+
+    const actorLogin = await server.inject({
+      method: 'POST',
+      url: '/api/auth/login',
+      remoteAddress: SUITE_IP,
+      payload: { username: 'actor', password: USER_PASSWORD },
+    });
+    const actorCookie = extractRefreshCookie(actorLogin)!;
+    const { csrfToken } = actorLogin.json<{ csrfToken: string }>();
+
+    // actor logs out all their own sessions
+    const res = await server.inject({
+      method: 'POST',
+      url: '/api/auth/logout-all',
+      remoteAddress: SUITE_IP,
+      headers: { cookie: actorCookie, 'x-csrf-token': csrfToken },
+    });
+    expect(res.statusCode).toBe(204);
+
+    // victim's session is untouched
+    const meVictim = await server.inject({
+      method: 'GET',
+      url: '/api/auth/me',
+      remoteAddress: SUITE_IP,
+      headers: { cookie: victimCookie },
+    });
+    expect(meVictim.statusCode).toBe(200);
+  });
+});

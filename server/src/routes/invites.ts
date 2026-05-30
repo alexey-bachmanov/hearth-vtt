@@ -2,183 +2,195 @@
  * Invite management endpoints.
  *
  * Routes:
- * - GET /api/campaigns/:id/invites - List invites for a campaign
- * - POST /api/campaigns/:id/invites - Create a new invite
- * - DELETE /api/campaigns/:id/invites/:inviteId - Revoke an invite
+ * - GET    /api/campaigns/:id/invites                     — List invites for a campaign
+ * - POST   /api/campaigns/:id/invites                     — Create a new invite
+ * - DELETE /api/campaigns/:id/invites/:inviteToken        — Revoke an invite
  *
- * Note: These are stub implementations for Phase 6.
- * Full invite management will be implemented in future phases.
+ * All mutations require admin authentication and a CSRF token.
+ * Invite tokens are 48 hex characters (24 random bytes).
+ *
+ * @see docs/protocols/http-api.md
+ * @see docs/components/auth-join-flow.md
  */
 
+import { randomBytes } from 'crypto';
 import type { FastifyInstance } from 'fastify';
 import type { Storage } from '../storage/storage.js';
 import { requireAdminAuth, requireCsrfToken } from './admin-auth.js';
-
-// Mock invite data
-const mockInvites = [
-  {
-    id: 'invite-001',
-    inviteToken: 'abc123def456ghi789',
-    inviteUrl: 'http://localhost:3000/join/abc123def456ghi789',
-    campaignId: 'campaign-mock-001',
-    seatId: 'seat-player-001',
-    rolesGranted: ['player'],
-    expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString(),
-    maxClaims: 1,
-    claimedAt: null,
-    revokedAt: null,
-    createdAt: new Date('2026-02-01T10:00:00Z').toISOString(),
-  },
-  {
-    id: 'invite-002',
-    inviteToken: 'xyz789jkl012mno345',
-    inviteUrl: 'http://localhost:3000/join/xyz789jkl012mno345',
-    campaignId: 'campaign-mock-001',
-    seatId: 'seat-player-002',
-    rolesGranted: ['player'],
-    expiresAt: new Date(Date.now() - 1 * 24 * 60 * 60 * 1000).toISOString(), // Expired
-    maxClaims: 1,
-    claimedAt: new Date('2026-02-03T14:30:00Z').toISOString(),
-    revokedAt: null,
-    createdAt: new Date('2026-01-28T10:00:00Z').toISOString(),
-  },
-];
+import { hashPassword } from '../utils/password.js';
 
 export async function inviteRoutes(
   server: FastifyInstance,
   options: { storage: Storage },
 ) {
-  // SECURITY: These routes use mock data instead of real storage.
-  // Only allow in development to prevent accidental production deployment.
-  if (process.env.NODE_ENV === 'production') {
-    server.all('/api/campaigns/:id/invites', async (request, reply) => {
-      reply.code(501);
-      return {
-        error: {
-          code: 'NOT_IMPLEMENTED',
-          message:
-            'Invite management not yet implemented. Storage layer exists but routes use mock data.',
-        },
-      };
-    });
-    server.all(
-      '/api/campaigns/:id/invites/:inviteId',
-      async (request, reply) => {
-        reply.code(501);
-        return {
-          error: {
-            code: 'NOT_IMPLEMENTED',
-            message:
-              'Invite management not yet implemented. Storage layer exists but routes use mock data.',
-          },
-        };
-      },
-    );
-    return;
-  }
+  const { storage } = options;
 
   /**
-   * GET /api/campaigns/:id/invites - List invites for a campaign
-   * Protected: Requires admin authentication
+   * GET /api/campaigns/:id/invites — List all invites across all seats in a campaign.
+   * Protected: Requires admin authentication.
+   *
+   * Returns invites without the pinHash (server-only field).
    */
   server.get<{ Params: { id: string } }>(
     '/api/campaigns/:id/invites',
-    { preHandler: requireAdminAuth(options.storage) },
+    { preHandler: requireAdminAuth(storage) },
     async (request) => {
-      const campaignId = request.params.id;
-      const invites = mockInvites.filter(
-        (invite) => invite.campaignId === campaignId,
+      const { id: campaignId } = request.params;
+      const seats = await storage.listSeats(campaignId);
+      const inviteArrays = await Promise.all(
+        seats.map((seat) => storage.listInvitesForSeat(campaignId, seat.id)),
+      );
+      const invites = inviteArrays.flat().map(
+        ({ pinHash: _pinHash, ...rest }) => ({
+          ...rest,
+          expiresAt: new Date(rest.expiresAt).toISOString(),
+          createdAt: new Date(rest.createdAt).toISOString(),
+          revokedAt:
+            rest.revokedAt != null
+              ? new Date(rest.revokedAt).toISOString()
+              : null,
+        }),
       );
       return { invites };
     },
   );
 
   /**
-   * POST /api/campaigns/:id/invites - Create a new invite
-   * Protected: Requires admin authentication and CSRF token
+   * POST /api/campaigns/:id/invites — Create a new invite for a seat.
+   * Protected: Requires admin authentication and CSRF token.
+   *
+   * Body: { seatId: string, pin: string, expiresIn: number (seconds), maxUses?: number }
+   * Returns 201 with { invite: { id, inviteToken, inviteUrl, expiresAt } }.
+   * Returns 400 on missing/invalid fields.
    */
   server.post<{
     Params: { id: string };
     Body: {
-      seatId: string;
-      rolesGranted: string[];
-      pin: string;
-      expiresIn: number;
-      maxClaims?: number;
+      seatId?: unknown;
+      pin?: unknown;
+      expiresIn?: unknown;
+      maxUses?: unknown;
     };
   }>(
     '/api/campaigns/:id/invites',
     {
-      preHandler: [
-        requireAdminAuth(options.storage),
-        requireCsrfToken(options.storage),
-      ],
+      preHandler: [requireAdminAuth(storage), requireCsrfToken(storage)],
     },
     async (request, reply) => {
-      const { seatId, rolesGranted, pin, expiresIn, maxClaims: _maxClaims } = request.body;
-      const _campaignId = request.params.id;
+      const { seatId, pin, expiresIn, maxUses } = request.body ?? {};
 
-      if (!seatId || !rolesGranted || !pin || !expiresIn) {
+      if (typeof seatId !== 'string' || seatId.trim().length < 1) {
+        reply.code(400);
+        return {
+          error: { code: 'INVALID_REQUEST', message: 'seatId is required' },
+        };
+      }
+
+      if (
+        typeof pin !== 'string' ||
+        pin.length < 4 ||
+        pin.length > 64
+      ) {
         reply.code(400);
         return {
           error: {
             code: 'INVALID_REQUEST',
-            message: 'seatId, rolesGranted, pin, and expiresIn are required',
+            message: 'pin is required (4–64 characters)',
           },
         };
       }
 
-      // Generate mock invite token
-      const inviteToken =
-        Math.random().toString(36).substring(2, 15) +
-        Math.random().toString(36).substring(2, 15);
+      if (typeof expiresIn !== 'number' || !Number.isInteger(expiresIn) || expiresIn <= 0) {
+        reply.code(400);
+        return {
+          error: {
+            code: 'INVALID_REQUEST',
+            message: 'expiresIn must be a positive integer (seconds)',
+          },
+        };
+      }
+
+      const resolvedMaxUses =
+        maxUses === undefined
+          ? 1
+          : typeof maxUses === 'number' && Number.isInteger(maxUses) && maxUses > 0
+            ? maxUses
+            : null;
+
+      if (resolvedMaxUses === null) {
+        reply.code(400);
+        return {
+          error: {
+            code: 'INVALID_REQUEST',
+            message: 'maxUses must be a positive integer',
+          },
+        };
+      }
+
+      const { id: campaignId } = request.params;
+      const pinHash = await hashPassword(pin);
+      const inviteToken = randomBytes(24).toString('hex');
+      const expiresAt = Date.now() + expiresIn * 1000;
+
+      const invite = await storage.createInvite({
+        campaignId,
+        seatId: seatId.trim(),
+        inviteToken,
+        pinHash,
+        maxUses: resolvedMaxUses,
+        expiresAt,
+      });
+
       const inviteUrl = `${request.protocol}://${request.hostname}/join/${inviteToken}`;
 
-      // Create mock invite
-      const newInvite = {
+      reply.code(201);
+      return {
         invite: {
-          id: 'invite-' + Date.now(),
-          inviteToken,
+          id: invite.id,
+          inviteToken: invite.inviteToken,
           inviteUrl,
-          expiresAt: new Date(Date.now() + expiresIn * 1000).toISOString(),
+          expiresAt: new Date(invite.expiresAt).toISOString(),
         },
       };
-
-      reply.code(201);
-      return newInvite;
     },
   );
 
   /**
-   * DELETE /api/campaigns/:id/invites/:inviteId - Revoke an invite
-   * Protected: Requires admin authentication and CSRF token
+   * DELETE /api/campaigns/:id/invites/:inviteToken — Revoke an invite.
+   * Protected: Requires admin authentication and CSRF token.
+   *
+   * The `:inviteToken` URL param is the raw invite token (not the UUID id).
+   * Returns 204 on success.
+   * Returns 404 if the invite is not found or does not belong to this campaign.
    */
-  server.delete<{ Params: { id: string; inviteId: string } }>(
-    '/api/campaigns/:id/invites/:inviteId',
+  server.delete<{ Params: { id: string; inviteToken: string } }>(
+    '/api/campaigns/:id/invites/:inviteToken',
     {
-      preHandler: [
-        requireAdminAuth(options.storage),
-        requireCsrfToken(options.storage),
-      ],
+      preHandler: [requireAdminAuth(storage), requireCsrfToken(storage)],
     },
     async (request, reply) => {
-      const { inviteId } = request.params;
+      const { id: campaignId, inviteToken } = request.params;
 
-      // Check if invite exists
-      const invite = mockInvites.find((inv) => inv.id === inviteId);
-
+      const invite = await storage.getInvite(inviteToken);
       if (!invite) {
         reply.code(404);
         return {
-          error: {
-            code: 'INVITE_NOT_FOUND',
-            message: 'Invite not found',
-          },
+          error: { code: 'INVITE_NOT_FOUND', message: 'Invite not found' },
         };
       }
 
-      reply.code(204);
-      return;
+      // Verify the invite's seat belongs to this campaign
+      const seat = await storage.getSeat(campaignId, invite.seatId);
+      if (!seat) {
+        reply.code(404);
+        return {
+          error: { code: 'INVITE_NOT_FOUND', message: 'Invite not found' },
+        };
+      }
+
+      await storage.revokeInvite(inviteToken);
+      reply.code(204).send();
     },
   );
 }
+

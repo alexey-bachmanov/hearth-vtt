@@ -1,7 +1,7 @@
 // ---------------------------------------------------------------------------
 // Module-level environment setup — must appear before any imports.
 // ---------------------------------------------------------------------------
-process.env.NODE_ENV = 'development'; // Prevents 501 guard in seatRoutes
+process.env.NODE_ENV = 'development';
 process.env.ADMIN_ALLOW_REMOTE = 'true'; // Allows inject() to use any IP
 process.env.COOKIE_SECRET = 'test-cookie-secret-value-must-be-at-least-32-chars';
 
@@ -20,8 +20,6 @@ const TEST_PIN = 'TESTPIN1';
 const TEST_PASSWORD = 'secure-test-password-123';
 const DATA_DIR = tmpdir();
 
-const CAMPAIGN_ID = 'campaign-mock-001';
-const KNOWN_SEAT_ID = 'seat-player-001';
 const UNKNOWN_SEAT_ID = 'seat-does-not-exist';
 
 // ---------------------------------------------------------------------------
@@ -106,12 +104,19 @@ describe('GET /api/campaigns/:id/seats', () => {
   let server: FastifyInstance;
   let storage: Storage;
   let validCookie: string;
+  let campaignId: string;
 
   beforeAll(async () => {
     ({ server, storage } = await createTestServer());
     await seedAdmin(storage);
     const { cookie } = await setupViaApi(server, '10.10.0.0');
     validCookie = cookie;
+
+    // Seed a campaign with 2 seats
+    const campaign = await storage.createCampaign('Test Campaign');
+    campaignId = campaign.id;
+    await storage.createSeat({ campaignId, displayName: 'Game Master', role: 'gm' });
+    await storage.createSeat({ campaignId, displayName: 'Player 1', role: 'player' });
   });
 
   afterAll(async () => {
@@ -122,7 +127,7 @@ describe('GET /api/campaigns/:id/seats', () => {
   it('returns 401 when unauthenticated', async () => {
     const res = await server.inject({
       method: 'GET',
-      url: `/api/campaigns/${CAMPAIGN_ID}/seats`,
+      url: `/api/campaigns/${campaignId}/seats`,
       remoteAddress: '10.10.0.1',
     });
 
@@ -132,7 +137,7 @@ describe('GET /api/campaigns/:id/seats', () => {
   it('returns 200 with seats array for a known campaign', async () => {
     const res = await server.inject({
       method: 'GET',
-      url: `/api/campaigns/${CAMPAIGN_ID}/seats`,
+      url: `/api/campaigns/${campaignId}/seats`,
       headers: { Cookie: validCookie },
       remoteAddress: '10.10.0.2',
     });
@@ -141,7 +146,7 @@ describe('GET /api/campaigns/:id/seats', () => {
     const body = res.json<{ seats: unknown[] }>();
     expect(body).toHaveProperty('seats');
     expect(Array.isArray(body.seats)).toBe(true);
-    expect(body.seats.length).toBe(3);
+    expect(body.seats.length).toBe(2);
   });
 
   it('returns 200 with empty seats array for an unknown campaign', async () => {
@@ -168,6 +173,7 @@ describe('POST /api/campaigns/:id/seats', () => {
   let storage: Storage;
   let validCookie: string;
   let validCsrfToken: string;
+  let campaignId: string;
 
   beforeAll(async () => {
     ({ server, storage } = await createTestServer());
@@ -176,6 +182,9 @@ describe('POST /api/campaigns/:id/seats', () => {
     const { cookie, csrfToken } = await loginFresh(server, '10.11.0.1');
     validCookie = cookie;
     validCsrfToken = csrfToken;
+
+    const campaign = await storage.createCampaign('Post Test Campaign');
+    campaignId = campaign.id;
   });
 
   afterAll(async () => {
@@ -186,8 +195,8 @@ describe('POST /api/campaigns/:id/seats', () => {
   it('returns 401 when unauthenticated', async () => {
     const res = await server.inject({
       method: 'POST',
-      url: `/api/campaigns/${CAMPAIGN_ID}/seats`,
-      payload: { name: 'New Player', role: 'player' },
+      url: `/api/campaigns/${campaignId}/seats`,
+      payload: { displayName: 'New Player', role: 'player' },
       remoteAddress: '10.11.0.2',
     });
 
@@ -197,9 +206,9 @@ describe('POST /api/campaigns/:id/seats', () => {
   it('returns 403 when CSRF token is missing', async () => {
     const res = await server.inject({
       method: 'POST',
-      url: `/api/campaigns/${CAMPAIGN_ID}/seats`,
+      url: `/api/campaigns/${campaignId}/seats`,
       headers: { Cookie: validCookie },
-      payload: { name: 'New Player', role: 'player' },
+      payload: { displayName: 'New Player', role: 'player' },
       remoteAddress: '10.11.0.3',
     });
 
@@ -209,7 +218,7 @@ describe('POST /api/campaigns/:id/seats', () => {
   it('returns 400 INVALID_REQUEST when required body fields are missing', async () => {
     const res = await server.inject({
       method: 'POST',
-      url: `/api/campaigns/${CAMPAIGN_ID}/seats`,
+      url: `/api/campaigns/${campaignId}/seats`,
       headers: { Cookie: validCookie, 'X-CSRF-Token': validCsrfToken },
       payload: {},
       remoteAddress: '10.11.0.4',
@@ -224,16 +233,16 @@ describe('POST /api/campaigns/:id/seats', () => {
   it('returns 201 with new seat data on valid request', async () => {
     const res = await server.inject({
       method: 'POST',
-      url: `/api/campaigns/${CAMPAIGN_ID}/seats`,
+      url: `/api/campaigns/${campaignId}/seats`,
       headers: { Cookie: validCookie, 'X-CSRF-Token': validCsrfToken },
-      payload: { name: 'New Player', role: 'player' },
+      payload: { displayName: 'New Player', role: 'player' },
       remoteAddress: '10.11.0.5',
     });
 
     expect(res.statusCode).toBe(201);
-    const body = res.json<{ id: string; name: string; role: string }>();
+    const body = res.json<{ id: string; displayName: string; role: string }>();
     expect(typeof body.id).toBe('string');
-    expect(body.name).toBe('New Player');
+    expect(body.displayName).toBe('New Player');
     expect(body.role).toBe('player');
   });
 });
@@ -247,6 +256,8 @@ describe('PATCH /api/campaigns/:id/seats/:seatId', () => {
   let storage: Storage;
   let validCookie: string;
   let validCsrfToken: string;
+  let campaignId: string;
+  let knownSeatId: string;
 
   beforeAll(async () => {
     ({ server, storage } = await createTestServer());
@@ -255,6 +266,15 @@ describe('PATCH /api/campaigns/:id/seats/:seatId', () => {
     const { cookie, csrfToken } = await loginFresh(server, '10.12.0.1');
     validCookie = cookie;
     validCsrfToken = csrfToken;
+
+    const campaign = await storage.createCampaign('Patch Test Campaign');
+    campaignId = campaign.id;
+    const seat = await storage.createSeat({
+      campaignId,
+      displayName: 'Original Name',
+      role: 'player',
+    });
+    knownSeatId = seat.id;
   });
 
   afterAll(async () => {
@@ -265,8 +285,8 @@ describe('PATCH /api/campaigns/:id/seats/:seatId', () => {
   it('returns 401 when unauthenticated', async () => {
     const res = await server.inject({
       method: 'PATCH',
-      url: `/api/campaigns/${CAMPAIGN_ID}/seats/${KNOWN_SEAT_ID}`,
-      payload: { name: 'New Name' },
+      url: `/api/campaigns/${campaignId}/seats/${knownSeatId}`,
+      payload: { displayName: 'New Name' },
       remoteAddress: '10.12.0.2',
     });
 
@@ -276,9 +296,9 @@ describe('PATCH /api/campaigns/:id/seats/:seatId', () => {
   it('returns 404 SEAT_NOT_FOUND for an unknown seatId', async () => {
     const res = await server.inject({
       method: 'PATCH',
-      url: `/api/campaigns/${CAMPAIGN_ID}/seats/${UNKNOWN_SEAT_ID}`,
+      url: `/api/campaigns/${campaignId}/seats/${UNKNOWN_SEAT_ID}`,
       headers: { Cookie: validCookie, 'X-CSRF-Token': validCsrfToken },
-      payload: { name: 'New Name' },
+      payload: { displayName: 'New Name' },
       remoteAddress: '10.12.0.3',
     });
 
@@ -288,18 +308,18 @@ describe('PATCH /api/campaigns/:id/seats/:seatId', () => {
     );
   });
 
-  it('returns 200 with updated name for a known seatId', async () => {
+  it('returns 200 with updated displayName for a known seatId', async () => {
     const res = await server.inject({
       method: 'PATCH',
-      url: `/api/campaigns/${CAMPAIGN_ID}/seats/${KNOWN_SEAT_ID}`,
+      url: `/api/campaigns/${campaignId}/seats/${knownSeatId}`,
       headers: { Cookie: validCookie, 'X-CSRF-Token': validCsrfToken },
-      payload: { name: 'New Name' },
+      payload: { displayName: 'New Name' },
       remoteAddress: '10.12.0.4',
     });
 
     expect(res.statusCode).toBe(200);
-    const body = res.json<{ name: string }>();
-    expect(body.name).toBe('New Name');
+    const body = res.json<{ displayName: string }>();
+    expect(body.displayName).toBe('New Name');
   });
 });
 
@@ -312,6 +332,8 @@ describe('DELETE /api/campaigns/:id/seats/:seatId', () => {
   let storage: Storage;
   let validCookie: string;
   let validCsrfToken: string;
+  let campaignId: string;
+  let knownSeatId: string;
 
   beforeAll(async () => {
     ({ server, storage } = await createTestServer());
@@ -320,6 +342,15 @@ describe('DELETE /api/campaigns/:id/seats/:seatId', () => {
     const { cookie, csrfToken } = await loginFresh(server, '10.13.0.1');
     validCookie = cookie;
     validCsrfToken = csrfToken;
+
+    const campaign = await storage.createCampaign('Delete Test Campaign');
+    campaignId = campaign.id;
+    const seat = await storage.createSeat({
+      campaignId,
+      displayName: 'To Be Deleted',
+      role: 'player',
+    });
+    knownSeatId = seat.id;
   });
 
   afterAll(async () => {
@@ -330,7 +361,7 @@ describe('DELETE /api/campaigns/:id/seats/:seatId', () => {
   it('returns 401 when unauthenticated', async () => {
     const res = await server.inject({
       method: 'DELETE',
-      url: `/api/campaigns/${CAMPAIGN_ID}/seats/${KNOWN_SEAT_ID}`,
+      url: `/api/campaigns/${campaignId}/seats/${knownSeatId}`,
       remoteAddress: '10.13.0.2',
     });
 
@@ -340,7 +371,7 @@ describe('DELETE /api/campaigns/:id/seats/:seatId', () => {
   it('returns 404 SEAT_NOT_FOUND for an unknown seatId', async () => {
     const res = await server.inject({
       method: 'DELETE',
-      url: `/api/campaigns/${CAMPAIGN_ID}/seats/${UNKNOWN_SEAT_ID}`,
+      url: `/api/campaigns/${campaignId}/seats/${UNKNOWN_SEAT_ID}`,
       headers: { Cookie: validCookie, 'X-CSRF-Token': validCsrfToken },
       remoteAddress: '10.13.0.3',
     });
@@ -354,7 +385,7 @@ describe('DELETE /api/campaigns/:id/seats/:seatId', () => {
   it('returns 204 on successful deletion of a known seatId', async () => {
     const res = await server.inject({
       method: 'DELETE',
-      url: `/api/campaigns/${CAMPAIGN_ID}/seats/${KNOWN_SEAT_ID}`,
+      url: `/api/campaigns/${campaignId}/seats/${knownSeatId}`,
       headers: { Cookie: validCookie, 'X-CSRF-Token': validCsrfToken },
       remoteAddress: '10.13.0.4',
     });
