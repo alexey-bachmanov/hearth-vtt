@@ -18,7 +18,7 @@ As work completes, check off tasks.
 
 ### Phase 5A — Server security hardening
 
-- [ ] **5A-1.** Atomic invite-claim race fix. Replace check-then-update invite consumption with `UPDATE ... WHERE uses_remaining > 0 RETURNING ...`. Re-validate invite _after_ account creation, _before_ seat binding. Return 410 `INVITE_RACE_LOST` on zero rows affected. Loser's account left intact.
+- [x] **5A-1.** Atomic invite-claim race fix.
 - [ ] **5A-2.** Timing-safe comparison audit. Replace any `===` comparisons against secrets (CSRF tokens, session hashes, PIN comparisons) with `crypto.timingSafeEqual`. [`password.ts`](../server/src/utils/password.ts) already correct — confirm no regressions.
 - [ ] **5A-3.** Unified auth error shapes + timing envelope. `claim-invite` and `login` return `INVALID_CREDENTIALS` for unknown-username, wrong-password, and wrong-PIN. Add ~200ms minimum delay on credential-validation paths to level out timing between not-found and wrong-password.
 - [ ] **5A-4.** CSRF tokens for the player auth surface. Extract `requireCsrfToken` from [`admin-auth.ts`](../server/src/routes/admin-auth.ts) into `server/src/auth/csrf.ts`. Add `csrf_token` column to `auth_sessions`. Mint + return `csrfToken` from `claim-invite`, `login`, and `refresh`. Validate `X-CSRF-Token` on every player POST/PATCH/DELETE via a `preHandler` on the player route prefix.
@@ -26,7 +26,7 @@ As work completes, check off tasks.
 - [ ] **5A-6.** Security response headers. New `server/src/plugins/security-headers.ts`: `X-Content-Type-Options: nosniff`, `X-Frame-Options: DENY`, `Referrer-Policy: strict-origin-when-cross-origin`. CSP ships as `Content-Security-Policy-Report-Only` first; flip to enforcing once all UI routes are clean.
 - [ ] **5A-7.** Per-mode refresh-cookie policy. Move cookie config to `server/src/auth/cookies.ts`. `maxAge` defaults to 30 days on HTTPS, session-only on HTTP. Expose `refresh_cookie_max_days` admin override (0–30) via `PATCH /api/admin/server-settings`. Uses existing `TRUST_PROXY` infra — no new env work needed.
 - [ ] **5A-8.** Log redaction audit. Verify no password, PIN, refresh token, CSRF token, or full request body reaches Fastify logs on any auth route. Configure `serializers.req` to omit `cookie` header for auth routes.
-- [ ] **5A-9.** Server tests: invite-race (50 parallel claims → exactly 1 success, 49 `INVITE_RACE_LOST`, 1 seat bound, loser account exists with zero seats); CSRF rejection on every player POST; WS Origin rejection; per-mode cookie variants; security headers present on all responses.
+- [ ] **5A-9.** Server tests: invite-race (50 parallel claims on a single-use invite → exactly 1 success, 49 `INVITE_RACE_LOST`, 1 seat bound, no orphan accounts created); CSRF rejection on every player POST; WS Origin rejection; per-mode cookie variants; security headers present on all responses.
 
 ---
 

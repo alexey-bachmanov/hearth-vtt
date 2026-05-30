@@ -1157,17 +1157,26 @@ export class SqliteStorage implements StorageBackend {
   }
 
   /**
-   * Decrement invite uses remaining (called when invite is claimed).
+   * Atomically consume one invite use.
+   *
+   * A single UPDATE statement guards both the race condition and all validity
+   * checks — SQLite serialises writers so the check and decrement are atomic.
+   *
+   * @returns `true` if a row was updated; `false` means the invite was already
+   *   exhausted / expired / revoked at the moment of the update.
    */
-  async decrementInviteUses(inviteToken: string): Promise<void> {
+  async consumeInviteAtomic(inviteToken: string, now: number): Promise<boolean> {
     const db = this.ensureDb();
-
     const stmt = db.prepare(`
       UPDATE invites
       SET uses_remaining = uses_remaining - 1
-      WHERE invite_token = ? AND uses_remaining > 0
+      WHERE invite_token = ?
+        AND uses_remaining > 0
+        AND revoked_at IS NULL
+        AND expires_at > ?
     `);
-    stmt.run(inviteToken);
+    const result = stmt.run(inviteToken, now);
+    return result.changes > 0;
   }
 
   // ---------------------------------------------------------------------------

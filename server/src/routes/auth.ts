@@ -292,23 +292,6 @@ export async function authRoutes(
       };
     }
 
-    if (invite.expiresAt < Date.now()) {
-      reply.code(410);
-      return {
-        error: { code: 'INVITE_EXPIRED', message: 'This invite has expired.' },
-      };
-    }
-
-    if (invite.usesRemaining <= 0) {
-      reply.code(410);
-      return {
-        error: {
-          code: 'INVITE_EXHAUSTED',
-          message: 'This invite has no remaining uses.',
-        },
-      };
-    }
-
     // --- Verify PIN ---
     const pinValid = await verifyPassword(pin, invite.pinHash);
     if (!pinValid) {
@@ -337,6 +320,21 @@ export async function authRoutes(
         error: {
           code: 'SEAT_NOT_FOUND',
           message: 'Invite references a seat that no longer exists.',
+        },
+      };
+    }
+
+    // --- Atomically consume invite use BEFORE any account mutation ---
+    // Guards against concurrent claims on the same invite. If zero rows are
+    // affected the invite was already exhausted/expired; no account is created.
+    const consumed = await storage.consumeInviteAtomic(inviteToken, Date.now());
+    if (!consumed) {
+      reply.code(410);
+      return {
+        error: {
+          code: 'INVITE_RACE_LOST',
+          message:
+            'This invite has already been claimed or has expired. Ask your GM for a new one.',
         },
       };
     }
@@ -396,9 +394,6 @@ export async function authRoutes(
       }
       throw err;
     }
-
-    // --- Consume invite use ---
-    await storage.decrementInviteUses(inviteToken);
 
     // --- Create auth session ---
     const refreshToken = generateToken();

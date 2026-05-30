@@ -273,7 +273,17 @@ export interface StorageBackend {
   getInvite(inviteToken: string): Promise<Invite | null>;
   listInvitesForSeat(campaignId: string, seatId: string): Promise<Invite[]>;
   revokeInvite(inviteToken: string): Promise<void>;
-  decrementInviteUses(inviteToken: string): Promise<void>;
+  /**
+   * Atomically decrements `uses_remaining` by 1 if the invite is still valid
+   * (not revoked, not expired, uses_remaining > 0).
+   *
+   * @param inviteToken - The raw invite token.
+   * @param now - Current Unix timestamp (ms) used to check expiry.
+   * @returns `true` if the consume succeeded; `false` if the invite was
+   *   already exhausted, expired, or revoked at the moment of the atomic
+   *   update (covers the claim-race case — no account will have been created).
+   */
+  consumeInviteAtomic(inviteToken: string, now: number): Promise<boolean>;
 
   /**
    * Player account operations
@@ -581,8 +591,12 @@ export class Storage {
     return this.backend.revokeInvite(inviteToken);
   }
 
-  async decrementInviteUses(inviteToken: string): Promise<void> {
-    return this.backend.decrementInviteUses(inviteToken);
+  /**
+   * Atomically consume one invite use. Returns `false` if the invite is
+   * already exhausted / expired / revoked (caller should return 410).
+   */
+  async consumeInviteAtomic(inviteToken: string, now: number): Promise<boolean> {
+    return this.backend.consumeInviteAtomic(inviteToken, now);
   }
 
   /**

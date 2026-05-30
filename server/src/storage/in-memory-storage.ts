@@ -421,9 +421,18 @@ export class InMemoryBackend implements StorageBackend {
     if (invite) invite.revokedAt = Date.now();
   }
 
-  async decrementInviteUses(inviteToken: string): Promise<void> {
+  async consumeInviteAtomic(inviteToken: string, now: number): Promise<boolean> {
     const invite = this.invites.get(inviteToken);
-    if (invite && invite.usesRemaining > 0) invite.usesRemaining--;
+    if (
+      !invite ||
+      invite.usesRemaining <= 0 ||
+      invite.revokedAt !== null ||
+      invite.expiresAt <= now
+    ) {
+      return false;
+    }
+    invite.usesRemaining--;
+    return true;
   }
 
   // ---------------------------------------------------------------------------

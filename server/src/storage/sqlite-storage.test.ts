@@ -656,7 +656,7 @@ describe('SqliteStorage (:memory: mode)', () => {
       expect(retrieved?.usesRemaining).toBe(3);
     });
 
-    it('decrements usesRemaining on claim', async () => {
+    it('atomically consumes an invite use and returns true on success', async () => {
       await storage.createInvite({
         campaignId,
         seatId,
@@ -666,13 +666,14 @@ describe('SqliteStorage (:memory: mode)', () => {
         expiresAt: Date.now() + 3600_000,
       });
 
-      await storage.decrementInviteUses('use-token');
+      const result = await storage.consumeInviteAtomic('use-token', Date.now());
+      expect(result).toBe(true);
 
       const invite = await storage.getInvite('use-token');
       expect(invite?.usesRemaining).toBe(1);
     });
 
-    it('does not decrement usesRemaining below zero', async () => {
+    it('returns false and does not decrement when usesRemaining is 0', async () => {
       await storage.createInvite({
         campaignId,
         seatId,
@@ -682,11 +683,50 @@ describe('SqliteStorage (:memory: mode)', () => {
         expiresAt: Date.now() + 3600_000,
       });
 
-      await storage.decrementInviteUses('zero-token');
-      await storage.decrementInviteUses('zero-token'); // no-op when already 0
+      const first = await storage.consumeInviteAtomic('zero-token', Date.now());
+      expect(first).toBe(true);
+
+      const second = await storage.consumeInviteAtomic('zero-token', Date.now());
+      expect(second).toBe(false);
 
       const invite = await storage.getInvite('zero-token');
       expect(invite?.usesRemaining).toBe(0);
+    });
+
+    it('returns false for an expired invite without decrementing', async () => {
+      await storage.createInvite({
+        campaignId,
+        seatId,
+        inviteToken: 'expired-token',
+        pinHash: 'hash',
+        maxUses: 5,
+        expiresAt: Date.now() - 1, // already expired
+      });
+
+      const result = await storage.consumeInviteAtomic('expired-token', Date.now());
+      expect(result).toBe(false);
+
+      const invite = await storage.getInvite('expired-token');
+      expect(invite?.usesRemaining).toBe(5); // unchanged
+    });
+
+    it('returns false for a revoked invite without decrementing', async () => {
+      await storage.createInvite({
+        campaignId,
+        seatId,
+        inviteToken: 'revoked-consume-token',
+        pinHash: 'hash',
+        maxUses: 5,
+        expiresAt: Date.now() + 3600_000,
+      });
+
+      await storage.revokeInvite('revoked-consume-token');
+
+      const result = await storage.consumeInviteAtomic('revoked-consume-token', Date.now());
+      expect(result).toBe(false);
+
+      const invite = await storage.getInvite('revoked-consume-token');
+      expect(invite?.usesRemaining).toBe(5); // unchanged
     });
 
     it('sets revokedAt on revoke (does not delete the row)', async () => {

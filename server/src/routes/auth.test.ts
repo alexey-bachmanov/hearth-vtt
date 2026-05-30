@@ -272,7 +272,7 @@ describe('POST /api/auth/claim-invite', () => {
     });
 
     expect(res.statusCode).toBe(410);
-    expect(res.json().error.code).toBe('INVITE_EXPIRED');
+    expect(res.json().error.code).toBe('INVITE_RACE_LOST');
   });
 });
 

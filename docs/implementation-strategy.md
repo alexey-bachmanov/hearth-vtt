@@ -323,7 +323,7 @@ Complete all auth, identity, and security work outside the GameEngine before res
 
 #### Phase 5A — Server security hardening (must complete first)
 
-1. **Atomic invite-claim race fix.** Replace the current check-then-update invite consumption in [`account.ts`](../server/src/domain/auth/account.ts) with an atomic SQL `UPDATE ... WHERE uses_remaining > 0 RETURNING ...`. Re-validate the invite _after_ account creation and _before_ seat binding. On zero rows affected, return 410 `INVITE_RACE_LOST`. Loser's account left intact (clean re-entry via `/play/login`).
+1. **Atomic invite-claim race fix.** Restructure the claim flow in [`account.ts`](../server/src/domain/auth/account.ts) so the invite is atomically consumed _before_ any account creation or seat binding. Use `UPDATE invites SET uses_remaining = uses_remaining - 1 WHERE token_hash = ? AND uses_remaining > 0 AND revoked_at IS NULL AND expires_at > ? RETURNING ...` (or `CHANGES()` equivalent). If zero rows affected, return 410 `INVITE_RACE_LOST` immediately — no account is created, no seat is touched. Winner flow: validate invite atomically → create/authenticate account → bind seat. Loser flow: validate invite atomically → fail early → `INVITE_RACE_LOST` → client redirects to `/` with toast.
 
 2. **Timing-safe comparison audit.** Audit all `===` comparisons against secrets across the auth surface (CSRF tokens in [`admin-auth.ts`](../server/src/routes/admin-auth.ts), session token hash lookups, any PIN/password comparison not already going through `timingSafeEqual`). [`password.ts`](../server/src/utils/password.ts) already uses `timingSafeEqual` — confirm no regressions.
 
@@ -347,7 +347,7 @@ Complete all auth, identity, and security work outside the GameEngine before res
 
 11. **Wire seats and invites endpoints to real storage.** [`seats.ts`](../server/src/routes/seats.ts) and [`invites.ts`](../server/src/routes/invites.ts) are currently 501 stubs. Wire to real `Storage` calls. Mutations are CSRF-protected via admin middleware. Required for the admin UI to function and for the dev-account seed (Phase 5D) to work.
 
-12. **Server tests for 5A/5B.** Invite-race test (50 parallel claims on a single-use invite → exactly one 200, 49 `INVITE_RACE_LOST`, one seat bound, loser account exists with zero seats). CSRF rejection on every player POST. Origin rejection on WS upgrade. `must_change_password` round-trip. Logout-all revokes only the target account's sessions. Per-mode cookie variants (HTTPS → 30d; HTTP → session; override 0 → session on HTTPS; override 7 → 7d).
+- **Server tests for 5A/5B.** Invite-race test (50 parallel claims on a single-use invite → exactly one 200, 49 `INVITE_RACE_LOST`, one seat bound, no orphan accounts created). CSRF rejection on every player POST. Origin rejection on WS upgrade. `must_change_password` round-trip. Logout-all revokes only the target account's sessions. Per-mode cookie variants (HTTPS → 30d; HTTP → session; override 0 → session on HTTPS; override 7 → 7d).
 
 #### Phase 5C — Client auth UX
 
