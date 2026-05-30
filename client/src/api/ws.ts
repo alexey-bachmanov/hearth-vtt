@@ -19,6 +19,8 @@
 import { connectionState } from '../state/connection.svelte';
 import { campaignState } from '../state/campaign.svelte';
 import { notificationState } from '../state/notifications.svelte';
+import { authState } from '../state/auth.svelte.js';
+import { navigate } from '../app/routes.js';
 import {
   serverMessageSchema,
   type ServerMessage,
@@ -327,6 +329,16 @@ export class WebSocketClient {
 
   /**
    * Handle WebSocket close event.
+   *
+   * 4401 — session expired: attempt a silent `POST /api/auth/refresh`; on
+   * success store the new csrfToken and reconnect; on failure redirect to
+   * the login page so the player can re-authenticate.
+   *
+   * 4403 — seat revoked or unauthorized: redirect to the campaign picker
+   * with an error query-param that the picker will surface as a toast.
+   *
+   * All other 4xxx codes: log and disconnect (no reconnect).
+   * Other codes: normal exponential-backoff reconnect.
    */
   private handleClose(event: CloseEvent): void {
     console.log(
@@ -336,22 +348,48 @@ export class WebSocketClient {
     );
     this.stopPingInterval();
 
-    // Check if we should reconnect
-    if (this.shouldReconnect) {
-      // App-level close codes (4xxx) may indicate auth failure
-      if (event.code >= 4000 && event.code < 5000) {
-        console.error(
-          '[WebSocketClient] Auth failure, not reconnecting:',
-          event.code,
-        );
-        connectionState.setStatus('disconnected');
-        // TODO: Redirect to login or show auth error
-      } else {
-        connectionState.setStatus('reconnecting');
-        this.scheduleReconnect();
-      }
-    } else {
+    if (!this.shouldReconnect) {
       connectionState.setStatus('disconnected');
+      return;
+    }
+
+    if (event.code === 4401) {
+      // Silent token refresh — one attempt, then fall back to login
+      this.shouldReconnect = false;
+      connectionState.setStatus('reconnecting');
+      void (async () => {
+        try {
+          const res = await fetch('/api/auth/refresh', {
+            method: 'POST',
+            credentials: 'include',
+          });
+          if (res.ok) {
+            const data = (await res.json()) as {
+              accessToken: string;
+              csrfToken: string;
+            };
+            authState.csrfToken = data.csrfToken;
+            this.shouldReconnect = true;
+            this.connect();
+          } else {
+            authState.handleUnauthenticated();
+          }
+        } catch {
+          authState.handleUnauthenticated();
+        }
+      })();
+    } else if (event.code === 4403) {
+      connectionState.setStatus('disconnected');
+      navigate('/play?error=campaign-access-revoked');
+    } else if (event.code >= 4000 && event.code < 5000) {
+      console.error(
+        '[WebSocketClient] Unrecoverable close code, not reconnecting:',
+        event.code,
+      );
+      connectionState.setStatus('disconnected');
+    } else {
+      connectionState.setStatus('reconnecting');
+      this.scheduleReconnect();
     }
   }
 

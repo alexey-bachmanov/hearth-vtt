@@ -7,11 +7,36 @@
  *
  * Empty state: shown when the player has no seats yet.
  *
+ * Handles `?error=campaign-access-revoked` set by the stale-seat redirect
+ * (5C-4): reads the param once on mount, removes it from the URL via
+ * replaceState, and shows a transient error toast.
+ *
  * @see docs/decisions/010-player-account-model.md
  */
 
+import { onMount } from 'svelte';
 import { navigate } from '../../app/routes.js';
 import { authState } from '../../state/auth.svelte.js';
+import { notificationState } from '../../state/notifications.svelte.js';
+
+onMount(() => {
+  const search = window.location.search;
+  if (search.includes('error=campaign-access-revoked')) {
+    // Strip the error param before notifying so it isn't re-shown on refresh
+    const stripped = search
+      .replace(/[?&]error=campaign-access-revoked/, '')
+      .replace(/^\?$/, '');
+    window.history.replaceState(
+      null,
+      '',
+      window.location.pathname + stripped,
+    );
+    notificationState.warning(
+      'Your access to that campaign was revoked. Contact your GM.',
+      'ephemeral',
+    );
+  }
+});
 </script>
 
 <div class="centered-page">

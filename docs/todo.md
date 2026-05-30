@@ -43,10 +43,10 @@ As work completes, check off tasks.
 
 - [x] **5C-1.** Wire [`PlayLoginPage.svelte`](../client/src/ui/auth/PlayLoginPage.svelte) to `POST /api/auth/login`. On success: store `csrfToken` in `authState`, redirect to `validateReturnTo(returnTo) ?? '/play'`. Handle 401 and 429. "Forgot password" → "Contact your server admin" modal only.
 - [x] **5C-2.** Wire [`JoinPage.svelte`](../client/src/ui/auth/JoinPage.svelte) to `POST /api/auth/claim-invite`. Real form with login/register mode toggle. On success: store `csrfToken`, redirect to `/play/<campaignId>`. Surface `INVITE_RACE_LOST` as "Someone just claimed this invite — ask your GM for a new one." Surface `USERNAME_TAKEN` inline on the username field.
-- [ ] **5C-3.** Wire [`CampaignPickerPage.svelte`](../client/src/ui/auth/CampaignPickerPage.svelte) to `authState.me.seats`. Read `?error=campaign-access-revoked` once via `replaceState` and show a transient toast.
-- [ ] **5C-4.** Stale-seat redirect. When WS upgrade returns 4403 or the seat is absent from `authState.me.seats`, navigate to `/play?error=campaign-access-revoked`.
+- [x] **5C-3.** Wire [`CampaignPickerPage.svelte`](../client/src/ui/auth/CampaignPickerPage.svelte) to `authState.me.seats`. Read `?error=campaign-access-revoked` once via `replaceState` and show a transient toast.
+- [x] **5C-4.** Stale-seat redirect. When WS upgrade returns 4403 or the seat is absent from `authState.me.seats`, navigate to `/play?error=campaign-access-revoked`.
 - [x] **5C-5.** CSRF injection in [`http.ts`](../client/src/api/http.ts). Auto-inject `X-CSRF-Token` from `authState.csrfToken` on all POST/PATCH/DELETE. On 401, clear in-memory tokens and trigger re-auth.
-- [ ] **5C-6.** Silent refresh on WS 4401 in [`ws.ts`](../client/src/api/ws.ts). On close with 4401, attempt one `POST /api/auth/refresh`; on success store new `accessToken` + `csrfToken` and retry. On failure, navigate to `/play/login?returnTo=<current>`.
+- [x] **5C-6.** Silent refresh on WS 4401 in [`ws.ts`](../client/src/api/ws.ts). On close with 4401, attempt one `POST /api/auth/refresh`; on success store new `accessToken` + `csrfToken` and retry. On failure, navigate to `/play/login?returnTo=<current>`.
 - [x] **5C-7.** CSRF rotation on refresh. `POST /api/auth/refresh` always returns `{ accessToken, csrfToken }`. Client overwrites both atomically.
 - [ ] **5C-8.** Forced password-change modal. When `authState.me.mustChangePassword === true`, render a blocking modal in `PlayLayout` and campaign picker. Posts to `POST /api/auth/change-password`. Re-loads `me` on success.
 - [ ] **5C-9.** "Log out everywhere" button on [`AccountPage.svelte`](../client/src/ui/auth/AccountPage.svelte) (create if absent). Posts to `POST /api/auth/logout-all`, navigates to `/play/login`.
