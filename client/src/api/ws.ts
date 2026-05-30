@@ -322,7 +322,7 @@ export class WebSocketClient {
       campaignState.revertOptimisticMoves();
     }
 
-    notificationState.error(payload.message);
+    notificationState.error(payload.message, 'ephemeral');
   }
 
   /**

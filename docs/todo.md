@@ -63,8 +63,8 @@ As work completes, check off tasks.
 
 ### Phase E — Client: rejection UX
 
-- [ ] **E1.** In [`ws.ts`](../client/src/api/ws.ts) message handler: when server sends `{ type: 'error', payload: { code: 'ACTION_REJECTED', message } }`, push a `(client, ephemeral)` toast to `notificationState`. Reuse existing `NotificationCard` flow — no new component.
-- [ ] **E2.** Test: simulate a rejected dispatch (mock a server error response) → assert toast appears with the rejection message.
+- [x] **E1.** In [`ws.ts`](../client/src/api/ws.ts) message handler: when server sends `{ type: 'error', payload: { code: 'ACTION_REJECTED', message } }`, push a `(client, ephemeral)` toast to `notificationState`. Reuse existing `NotificationCard` flow — no new component.
+- [x] **E2.** Test: simulate a rejected dispatch (mock a server error response) → assert toast appears with the rejection message.
 
 ---
 
