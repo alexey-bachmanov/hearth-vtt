@@ -37,12 +37,12 @@ As work completes, check off tasks.
 
 ### Phase B — Client: chat send wiring
 
-- [ ] **B1.** In [`ChatLog.svelte`](../client/src/ui/sidebar/ChatLog.svelte) `handleSend()`: replace `console.log` TODO with a branching dispatcher:
+- [x] **B1.** In [`ChatLog.svelte`](../client/src/ui/sidebar/ChatLog.svelte) `handleSend()`: replace `console.log` TODO with a branching dispatcher:
   - Trim input; if empty, return.
   - If matches `/^\/r(?:oll)?\s+(.+)$/` → apply pre-flight regex `/^[0-9dkhlrf<>=!+\-*/()\s]+$/i`; if it fails, show inline error (do not clear input). If it passes, `wsClient.dispatch('dice.roll', { formula })` and clear input.
   - Otherwise: if text exceeds 2000 chars, show inline error (do not clear input). Else `wsClient.dispatch('chat.send', { text })` and clear input.
   - No optimistic rendering — message appears when the server event arrives.
-- [ ] **B2.** Unit tests in [`ChatLog.test.ts`](../client/src/ui/sidebar/ChatLog.test.ts): plain text dispatches `chat.send`; `/roll 1d20` dispatches `dice.roll`; `/r 1d20` dispatches `dice.roll`; oversized text does not dispatch and shows inline error; malformed `/roll <garbage>` does not dispatch and shows inline error; valid dispatch clears input.
+- [x] **B2.** Unit tests in [`ChatLog.test.ts`](../client/src/ui/sidebar/ChatLog.test.ts): plain text dispatches `chat.send`; `/roll 1d20` dispatches `dice.roll`; `/r 1d20` dispatches `dice.roll`; oversized text does not dispatch and shows inline error; malformed `/roll <garbage>` does not dispatch and shows inline error; valid dispatch clears input.
 
 ---
 

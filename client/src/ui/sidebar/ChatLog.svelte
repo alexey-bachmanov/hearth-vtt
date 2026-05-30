@@ -6,18 +6,54 @@
  */
 
 import { campaignState } from '../../state';
+import { wsClient } from '../../api';
 import GameEventCard from './GameEventCard.svelte';
 
 const events = $derived(Array.from(campaignState.events.values()));
 
 let messageInput = $state('');
+let sendError = $state('');
+
+/**
+ * Pre-flight regex for dice formula strings.
+ *
+ * Allows the characters used by rpg-dice-roller notation: digits, d, k, h,
+ * l, r, f (fudge), comparison operators, arithmetic, parentheses, and
+ * whitespace. Anything else is rejected before the payload reaches the server.
+ */
+const DICE_FORMULA_PREFLIGHT = /^[0-9dkhlrf<>=!+\-*/()\s]+$/i;
+
+/** Command pattern: /roll or /r followed by a formula. */
+const ROLL_COMMAND = /^\/r(?:oll)?\s+(.+)$/i;
+
+/** Max chat message length (matching server-side limit). */
+const MAX_CHAT_LENGTH = 2000;
 
 function handleSend() {
-  if (messageInput.trim()) {
-    // TODO: Send message via API/WebSocket
-    console.log('Send message:', messageInput);
+  const text = messageInput.trim();
+  if (!text) return;
+
+  sendError = '';
+
+  const rollMatch = text.match(ROLL_COMMAND);
+  if (rollMatch) {
+    const formula = rollMatch[1].trim();
+    if (!DICE_FORMULA_PREFLIGHT.test(formula)) {
+      sendError = 'Invalid dice formula. Use notation like "2d6+3" or "4d8kh3".';
+      return;
+    }
+    wsClient.dispatch('dice.roll', { formula });
     messageInput = '';
+    return;
   }
+
+  if (text.length > MAX_CHAT_LENGTH) {
+    sendError = `Message too long (max ${MAX_CHAT_LENGTH} characters).`;
+    return;
+  }
+
+  wsClient.dispatch('chat.send', { text });
+  messageInput = '';
 }
 
 function handleKeydown(event: KeyboardEvent) {
@@ -42,14 +78,19 @@ function handleKeydown(event: KeyboardEvent) {
   </div>
   
   <div class="chat-input">
-    <input
-      type="text"
-      placeholder="Type a message..."
-      bind:value={messageInput}
-      onkeydown={handleKeydown}
-      aria-label="Send a message"
-    />
-    <button onclick={handleSend} aria-label="Send message">Send</button>
+    {#if sendError}
+      <p class="send-error" role="alert">{sendError}</p>
+    {/if}
+    <div class="chat-input-row">
+      <input
+        type="text"
+        placeholder="Type a message or /roll 1d20..."
+        bind:value={messageInput}
+        onkeydown={handleKeydown}
+        aria-label="Send a message"
+      />
+      <button onclick={handleSend} aria-label="Send message">Send</button>
+    </div>
   </div>
 </div>
 
@@ -87,10 +128,26 @@ function handleKeydown(event: KeyboardEvent) {
 
   .chat-input {
     display: flex;
-    gap: var(--space-sm);
+    flex-direction: column;
+    gap: var(--space-xs, 4px);
     padding: var(--space-md);
     border-top: 1px solid var(--color-border-default);
     background-color: var(--color-bg-tertiary);
+  }
+
+  .send-error {
+    margin: 0;
+    padding: var(--space-xs, 4px) var(--space-sm);
+    background-color: var(--color-error-bg, #3a1a1a);
+    border: 1px solid var(--color-error-border, #c0392b);
+    border-radius: var(--radius-sm);
+    color: var(--color-error-text, #e74c3c);
+    font-size: var(--font-size-xs, 0.75rem);
+  }
+
+  .chat-input-row {
+    display: flex;
+    gap: var(--space-sm);
   }
 
   .chat-input input {
