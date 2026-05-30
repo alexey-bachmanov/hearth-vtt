@@ -79,7 +79,9 @@ async function seedInvite(
   return { inviteToken, campaignId: campaign.id, seatId: seat.id };
 }
 
-function _extractRefreshCookie(res: { headers: Record<string, unknown> }): string | null {
+function _extractRefreshCookie(res: {
+  headers: Record<string, unknown>;
+}): string | null {
   const raw = res.headers['set-cookie'];
   const header = Array.isArray(raw) ? raw[0] : String(raw ?? '');
   const match = header.match(/hearth_refresh=([^;]+)/);
@@ -126,9 +128,7 @@ describe('Phase 5A — Invite race: 50 parallel claims on single-use invite', ()
 
     const successes = results.filter((r) => r.statusCode === 200);
     const raceLoser = results.filter(
-      (r) =>
-        r.statusCode === 410 &&
-        r.json().error.code === 'INVITE_RACE_LOST',
+      (r) => r.statusCode === 410 && r.json().error.code === 'INVITE_RACE_LOST',
     );
 
     expect(successes).toHaveLength(1);
@@ -229,16 +229,24 @@ function awaitClose(ws: WebSocket, timeoutMs = 5000): Promise<number> {
         resolve(code);
       }
     };
-    const timer = setTimeout(() => { ws.terminate(); done(-2); }, timeoutMs);
+    const timer = setTimeout(() => {
+      ws.terminate();
+      done(-2);
+    }, timeoutMs);
     // 'close' fires after the WS close handshake — this is what we want.
-    ws.on('close', (c) => { clearTimeout(timer); done(c); });
+    ws.on('close', (c) => {
+      clearTimeout(timer);
+      done(c);
+    });
     // 'unexpected-response' fires when the server responds with non-101 HTTP.
     ws.on('unexpected-response', (_req, res) => {
       clearTimeout(timer);
       done(res.statusCode ?? -1);
     });
     // 'error' fires before 'close' in some cases; wait for 'close' instead.
-    ws.on('error', () => { /* let 'close' fire */ });
+    ws.on('error', () => {
+      /* let 'close' fire */
+    });
   });
 }
 
@@ -278,13 +286,15 @@ describe('Phase 5A — WS Origin allow-list', () => {
     let ws!: WebSocket;
     try {
       const campaign = await storage.createCampaign('origin-test-1');
-      ws = new WebSocket(
-        `ws://127.0.0.1:${port}/ws?campaign=${campaign.id}`,
-      );
+      ws = new WebSocket(`ws://127.0.0.1:${port}/ws?campaign=${campaign.id}`);
       const code = await awaitClose(ws);
       expect(code).toBe(4403);
     } finally {
-      try { ws?.terminate(); } catch { /* ignore */ }
+      try {
+        ws?.terminate();
+      } catch {
+        /* ignore */
+      }
       process.env.NODE_ENV = originalEnv;
       process.env.PUBLIC_BASE_URL = originalBase;
     }
@@ -323,16 +333,19 @@ describe('Phase 5A — WS Origin allow-list', () => {
     let ws!: WebSocket;
     try {
       const campaign = await storage.createCampaign('origin-test-3');
-      ws = new WebSocket(
-        `ws://127.0.0.1:${port}/ws?campaign=${campaign.id}`,
-        { headers: { Origin: `http://127.0.0.1:${port}` } },
-      );
+      ws = new WebSocket(`ws://127.0.0.1:${port}/ws?campaign=${campaign.id}`, {
+        headers: { Origin: `http://127.0.0.1:${port}` },
+      });
       // Origin check passes → reaches auth check (no cookie) → 4001
       const code = await awaitClose(ws);
       expect(code).not.toBe(4403);
     } finally {
       // Force TCP teardown so the server can drain in afterAll.
-      try { ws?.terminate(); } catch { /* ignore */ }
+      try {
+        ws?.terminate();
+      } catch {
+        /* ignore */
+      }
       process.env.NODE_ENV = originalEnv;
       process.env.PUBLIC_BASE_URL = originalBase;
     }
@@ -374,7 +387,9 @@ describe('Phase 5A — Per-mode cookie lifetime', () => {
     expect(res.statusCode).toBe(200);
 
     const rawCookie = res.headers['set-cookie'];
-    const cookieStr = Array.isArray(rawCookie) ? rawCookie[0] : String(rawCookie ?? '');
+    const cookieStr = Array.isArray(rawCookie)
+      ? rawCookie[0]
+      : String(rawCookie ?? '');
     // Session-only: Max-Age should not be present
     expect(cookieStr.toLowerCase()).not.toContain('max-age');
   });

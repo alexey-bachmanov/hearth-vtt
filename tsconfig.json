@@ -1,4 +1,5 @@
 {
   "files": [],
-  "references": [{ "path": "./shared" }, { "path": "./server" }]
+  "references": [{ "path": "./shared" }, { "path": "./server" }],
+  "exclude": ["node_modules"]
 }
