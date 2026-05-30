@@ -8,63 +8,65 @@ As work completes, check off tasks.
 
 # Current Projects
 
-## Phase 4 — Wire Chat + Dice; Complete M2
+## Phase 5 — Finish the Outside of the Engine Boundary
 
-**Goal:** Complete Milestone M2 ("actions flow through the engine"). The engine pipeline already exists; what remains is client-side wiring for chat send and dice rolls, a real dice grammar backed by `@dice-roller/rpg-dice-roller`, event rendering for `chat.message` and `dice.rolled`, and rejection toast UX.
+**Goal:** Complete all auth, identity, and security work outside the GameEngine before resuming engine-interior work. Leaving gaps here guarantees they become unfixable tech debt mid-engine-work. The old Phase 5 plan in `implementation-strategy.md` was stale; most of its tasks were done during Phases 3–4. The actual remaining work is four sub-phases: security hardening, server features, client auth UX, and dev-affordance redesign + bypass removal.
 
-**Dropped from original Phase 4 plan:**
-
-- `AsyncQueue`, `GameEngine` facade, `CampaignManager` — completed in Phases 2.5/3.
-- `MockRulesetRuntime` and `RulesetRuntime` interface — retired. The placeholder engine handles baseline actions natively; the runtime form is a separate engine-interior design pass per [ADR 011](decisions/011-engine-facade-and-dsl-reversal.md).
-- `RealtimeHub` adapter — retired. `engine.subscribe(seatId, listener)` IS the transport abstraction; `routes/ws.ts` is the single consumer. No second transport materialised. Extractable in one day if that ever changes.
-
-**Out of scope:** engine-interior design (RulesetRuntime form, effects, workflows), baseline action expansion (`drawing.*`, `measurement.*`, `label.*`), audience-restricted rolls, dev-bypass displayName fix, optimistic chat rendering, recent-rolls history panel.
-
-**Verification:** `npm test --workspaces` green. Manual walkthrough: chat message appears in both tabs; `/roll 1d20` appears as dice card in both tabs; dice drawer quick-buttons fire rolls; oversized chat or malformed formula shows toast in sending tab without clearing input; server restart preserves chat history.
+**Verification (M3):** Admin creates campaign → creates invite → shares link. Player opens link → enters PIN (login or register mode) → joins campaign → sees synced state. Two players see each other's token moves. Revoking a session disconnects the player. Bookmark visited after session expires → silent refresh succeeds → play resumes without login prompt. Admin resets player password → player forced through password-change modal on next visit. `npm run dev:reset-setup` restores the admin setup screen without touching player data.
 
 ---
 
-### Phase A — Server: dice wrapper + payload migration
+### Phase 5A — Server security hardening
 
-- [x] **A1.** Add `@dice-roller/rpg-dice-roller` and `pure-rand` to `server/package.json`.
-- [x] **A2.** Create `server/src/domain/engine/dice/` module. Export `evaluate(formula: string, seed: string): { ok: true; rolls: number[]; total: number } | { ok: false; reason: string }`. Internally: derive a deterministic PRNG from `sha256(seed)` using `pure-rand`; adapt to rpg-dice-roller's `NumberGenerator` interface; cap formula length at 200 chars before invoking the library (bound parser work); catch all library throws and return them as `{ ok: false, reason: 'invalid dice formula' }` — no stack traces exposed.
-- [x] **A3.** Unit tests for the wrapper (`dice.test.ts`): same seed → same result; different seed → different result (probabilistic check over several dice); malformed formulas → `{ ok: false }` with stable reason; oversize formula → rejected before parse; no library exception leaks to caller.
-- [x] **A4.** Migrate `PlaceholderEngine.validateDiceRoll`: change payload from `{ count, sides, modifier }` to `{ formula: string }`. Dispatch path derives `actionId` (already done for the hash), calls `evaluate(formula, actionId)`, writes event `type: 'dice.rolled'` with `data: { originSeatId, formula, rolls, total }`. Rolls are stored in the event; replay reads storage, never re-evaluates the formula.
-- [x] **A5.** Update `dice.roll` Zod schema in `shared/` to `{ formula: z.string() }`.
-- [x] **A6.** Update [`placeholder.test.ts`](../server/src/domain/engine/placeholder.test.ts) for the new payload shape and event-data fields. Add a seed-determinism test (same formula + same seed via same actionId → same rolls).
-
----
-
-### Phase B — Client: chat send wiring
-
-- [x] **B1.** In [`ChatLog.svelte`](../client/src/ui/sidebar/ChatLog.svelte) `handleSend()`: replace `console.log` TODO with a branching dispatcher:
-  - Trim input; if empty, return.
-  - If matches `/^\/r(?:oll)?\s+(.+)$/` → apply pre-flight regex `/^[0-9dkhlrf<>=!+\-*/()\s]+$/i`; if it fails, show inline error (do not clear input). If it passes, `wsClient.dispatch('dice.roll', { formula })` and clear input.
-  - Otherwise: if text exceeds 2000 chars, show inline error (do not clear input). Else `wsClient.dispatch('chat.send', { text })` and clear input.
-  - No optimistic rendering — message appears when the server event arrives.
-- [x] **B2.** Unit tests in [`ChatLog.test.ts`](../client/src/ui/sidebar/ChatLog.test.ts): plain text dispatches `chat.send`; `/roll 1d20` dispatches `dice.roll`; `/r 1d20` dispatches `dice.roll`; oversized text does not dispatch and shows inline error; malformed `/roll <garbage>` does not dispatch and shows inline error; valid dispatch clears input.
+- [ ] **5A-1.** Atomic invite-claim race fix. Replace check-then-update invite consumption with `UPDATE ... WHERE uses_remaining > 0 RETURNING ...`. Re-validate invite _after_ account creation, _before_ seat binding. Return 410 `INVITE_RACE_LOST` on zero rows affected. Loser's account left intact.
+- [ ] **5A-2.** Timing-safe comparison audit. Replace any `===` comparisons against secrets (CSRF tokens, session hashes, PIN comparisons) with `crypto.timingSafeEqual`. [`password.ts`](../server/src/utils/password.ts) already correct — confirm no regressions.
+- [ ] **5A-3.** Unified auth error shapes + timing envelope. `claim-invite` and `login` return `INVALID_CREDENTIALS` for unknown-username, wrong-password, and wrong-PIN. Add ~200ms minimum delay on credential-validation paths to level out timing between not-found and wrong-password.
+- [ ] **5A-4.** CSRF tokens for the player auth surface. Extract `requireCsrfToken` from [`admin-auth.ts`](../server/src/routes/admin-auth.ts) into `server/src/auth/csrf.ts`. Add `csrf_token` column to `auth_sessions`. Mint + return `csrfToken` from `claim-invite`, `login`, and `refresh`. Validate `X-CSRF-Token` on every player POST/PATCH/DELETE via a `preHandler` on the player route prefix.
+- [ ] **5A-5.** WS Origin allow-list in [`ws.ts`](../server/src/routes/ws.ts). Reject upgrades whose `Origin` does not match `PUBLIC_BASE_URL` (or `localhost:*` in dev). Close with 4403. Absent `Origin` in production is a rejection.
+- [ ] **5A-6.** Security response headers. New `server/src/plugins/security-headers.ts`: `X-Content-Type-Options: nosniff`, `X-Frame-Options: DENY`, `Referrer-Policy: strict-origin-when-cross-origin`. CSP ships as `Content-Security-Policy-Report-Only` first; flip to enforcing once all UI routes are clean.
+- [ ] **5A-7.** Per-mode refresh-cookie policy. Move cookie config to `server/src/auth/cookies.ts`. `maxAge` defaults to 30 days on HTTPS, session-only on HTTP. Expose `refresh_cookie_max_days` admin override (0–30) via `PATCH /api/admin/server-settings`. Uses existing `TRUST_PROXY` infra — no new env work needed.
+- [ ] **5A-8.** Log redaction audit. Verify no password, PIN, refresh token, CSRF token, or full request body reaches Fastify logs on any auth route. Configure `serializers.req` to omit `cookie` header for auth routes.
+- [ ] **5A-9.** Server tests: invite-race (50 parallel claims → exactly 1 success, 49 `INVITE_RACE_LOST`, 1 seat bound, loser account exists with zero seats); CSRF rejection on every player POST; WS Origin rejection; per-mode cookie variants; security headers present on all responses.
 
 ---
 
-### Phase C — Client: dice drawer wiring
+### Phase 5B — Server features
 
-- [x] **C1.** In [`DiceRollerDrawer.svelte`](../client/src/ui/toolbar/drawers/DiceRollerDrawer.svelte): wire d4/d6/d8/d10/d12/d20/d100 buttons to `wsClient.dispatch('dice.roll', { formula: '1dN' })` on click. Wire custom-formula input + Roll button: read value verbatim, apply the same pre-flight regex as the chat path, show inline error if it fails, else dispatch `{ formula }`. Buttons do not accumulate or build a formula — each is a one-click roll.
-- [x] **C2.** Component tests in `DiceRollerDrawer.test.ts`: clicking d20 dispatches `{ formula: '1d20' }`; valid custom formula dispatches verbatim; malformed custom formula shows error and does not dispatch.
-
----
-
-### Phase D — Client: event rendering
-
-- [x] **D1.** In [`GameEventCard.svelte`](../client/src/ui/sidebar/GameEventCard.svelte): add a `dice.rolled` case that renders the sender's display name, the formula, individual rolls (e.g. `[4, 2, 6]`), and the total. Confirm `chat.message` case renders `data.displayName` and `data.text` (not a stub or mock field).
-- [x] **D2.** Verify [`campaign.svelte.ts`](../client/src/state/campaign.svelte.ts) `applyEvent()` appends the incoming `GameEvent` to the structure that `ChatLog.svelte` reads. Fix the projection if it doesn't.
-- [x] **D3.** Component tests in `GameEventCard.test.ts`: renders chat-message variant with display name and text; renders dice-rolled variant with formula, individual rolls, and total.
+- [ ] **5B-1.** `must_change_password` flow. Confirm [`admin-accounts.ts`](../server/src/routes/admin-accounts.ts) `reset-password` sets `must_change_password = true` and revokes all sessions. Add `POST /api/auth/change-password` (CSRF + auth required). Add `mustChangePassword: boolean` to `POST /api/auth/login` and `GET /api/auth/me` responses.
+- [ ] **5B-2.** "Log out everywhere." `POST /api/auth/logout-all` (CSRF + auth required) — revokes all sessions for the account, returns 204.
+- [ ] **5B-3.** Wire [`seats.ts`](../server/src/routes/seats.ts) and [`invites.ts`](../server/src/routes/invites.ts) to real storage. Currently 501 stubs. All mutations CSRF-protected via admin middleware.
+- [ ] **5B-4.** Server tests: `must_change_password` round-trip; logout-all revokes only the target account's sessions; seats/invites CRUD via real storage.
 
 ---
 
-### Phase E — Client: rejection UX
+### Phase 5C — Client auth UX
 
-- [x] **E1.** In [`ws.ts`](../client/src/api/ws.ts) message handler: when server sends `{ type: 'error', payload: { code: 'ACTION_REJECTED', message } }`, push a `(client, ephemeral)` toast to `notificationState`. Reuse existing `NotificationCard` flow — no new component.
-- [x] **E2.** Test: simulate a rejected dispatch (mock a server error response) → assert toast appears with the rejection message.
+- [ ] **5C-1.** Wire [`PlayLoginPage.svelte`](../client/src/ui/auth/PlayLoginPage.svelte) to `POST /api/auth/login`. On success: store `csrfToken` in `authState`, redirect to `validateReturnTo(returnTo) ?? '/play'`. Handle 401 and 429. "Forgot password" → "Contact your server admin" modal only.
+- [ ] **5C-2.** Wire [`JoinPage.svelte`](../client/src/ui/auth/JoinPage.svelte) to `POST /api/auth/claim-invite`. Real form with login/register mode toggle. On success: store `csrfToken`, redirect to `/play/<campaignId>`. Surface `INVITE_RACE_LOST` as "Someone just claimed this invite — ask your GM for a new one." Surface `USERNAME_TAKEN` inline on the username field.
+- [ ] **5C-3.** Wire [`CampaignPickerPage.svelte`](../client/src/ui/auth/CampaignPickerPage.svelte) to `authState.me.seats`. Read `?error=campaign-access-revoked` once via `replaceState` and show a transient toast.
+- [ ] **5C-4.** Stale-seat redirect. When WS upgrade returns 4403 or the seat is absent from `authState.me.seats`, navigate to `/play?error=campaign-access-revoked`.
+- [ ] **5C-5.** CSRF injection in [`http.ts`](../client/src/api/http.ts). Auto-inject `X-CSRF-Token` from `authState.csrfToken` on all POST/PATCH/DELETE. On 401, clear in-memory tokens and trigger re-auth.
+- [ ] **5C-6.** Silent refresh on WS 4401 in [`ws.ts`](../client/src/api/ws.ts). On close with 4401, attempt one `POST /api/auth/refresh`; on success store new `accessToken` + `csrfToken` and retry. On failure, navigate to `/play/login?returnTo=<current>`.
+- [ ] **5C-7.** CSRF rotation on refresh. `POST /api/auth/refresh` always returns `{ accessToken, csrfToken }`. Client overwrites both atomically.
+- [ ] **5C-8.** Forced password-change modal. When `authState.me.mustChangePassword === true`, render a blocking modal in `PlayLayout` and campaign picker. Posts to `POST /api/auth/change-password`. Re-loads `me` on success.
+- [ ] **5C-9.** "Log out everywhere" button on [`AccountPage.svelte`](../client/src/ui/auth/AccountPage.svelte) (create if absent). Posts to `POST /api/auth/logout-all`, navigates to `/play/login`.
+- [ ] **5C-10.** Client tests: CSRF injection (sent on mutating requests, absent on GETs); silent-refresh-on-4401; forced-password-change modal render/submit; campaign-picker stale-seat toast; join page `INVITE_RACE_LOST` rendering.
+
+---
+
+### Phase 5D — Dev affordance redesign + bypass removal
+
+- [ ] **5D-1.** Extend [`seed-dev-db.ts`](../scripts/seed-dev-db.ts). Create `PlayerAccount` (username `dev`, password from `HEARTH_DEV_ADMIN_PASSWORD` env; random+logged if unset). Bind to `seat-mock-001`. Hard-gate entire seeding path with `if (process.env.NODE_ENV === 'production') throw`. Idempotent: skip if `dev` account already exists.
+- [ ] **5D-2.** New `scripts/reset-admin-setup.ts` (`npm run dev:reset-setup`). Nulls `server_admin` password hash + setup-PIN state so next startup re-runs first-time setup. Gated by `NODE_ENV !== 'production'`.
+- [ ] **5D-3.** Remove `&seat=` URL bypass from [`server/src/routes/ws.ts`](../server/src/routes/ws.ts) (delete `?seat=` query parsing and `DEV_SEAT_ID` fallback), [`client/src/api/ws.ts`](../client/src/api/ws.ts) (remove `seatId` param from `connect()` and `&seat=` URL append), [`client/src/app/routes.ts`](../client/src/app/routes.ts) (remove `seatId?: string` from `play-campaign` type), [`client/src/app/Router.svelte`](../client/src/app/Router.svelte) (remove auth-guard bypass and `seatId` prop on `<PlayLayout>`), [`client/src/ui/layout/PlayLayout.svelte`](../client/src/ui/layout/PlayLayout.svelte) (remove `seatId` prop and its use in `wsClient.connect()`).
+- [ ] **5D-4.** Document the new dev flow in `CONTRIBUTING.md` and a comment in `seed-dev-db.ts`.
+
+---
+
+### Phase 5E — Documentation sync
+
+- [ ] **5E-1.** Update [`auth-join-flow.md`](components/auth-join-flow.md): add CSRF to player flow, `INVITE_RACE_LOST` error code, per-mode cookie defaults, `mustChangePassword` round-trip, `POST /api/auth/logout-all`, CSP strategy.
+- [ ] **5E-2.** Add `docs/decisions/012-player-csrf-tokens.md` if Decision 6 (CSRF for player flow) contradicts ADR-010.
 
 ---
 
@@ -92,7 +94,7 @@ Read path (load snapshot + replay events) shipped in Phase 3. Write path (auto-t
 ### Security
 
 - **Medium:**
-  - [ ] CSRF token comparison uses `===` instead of `timingSafeEqual` in [admin-auth.ts](../server/src/routes/admin-auth.ts#L774)
+  - [ ] CSRF token comparison uses `===` instead of `timingSafeEqual` in [admin-auth.ts](../server/src/routes/admin-auth.ts#L774) _(Phase 5A-2)_
   - [ ] No `lastUsedAt` update on session validation (column exists but never updated)
   - [ ] Campaign GET endpoints unauthenticated [campaigns.ts](../server/src/routes/campaigns.ts#L24)
   - [ ] Setup PIN generation has modulo bias [setup-pin.ts](../server/src/auth/setup-pin.ts#L31) (256 % 30 ≠ 0)
@@ -112,11 +114,9 @@ Read path (load snapshot + replay events) shipped in Phase 3. Write path (auto-t
 - [ ] **Server-authoritative prompt state**: prompts should be stored with explicit `status: 'pending' | 'resolved' | 'cancelled'` and broadcast as state changes, not delivered as one-shot messages. Required for multi-device safety. See [auth-join-flow.md](../docs/components/auth-join-flow.md) and [realtime-ws.md](../docs/protocols/realtime-ws.md).
 - [ ] **Idempotent action handlers**: actions referencing resolved/cancelled prompts must return no-op, not error.
 
-### Dev auth bypass hack (remove in Phase 5)
+### Dev auth bypass hack
 
-A temporary four-file shim that lets you reach `PlayLayout` and open a WS connection without a real auth session. Added so Phases 3–4 can be exercised without waiting for Phase 5.
-
-Files to clean up, tracked in [implementation-strategy.md Phase 5, task 7](../docs/implementation-strategy.md#phase-5--player-auth):
+**Covered by Phase 5D-3.** Tracked here for visibility. See [Phase 5D](#phase-5d--dev-affordance-redesign--bypass-removal) in Current Projects.
 
 - [ ] **`client/src/app/routes.ts`** — remove `seatId?: string` from the `play-campaign` route type and the `params.get('seat')` line in `parseRoute`.
 - [ ] **`client/src/app/Router.svelte`** — remove the `if (type === 'play-campaign' && currentRoute.seatId) return` bypass in the auth-guard `$effect`; remove `seatId` from the `<PlayLayout>` usage.
@@ -125,11 +125,11 @@ Files to clean up, tracked in [implementation-strategy.md Phase 5, task 7](../do
 
 ### Auth & Sessions
 
-- [ ] **`must_change_password` enforcement**: Phase 2.6 sets the flag when admin resets a player password, but the login flow does not enforce a forced-change screen. Enforce at `POST /api/auth/login` (and on WS connect as a secondary check).
-- [ ] **Silent refresh on WS auth close**: client attempts one `POST /api/auth/refresh` before falling back to `/play/login`.
+- [ ] **`must_change_password` enforcement** _(Phase 5B-1, 5C-8)_: login flow does not yet enforce a forced-change screen. See Phase 5B/5C in Current Projects.
+- [ ] **Silent refresh on WS auth close** _(Phase 5C-6)_: client attempts one `POST /api/auth/refresh` before falling back to `/play/login`. See Phase 5C in Current Projects.
 - [ ] **Admin password reset via filesystem flag**: `DATA_DIR/admin-reset.flag` triggers re-running initial setup on next startup. Admin login page should expose "I forgot my password" with instructions.
 - [ ] **PIN cooldown change**: per-invite PIN cooldown is 60s (not "until expiry") so a typo'd PIN doesn't dead-end the invite.
-- [ ] **Rate-limit productionization**: Phase 2.6 lands a simple in-memory rate-limit bucket on `POST /api/auth/login`. Replace with `@fastify/rate-limit` for persistence across restarts and distributed deployments.
+- [ ] **Rate-limit productionization**: in-memory rate-limit bucket on `POST /api/auth/login`. Replace with `@fastify/rate-limit` for persistence across restarts and distributed deployments.
 - [ ] **Audit log surface**: claims, login failures, password resets, and session revocations should be visible in the admin Accounts tab.
 
 ### Code Quality
@@ -207,9 +207,9 @@ These play UI features were deferred from the Play UI Overhaul sprint, pending i
 
 ### Auth & Account UI (deferred from Phase 2.6)
 
-- [ ] **`/play/account` real settings UI**: password change, active sessions list (view and revoke devices), change-username. Placeholder page ships in Phase 2.6.
+- [ ] **`/play/account` real settings UI**: password change, active sessions list (view and revoke devices), change-username. Placeholder page ships in Phase 5 (5C-9 adds logout-everywhere; full device-list deferred).
 - [ ] **`/play/login` forgot-password flow**: support admin-configured contact info in the "Ask your admin" modal instead of a generic message. Requires a server-side contact-info setting.
-- [ ] **`/play/<campaignId>` no-access page**: friendly error when the authenticated user has no seat in the requested campaign, instead of silently redirecting to `/play`.
+- [ ] **`/play/<campaignId>` no-access page** _(Phase 5C-3, 5C-4)_: redirect to `/play?error=campaign-access-revoked` with a toast. See Phase 5C in Current Projects.
 - [ ] **Discord/Slack preview optimization for `/join/<token>`**: bot user-agents fetch the URL on paste. Serve a lightweight meta-tag HTML page for bots; deliver the SPA shell for real browsers.
 
 ## Documentation

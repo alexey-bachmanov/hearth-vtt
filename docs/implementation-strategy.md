@@ -310,37 +310,95 @@ Completes Milestone M2 by wiring the client-side chat and dice surfaces to the e
 
 ---
 
-### Phase 5 — Player Auth
+### Phase 5 — Finish the Outside of the Engine Boundary
 
-> **Estimated effort:** ~2 weeks  
-> **Track:** A (Backend, can overlap Phase 4)  
-> **Dependencies:** Phase 3
+> **Estimated effort:** ~4–6 weeks  
+> **Track:** A + B  
+> **Dependencies:** Phase 4 (complete)  
+> **Status:** In progress
 
-Replaces dev auth bypass with real invite→claim→session→WS-auth flow.
+Complete all auth, identity, and security work outside the GameEngine before resuming engine-interior work. The previous Phase 5 entry was written before Phase 4 was built; most of its tasks (claim flow, session resolver, WS auth, account domain, `auth.ts` endpoints) were implemented during Phase 3–4. The actual remaining work is client-side auth UX completion, security hardening, password-reset/logout flows, and dev-affordance redesign.
 
-#### Tasks
+**Deliberate scope decision:** this entire phase ships before Phase 6 begins. Leaving gaps here guarantees they become unfixable tech debt mid-engine-work.
 
-1. **Wire seats/invites to real storage.** The SQLite tables already exist. Replace mock data in `seats.ts` and `invites.ts` with real `Storage` calls. Use `crypto.randomBytes()` for invite tokens.
+#### Phase 5A — Server security hardening (must complete first)
 
-2. **Invite claim flow.** `POST /api/invites/:token/claim` with PIN → creates `AuthSession` → sets HttpOnly refresh token cookie → returns seat info.
+1. **Atomic invite-claim race fix.** Replace the current check-then-update invite consumption in [`account.ts`](../server/src/domain/auth/account.ts) with an atomic SQL `UPDATE ... WHERE uses_remaining > 0 RETURNING ...`. Re-validate the invite _after_ account creation and _before_ seat binding. On zero rows affected, return 410 `INVITE_RACE_LOST`. Loser's account left intact (clean re-entry via `/play/login`).
 
-3. **Session management.** Implement `POST /api/sessions/refresh` (rotate refresh token) and `DELETE /api/sessions` (revoke). Wire `sessions.ts` and `auth.ts` to real storage.
+2. **Timing-safe comparison audit.** Audit all `===` comparisons against secrets across the auth surface (CSRF tokens in [`admin-auth.ts`](../server/src/routes/admin-auth.ts), session token hash lookups, any PIN/password comparison not already going through `timingSafeEqual`). [`password.ts`](../server/src/utils/password.ts) already uses `timingSafeEqual` — confirm no regressions.
 
-4. **WS authentication.** On WS upgrade, validate refresh token cookie → extract `seatId` + `campaignId` → proceed. Reject unauthenticated connections (except when `DEV_BYPASS_AUTH` is set).
+3. **Unified auth error shapes + timing envelope.** `claim-invite` and `login` return the same `INVALID_CREDENTIALS` for unknown-username, wrong-password, and wrong-PIN. Reserve `INVITE_NOT_FOUND / EXPIRED / REVOKED / RACE_LOST` and `USERNAME_TAKEN` only for cases that don't leak credential-validity info. Add a minimum ~200ms artificial delay on credential-validation paths to level out not-found vs wrong-password timing difference.
 
-5. **Client join flow.** Wire `JoinPage.svelte` to real `AuthApi`. On successful claim → redirect to `/play`. Wire `http.ts` sub-clients (`AuthApi`, `SeatApi`, etc.) to real `HttpClient`.
+4. **CSRF tokens for the player auth surface.** Extract `requireCsrfToken` from [`admin-auth.ts`](../server/src/routes/admin-auth.ts) into `server/src/auth/csrf.ts` (shared by both admin and player code paths). Add `csrf_token` column to `auth_sessions`. Mint a new CSRF token in `claim-invite`, `login`, and `refresh`; return as `{ ..., csrfToken }` in each response. Validate `X-CSRF-Token` header on every player POST/PATCH/DELETE via a Fastify `preHandler` attached to the player route prefix.
 
-6. **Admin seat management.** Wire `SeatSettings.svelte` to create invites, view/revoke seats via real API.
+5. **WS Origin allow-list.** In [`ws.ts`](../server/src/routes/ws.ts), reject upgrades whose `Origin` header does not match `PUBLIC_BASE_URL` (or `localhost:*` / `127.0.0.1:*` in dev). Close with 4403. Absence of `Origin` in production is itself a rejection signal.
 
-7. **Remove dev-bypass hack.** After real auth is wired, delete or gate behind `DEV_BYPASS_AUTH` env var:
-   - Remove `seatId` prop from `PlayLayout.svelte` and `seatId` from the `play-campaign` route type in `routes.ts`.
-   - Remove `seatId` field and `&seat=` URL building from `WebSocketClient` in `ws.ts`.
-   - Remove auth-guard bypass (`if (type === 'play-campaign' && currentRoute.seatId) return`) in `Router.svelte`.
-   - The `?seat=` param in the server WS handler (`ws.ts`) was already hard-gated behind `!isProduction`; decide whether to keep or remove.
+6. **Security response headers.** New `server/src/plugins/security-headers.ts` registered in [`server.ts`](../server/src/server.ts): `X-Content-Type-Options: nosniff`, `X-Frame-Options: DENY`, `Referrer-Policy: strict-origin-when-cross-origin`. CSP ships as `Content-Security-Policy-Report-Only` first (`default-src 'self'`; `style-src 'self' 'unsafe-inline'`; `img-src 'self' data: blob:`; `connect-src 'self' ws: wss:`; `frame-ancestors 'none'`). Flip to enforcing once all UI routes produce zero violations.
+
+7. **Per-mode refresh-cookie policy.** Move cookie config into `server/src/auth/cookies.ts`. New helper `buildRefreshCookieOptions(request, adminOverrideDays)`: `maxAge` defaults to 30 days on HTTPS and `undefined` (session-only) on HTTP. `TRUST_PROXY` env var already wires `request.protocol` to `X-Forwarded-Proto` (existing infra in [`server.ts`](../server/src/server.ts)). Add a `refresh_cookie_max_days` admin-configurable override (0 = session-only regardless of protocol; 1–30 = explicit override). Expose via `PATCH /api/admin/server-settings` (CSRF-protected).
+
+8. **Log redaction audit.** Verify no password, PIN, refresh token, CSRF token, or full request body reaches Fastify logs on any auth route. Configure Fastify logger `serializers.req` to omit `cookie` header for auth routes.
+
+#### Phase 5B — Server features
+
+9. **`must_change_password` flow.** Confirm [`admin-accounts.ts`](../server/src/routes/admin-accounts.ts) `reset-password` sets `must_change_password = true` and revokes all sessions. Add `POST /api/auth/change-password` (CSRF + auth required). Modify `POST /api/auth/login` and `GET /api/auth/me` to include `mustChangePassword: boolean` in their responses.
+
+10. **"Log out everywhere" endpoint.** `POST /api/auth/logout-all` (CSRF + auth required) — calls `storage.revokeAllAuthSessionsForAccount(accountId)`, returns 204. Client clears cookie and navigates to `/play/login`.
+
+11. **Wire seats and invites endpoints to real storage.** [`seats.ts`](../server/src/routes/seats.ts) and [`invites.ts`](../server/src/routes/invites.ts) are currently 501 stubs. Wire to real `Storage` calls. Mutations are CSRF-protected via admin middleware. Required for the admin UI to function and for the dev-account seed (Phase 5D) to work.
+
+12. **Server tests for 5A/5B.** Invite-race test (50 parallel claims on a single-use invite → exactly one 200, 49 `INVITE_RACE_LOST`, one seat bound, loser account exists with zero seats). CSRF rejection on every player POST. Origin rejection on WS upgrade. `must_change_password` round-trip. Logout-all revokes only the target account's sessions. Per-mode cookie variants (HTTPS → 30d; HTTP → session; override 0 → session on HTTPS; override 7 → 7d).
+
+#### Phase 5C — Client auth UX
+
+13. **Player login page.** Wire [`PlayLoginPage.svelte`](../client/src/ui/auth/PlayLoginPage.svelte) to `POST /api/auth/login`. On success: store `csrfToken` in `authState`, redirect to `validateReturnTo(returnTo) ?? '/play'`. Handle 401 and 429. "Forgot password" button → "Contact your server admin" modal only.
+
+14. **Join page.** Wire [`JoinPage.svelte`](../client/src/ui/auth/JoinPage.svelte) to `POST /api/auth/claim-invite`. Real form with login/register mode toggle, PIN, username, password. On success: store `csrfToken`, redirect to `/play/<campaignId>`. Surface `INVITE_RACE_LOST` as "Someone just claimed this invite — ask your GM for a new one." Surface `USERNAME_TAKEN` inline on the username field.
+
+15. **Campaign picker.** Wire [`CampaignPickerPage.svelte`](../client/src/ui/auth/CampaignPickerPage.svelte) to `authState.me.seats`. Read `?error=campaign-access-revoked` once (consume via `replaceState`) and display a transient toast.
+
+16. **Bookmark-stale-seat redirect.** When the play-campaign route loads but the WS upgrade returns 4403 or the seat is absent from `authState.me.seats`, navigate to `/play?error=campaign-access-revoked`.
+
+17. **CSRF injection in `HttpClient`.** Extend [`http.ts`](../client/src/api/http.ts) base client to auto-inject `X-CSRF-Token` on all POST/PATCH/DELETE from `authState.csrfToken`. On any 401 response, clear in-memory tokens and trigger re-auth.
+
+18. **Silent refresh on WS 4401.** In [`ws.ts`](../client/src/api/ws.ts): on WS close with code 4401, attempt one `POST /api/auth/refresh`. On 200, store new `accessToken` + `csrfToken`, retry connection once. On failure, navigate to `/play/login?returnTo=<current>`.
+
+19. **CSRF rotation on refresh.** `POST /api/auth/refresh` always returns `{ accessToken, csrfToken }`. Client overwrites both atomically. Document this rule in a comment on the refresh handler.
+
+20. **Forced password-change modal.** When `authState.me.mustChangePassword === true`, render a blocking modal in `PlayLayout` and the campaign picker. Modal posts to `POST /api/auth/change-password`. On success, re-loads `me`.
+
+21. **"Log out everywhere" button.** On [`AccountPage.svelte`](../client/src/ui/auth/AccountPage.svelte) (create if absent per spec): posts to `POST /api/auth/logout-all`, navigates to `/play/login`.
+
+22. **Client tests.** Mirror server test additions. Cover: CSRF injection in `HttpClient` (header sent on mutating requests, missing on GETs); silent-refresh-on-4401 path; forced-password-change modal render/submit; campaign-picker stale-seat toast; join page `INVITE_RACE_LOST` rendering.
+
+#### Phase 5D — Dev affordance redesign + bypass removal
+
+23. **Extend [`seed-dev-db.ts`](../scripts/seed-dev-db.ts)** to create a `PlayerAccount` (username `dev`, password from `HEARTH_DEV_ADMIN_PASSWORD` env; random+logged if unset) and bind it to `seat-mock-001`. Hard-gate the entire seeding path with `if (process.env.NODE_ENV === 'production') throw`. Idempotent: skip account creation if `dev` already exists (preserves UI-driven password changes).
+
+24. **New `scripts/reset-admin-setup.ts` (`npm run dev:reset-setup`).** Nulls the `server_admin` password hash and resets setup-PIN state so the next server start re-runs first-time setup. Gated by `NODE_ENV !== 'production'`.
+
+25. **Remove the `&seat=` URL bypass** from four files:
+    - [`server/src/routes/ws.ts`](../server/src/routes/ws.ts) — delete `?seat=` query parsing and `DEV_SEAT_ID` fallback.
+    - [`client/src/api/ws.ts`](../client/src/api/ws.ts) — remove `seatId` arg from `connect()` and `&seat=` URL building.
+    - [`client/src/app/routes.ts`](../client/src/app/routes.ts) — remove `seatId?: string` from `play-campaign` route type.
+    - [`client/src/app/Router.svelte`](../client/src/app/Router.svelte) — remove auth-guard bypass for `seatId`; remove `seatId` prop on `<PlayLayout>`.
+    - [`client/src/ui/layout/PlayLayout.svelte`](../client/src/ui/layout/PlayLayout.svelte) — remove `seatId` prop and its use in `wsClient.connect()`.
+
+26. **Document the new dev flow** in `CONTRIBUTING.md` and a comment in `seed-dev-db.ts`: set `HEARTH_DEV_ADMIN_PASSWORD`, run `npm run seed-dev-db`, log in at `/play/login` as `dev`. To re-test admin setup: `npm run dev:reset-setup` then restart.
+
+#### Phase 5E — Documentation sync
+
+27. **This doc** — Phase 5 entry is what you're reading. ✓
+
+28. **Update [`auth-join-flow.md`](components/auth-join-flow.md)** to reflect: CSRF tokens are now part of the player auth flow (previous spec said no CSRF); `INVITE_RACE_LOST` error code; per-mode cookie defaults; `mustChangePassword` round-trip; `POST /api/auth/logout-all`; CSP header strategy.
+
+29. **ADR if needed.** If Decision 6 (CSRF for player flow) contradicts ADR-010, add `docs/decisions/012-player-csrf-tokens.md` superseding that part of ADR-010.
 
 #### Verification — M3
 
-> **Admin creates campaign → creates invite → shares link. Player opens link → enters PIN → joins campaign → sees synced state. Two players can see each other's token moves. Revoking a session disconnects the player.**
+> **Admin creates campaign → creates invite → shares link. Player opens link → enters PIN (login or register mode) → joins campaign → sees synced state. Two players can see each other's token moves. Revoking a session disconnects the player. Bookmark visited after session expires → silent refresh succeeds → play resumes without login prompt. Admin resets player password → player forced through password-change modal on next visit. `npm run dev:reset-setup` restores the admin setup screen without touching player data.**
+
+**Test coverage:** all items in 5A/5B have server unit tests; all items in 5C have client component tests; `&seat=` removal verified by checking `?seat=` is unrecognised and redirects to `/play/login`.
 
 ---
 
