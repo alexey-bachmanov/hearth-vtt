@@ -47,6 +47,7 @@ export const meResponseSchema = z.object({
   accountId: z.string(),
   username: z.string(),
   seats: z.array(seatSummarySchema),
+  mustChangePassword: z.boolean(),
 });
 export type MeResponse = z.infer<typeof meResponseSchema>;
 
@@ -193,3 +194,19 @@ export type AdminResetPasswordRequest = z.infer<
  * Revokes all active sessions for the specified player account.
  * Returns 204 on success.
  */
+
+// ============================================================================
+// POST /api/auth/change-password
+// ============================================================================
+
+/**
+ * Request body for POST /api/auth/change-password.
+ *
+ * Requires CSRF token and a valid player session. Used both for voluntary
+ * password changes and for the forced change when mustChangePassword=true.
+ */
+export const changePasswordRequestSchema = z.object({
+  currentPassword: z.string().min(1),
+  newPassword: z.string().min(8).max(256),
+});
+export type ChangePasswordRequest = z.infer<typeof changePasswordRequestSchema>;

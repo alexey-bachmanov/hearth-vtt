@@ -32,8 +32,8 @@ As work completes, check off tasks.
 
 ### Phase 5B — Server features
 
-- [ ] **5B-1.** `must_change_password` flow. Confirm [`admin-accounts.ts`](../server/src/routes/admin-accounts.ts) `reset-password` sets `must_change_password = true` and revokes all sessions. Add `POST /api/auth/change-password` (CSRF + auth required). Add `mustChangePassword: boolean` to `POST /api/auth/login` and `GET /api/auth/me` responses.
-- [ ] **5B-2.** "Log out everywhere." `POST /api/auth/logout-all` (CSRF + auth required) — revokes all sessions for the account, returns 204.
+- [x] **5B-1.** `must_change_password` flow. Confirm [`admin-accounts.ts`](../server/src/routes/admin-accounts.ts) `reset-password` sets `must_change_password = true` and revokes all sessions. Add `POST /api/auth/change-password` (CSRF + auth required). Add `mustChangePassword: boolean` to `POST /api/auth/login` and `GET /api/auth/me` responses.
+- [x] **5B-2.** "Log out everywhere." `POST /api/auth/logout-all` (CSRF + auth required) — revokes all sessions for the account, returns 204.
 - [ ] **5B-3.** Wire [`seats.ts`](../server/src/routes/seats.ts) and [`invites.ts`](../server/src/routes/invites.ts) to real storage. Currently 501 stubs. All mutations CSRF-protected via admin middleware.
 - [ ] **5B-4.** Server tests: `must_change_password` round-trip; logout-all revokes only the target account's sessions; seats/invites CRUD via real storage.
 

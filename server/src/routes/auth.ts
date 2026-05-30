@@ -2,11 +2,13 @@
  * Player authentication endpoints.
  *
  * Routes:
- * - POST /api/auth/claim-invite — claim invite (login or register mode)
- * - POST /api/auth/login        — username + password login
- * - POST /api/auth/logout       — revoke current session
- * - POST /api/auth/refresh      — mint new access token from refresh cookie
- * - GET  /api/auth/me           — return MeResponse for the current session
+ * - POST /api/auth/claim-invite     — claim invite (login or register mode)
+ * - POST /api/auth/login             — username + password login
+ * - POST /api/auth/logout            — revoke current session
+ * - POST /api/auth/logout-all        — revoke all sessions for the account
+ * - POST /api/auth/refresh           — mint new access token from refresh cookie
+ * - POST /api/auth/change-password   — change password (CSRF + auth required)
+ * - GET  /api/auth/me                — return MeResponse for the current session
  *
  * Architecture:
  * - All business rules live in server/src/domain/auth/account.ts.
@@ -22,6 +24,7 @@ import type { FastifyInstance, FastifyRequest, FastifyReply } from 'fastify';
 import { randomBytes, createHash } from 'crypto';
 import type { Storage, PlayerAccount, Seat } from '../storage/index.js';
 import type { MeResponse, SeatSummary } from '@hearth-vtt/shared';
+import { changePasswordRequestSchema } from '@hearth-vtt/shared';
 import { generateCsrfToken, requirePlayerCsrfToken } from '../auth/csrf.js';
 import { buildRefreshCookieOptions } from '../auth/cookies.js';
 import {
@@ -169,6 +172,7 @@ async function buildMeResponse(
     accountId: account.id,
     username: account.username,
     seats: seatSummaries,
+    mustChangePassword: account.mustChangePassword,
   };
 }
 
@@ -617,7 +621,7 @@ export async function authRoutes(
    * Uses the `hearth_refresh` cookie to resolve the session. Called by the
    * client auth guard on every protected-route mount.
    *
-   * Returns: MeResponse `{ accountId, username, seats }`.
+   * Returns: MeResponse `{ accountId, username, seats, mustChangePassword }`.
    * 401: not authenticated, session expired, or revoked.
    */
   server.get('/api/auth/me', async (request, reply) => {
@@ -627,4 +631,108 @@ export async function authRoutes(
     reply.code(200);
     return buildMeResponse(resolved.account, storage);
   });
+
+  // --------------------------------------------------------------------------
+  // POST /api/auth/change-password
+  // --------------------------------------------------------------------------
+
+  /**
+   * Change the current player's password.
+   *
+   * Requires CSRF token and a valid refresh-cookie session. Verifies the
+   * current password before accepting the new one. On success, clears the
+   * mustChangePassword flag and returns the updated MeResponse (so the client
+   * can update state without a separate /me call).
+   *
+   * Returns: MeResponse (200) on success.
+   * 400: validation failure.
+   * 401: wrong current password, or not authenticated.
+   * 403: CSRF failure.
+   */
+  server.post(
+    '/api/auth/change-password',
+    { preHandler: requirePlayerCsrfToken(storage) },
+    async (request, reply) => {
+      const resolved = await resolvePlayerSession(request, reply, storage);
+      if (!resolved) return;
+
+      const parsed = changePasswordRequestSchema.safeParse(request.body);
+      if (!parsed.success) {
+        reply.code(400);
+        return {
+          error: {
+            code: 'INVALID_REQUEST',
+            message: parsed.error.message,
+          },
+        };
+      }
+
+      const { currentPassword, newPassword } = parsed.data;
+
+      // Verify current password
+      const valid = await verifyPassword(
+        currentPassword,
+        resolved.account.passwordHash,
+      );
+      if (!valid) {
+        reply.code(401);
+        return {
+          error: {
+            code: 'WRONG_PASSWORD',
+            message: 'Current password is incorrect.',
+          },
+        };
+      }
+
+      const newHash = await hashPassword(newPassword);
+      // mustChangePassword=false clears the forced-change flag; also updates hash
+      await storage.setPlayerAccountMustChangePassword(
+        resolved.account.id,
+        false,
+        newHash,
+      );
+
+      // Reload account so mustChangePassword=false is reflected in the response
+      const updated = await storage.getPlayerAccountById(resolved.account.id);
+      if (!updated) {
+        reply.code(500);
+        return { error: { code: 'INTERNAL', message: 'Account not found after update.' } };
+      }
+
+      reply.code(200);
+      return buildMeResponse(updated, storage);
+    },
+  );
+
+  // --------------------------------------------------------------------------
+  // POST /api/auth/logout-all
+  // --------------------------------------------------------------------------
+
+  /**
+   * Revoke all active sessions for the current player account.
+   *
+   * Requires CSRF token and a valid refresh-cookie session. Useful for
+   * "log out everywhere" from all devices. The current session is also
+   * revoked, so the client should redirect to login.
+   *
+   * Returns 204 on success.
+   * 401: not authenticated.
+   * 403: CSRF failure.
+   */
+  server.post(
+    '/api/auth/logout-all',
+    { preHandler: requirePlayerCsrfToken(storage) },
+    async (request, reply) => {
+      const resolved = await resolvePlayerSession(request, reply, storage);
+      if (!resolved) return;
+
+      await storage.revokeAllAuthSessionsForAccount(resolved.account.id);
+
+      // Clear the refresh cookie
+      reply
+        .clearCookie(REFRESH_COOKIE, { path: '/', httpOnly: true })
+        .code(204)
+        .send();
+    },
+  );
 }

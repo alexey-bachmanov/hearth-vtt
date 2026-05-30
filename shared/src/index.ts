@@ -126,4 +126,6 @@ export {
   type AdminAccountsResponse,
   adminResetPasswordRequestSchema,
   type AdminResetPasswordRequest,
+  changePasswordRequestSchema,
+  type ChangePasswordRequest,
 } from './protocol/http';
