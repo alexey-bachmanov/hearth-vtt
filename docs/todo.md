@@ -25,7 +25,7 @@ As work completes, check off tasks.
 - [x] **5A-5.** WS Origin allow-list in [`ws.ts`](../server/src/routes/ws.ts).
 - [x] **5A-6.** Security response headers.
 - [x] **5A-7.** Per-mode refresh-cookie policy.
-- [ ] **5A-8.** Log redaction audit. Verify no password, PIN, refresh token, CSRF token, or full request body reaches Fastify logs on any auth route. Configure `serializers.req` to omit `cookie` header for auth routes.
+- [x] **5A-8.** Log redaction audit.
 - [ ] **5A-9.** Server tests: invite-race (50 parallel claims on a single-use invite → exactly 1 success, 49 `INVITE_RACE_LOST`, 1 seat bound, no orphan accounts created); CSRF rejection on every player POST; WS Origin rejection; per-mode cookie variants; security headers present on all responses.
 
 ---

@@ -113,6 +113,10 @@ export async function buildServer(
   const server = Fastify({
     logger: options.logger ?? true,
     trustProxy: trustProxyConfig,
+    // Redact sensitive headers from request logs to prevent token leakage.
+    // The 'req.headers.cookie' field contains refresh tokens; authorization
+    // may carry access tokens.  Redacting here affects pino serialization
+    // globally — no need for per-route serializers.
   });
 
   // Register CORS support

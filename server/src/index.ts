@@ -33,6 +33,9 @@ async function main() {
         | 'info'
         | 'warn'
         | 'error',
+      // Redact sensitive headers so refresh tokens and passwords never
+      // appear in log output, even at debug level.
+      redact: ['req.headers.cookie', 'req.headers.authorization'],
     },
   });
 
