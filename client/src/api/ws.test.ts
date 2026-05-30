@@ -24,7 +24,14 @@ type WsEventListeners = {
   error?: (e: Event) => void;
 };
 
-function makeMockWs(): { ws: WsEventListeners & { readyState: number; close: ReturnType<typeof vi.fn>; send: ReturnType<typeof vi.fn> }; emit: (type: keyof WsEventListeners, data?: unknown) => void } {
+function makeMockWs(): {
+  ws: WsEventListeners & {
+    readyState: number;
+    close: ReturnType<typeof vi.fn>;
+    send: ReturnType<typeof vi.fn>;
+  };
+  emit: (type: keyof WsEventListeners, data?: unknown) => void;
+} {
   const listeners: WsEventListeners = {};
   const ws = {
     readyState: 1, // OPEN
@@ -64,7 +71,9 @@ beforeEach(() => {
   mockWsFactory = makeMockWs();
   // Must be a regular function (not arrow) for `new WebSocket()` to work
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  function MockWS(this: unknown): any { return mockWsFactory.ws; }
+  function MockWS(this: unknown): any {
+    return mockWsFactory.ws;
+  }
   MockWS.OPEN = 1;
   MockWS.CONNECTING = 0;
   MockWS.CLOSING = 2;
@@ -89,7 +98,10 @@ describe('WebSocketClient ACTION_REJECTED error handling', () => {
     wsClient.connect('mock-campaign-id', 'player');
     // Simulate the server sending an ACTION_REJECTED error
     mockWsFactory.emit('message', {
-      data: buildErrorMessage('ACTION_REJECTED', 'dice.roll rejected: invalid formula'),
+      data: buildErrorMessage(
+        'ACTION_REJECTED',
+        'dice.roll rejected: invalid formula',
+      ),
     });
 
     expect(errorSpy).toHaveBeenCalledWith(

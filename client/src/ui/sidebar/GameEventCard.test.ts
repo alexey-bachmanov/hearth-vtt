@@ -16,7 +16,9 @@ import GameEventCard from './GameEventCard.svelte';
 // Fixtures
 // ---------------------------------------------------------------------------
 
-function makeChatEvent(overrides: Partial<Extract<GameEvent, { type: 'chat.message' }>> = {}): GameEvent {
+function makeChatEvent(
+  overrides: Partial<Extract<GameEvent, { type: 'chat.message' }>> = {},
+): GameEvent {
   return {
     id: 'evt-chat-1',
     timestamp: Date.now(),
@@ -27,7 +29,9 @@ function makeChatEvent(overrides: Partial<Extract<GameEvent, { type: 'chat.messa
   };
 }
 
-function makeDiceEvent(overrides: Partial<Extract<GameEvent, { type: 'dice.rolled' }>> = {}): GameEvent {
+function makeDiceEvent(
+  overrides: Partial<Extract<GameEvent, { type: 'dice.rolled' }>> = {},
+): GameEvent {
   return {
     id: 'evt-dice-1',
     timestamp: Date.now(),
@@ -91,7 +95,11 @@ describe('GameEventCard — dice.rolled', () => {
 
   it('renders multiple rolls correctly', () => {
     render(GameEventCard, {
-      event: makeDiceEvent({ formula: '4d6kh3', rolls: [6, 4, 3, 1], total: 13 }),
+      event: makeDiceEvent({
+        formula: '4d6kh3',
+        rolls: [6, 4, 3, 1],
+        total: 13,
+      }),
     });
     expect(screen.getByText(/4d6kh3/)).toBeInTheDocument();
     expect(screen.getByText(/6, 4, 3, 1/)).toBeInTheDocument();

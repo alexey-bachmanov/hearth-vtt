@@ -80,7 +80,9 @@ describe('ChatLog dispatch routing', () => {
     typeInInput('Hello, world!');
     clickSend();
     expect(mockDispatch).toHaveBeenCalledOnce();
-    expect(mockDispatch).toHaveBeenCalledWith('chat.send', { text: 'Hello, world!' });
+    expect(mockDispatch).toHaveBeenCalledWith('chat.send', {
+      text: 'Hello, world!',
+    });
   });
 
   it('/roll formula dispatches dice.roll', () => {
@@ -88,7 +90,9 @@ describe('ChatLog dispatch routing', () => {
     typeInInput('/roll 2d6+3');
     clickSend();
     expect(mockDispatch).toHaveBeenCalledOnce();
-    expect(mockDispatch).toHaveBeenCalledWith('dice.roll', { formula: '2d6+3' });
+    expect(mockDispatch).toHaveBeenCalledWith('dice.roll', {
+      formula: '2d6+3',
+    });
   });
 
   it('/r shorthand dispatches dice.roll', () => {
@@ -96,7 +100,9 @@ describe('ChatLog dispatch routing', () => {
     typeInInput('/r 4d8kh3');
     clickSend();
     expect(mockDispatch).toHaveBeenCalledOnce();
-    expect(mockDispatch).toHaveBeenCalledWith('dice.roll', { formula: '4d8kh3' });
+    expect(mockDispatch).toHaveBeenCalledWith('dice.roll', {
+      formula: '4d8kh3',
+    });
   });
 
   it('Enter key triggers the same dispatch as clicking Send', () => {
@@ -104,7 +110,9 @@ describe('ChatLog dispatch routing', () => {
     const input = typeInInput('via enter key');
     fireEvent.keyDown(input, { key: 'Enter', shiftKey: false });
     expect(mockDispatch).toHaveBeenCalledOnce();
-    expect(mockDispatch).toHaveBeenCalledWith('chat.send', { text: 'via enter key' });
+    expect(mockDispatch).toHaveBeenCalledWith('chat.send', {
+      text: 'via enter key',
+    });
   });
 
   it('Shift+Enter does not dispatch', () => {
@@ -190,4 +198,3 @@ describe('ChatLog inline errors', () => {
     await waitFor(() => expect(screen.queryByRole('alert')).toBeNull());
   });
 });
-

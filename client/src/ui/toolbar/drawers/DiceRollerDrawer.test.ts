@@ -75,7 +75,9 @@ describe('DiceRollerDrawer quick dice', () => {
   it('clicking d100 dispatches dice.roll with formula 1d100', () => {
     render(DiceRollerDrawer);
     fireEvent.click(screen.getByRole('button', { name: 'd100' }));
-    expect(mockDispatch).toHaveBeenCalledWith('dice.roll', { formula: '1d100' });
+    expect(mockDispatch).toHaveBeenCalledWith('dice.roll', {
+      formula: '1d100',
+    });
   });
 
   it('each quick-dice button dispatches exactly once per click', () => {
@@ -94,14 +96,18 @@ describe('DiceRollerDrawer custom formula', () => {
     render(DiceRollerDrawer);
     typeFormula('2d6+3');
     clickRoll();
-    expect(mockDispatch).toHaveBeenCalledWith('dice.roll', { formula: '2d6+3' });
+    expect(mockDispatch).toHaveBeenCalledWith('dice.roll', {
+      formula: '2d6+3',
+    });
   });
 
   it('formula with keep-highest notation dispatches verbatim', () => {
     render(DiceRollerDrawer);
     typeFormula('4d6kh3');
     clickRoll();
-    expect(mockDispatch).toHaveBeenCalledWith('dice.roll', { formula: '4d6kh3' });
+    expect(mockDispatch).toHaveBeenCalledWith('dice.roll', {
+      formula: '4d6kh3',
+    });
   });
 
   it('malformed formula shows error and does not dispatch', async () => {

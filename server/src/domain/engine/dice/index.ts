@@ -46,7 +46,9 @@ const MAX_FORMULA_LENGTH = 200;
 export function evaluate(
   formula: string,
   seed: string,
-): { ok: true; rolls: number[]; total: number } | { ok: false; reason: string } {
+):
+  | { ok: true; rolls: number[]; total: number }
+  | { ok: false; reason: string } {
   // ── Guard: cap formula length before touching the parser ─────────────────
   if (formula.length > MAX_FORMULA_LENGTH) {
     return { ok: false, reason: 'invalid dice formula' };
