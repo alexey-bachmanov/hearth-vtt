@@ -16,7 +16,7 @@
  */
 
 import type { FastifyInstance, FastifyRequest, FastifyReply } from 'fastify';
-import { randomBytes, createHash } from 'crypto';
+import { randomBytes, createHash, timingSafeEqual } from 'crypto';
 import type { Storage } from '../storage/storage';
 import { deleteSetupPinFile } from '../auth/setup-pin.js';
 import {
@@ -813,7 +813,15 @@ export function requireCsrfToken(storage: Storage) {
       });
     }
 
-    if (session.csrfToken !== csrfToken) {
+    // Timing-safe comparison: prevent leaking token validity via response time.
+    // Both tokens are 64-char hex strings (same length) but we guard against
+    // length-mismatch to avoid a timingSafeEqual throw.
+    const expectedBuf = Buffer.from(session.csrfToken, 'utf8');
+    const receivedBuf = Buffer.from(csrfToken, 'utf8');
+    const tokenValid =
+      expectedBuf.length === receivedBuf.length &&
+      timingSafeEqual(expectedBuf, receivedBuf);
+    if (!tokenValid) {
       reply.code(403);
       return reply.send({
         error: {

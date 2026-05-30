@@ -19,7 +19,7 @@ As work completes, check off tasks.
 ### Phase 5A — Server security hardening
 
 - [x] **5A-1.** Atomic invite-claim race fix.
-- [ ] **5A-2.** Timing-safe comparison audit. Replace any `===` comparisons against secrets (CSRF tokens, session hashes, PIN comparisons) with `crypto.timingSafeEqual`. [`password.ts`](../server/src/utils/password.ts) already correct — confirm no regressions.
+- [x] **5A-2.** Timing-safe comparison audit.
 - [ ] **5A-3.** Unified auth error shapes + timing envelope. `claim-invite` and `login` return `INVALID_CREDENTIALS` for unknown-username, wrong-password, and wrong-PIN. Add ~200ms minimum delay on credential-validation paths to level out timing between not-found and wrong-password.
 - [ ] **5A-4.** CSRF tokens for the player auth surface. Extract `requireCsrfToken` from [`admin-auth.ts`](../server/src/routes/admin-auth.ts) into `server/src/auth/csrf.ts`. Add `csrf_token` column to `auth_sessions`. Mint + return `csrfToken` from `claim-invite`, `login`, and `refresh`. Validate `X-CSRF-Token` on every player POST/PATCH/DELETE via a `preHandler` on the player route prefix.
 - [ ] **5A-5.** WS Origin allow-list in [`ws.ts`](../server/src/routes/ws.ts). Reject upgrades whose `Origin` does not match `PUBLIC_BASE_URL` (or `localhost:*` in dev). Close with 4403. Absent `Origin` in production is a rejection.
