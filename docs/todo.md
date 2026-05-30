@@ -22,7 +22,7 @@ As work completes, check off tasks.
 - [x] **5A-2.** Timing-safe comparison audit.
 - [x] **5A-3.** Unified auth error shapes + timing envelope.
 - [x] **5A-4.** CSRF tokens for the player auth surface.
-- [ ] **5A-5.** WS Origin allow-list in [`ws.ts`](../server/src/routes/ws.ts). Reject upgrades whose `Origin` does not match `PUBLIC_BASE_URL` (or `localhost:*` in dev). Close with 4403. Absent `Origin` in production is a rejection.
+- [x] **5A-5.** WS Origin allow-list in [`ws.ts`](../server/src/routes/ws.ts).
 - [ ] **5A-6.** Security response headers. New `server/src/plugins/security-headers.ts`: `X-Content-Type-Options: nosniff`, `X-Frame-Options: DENY`, `Referrer-Policy: strict-origin-when-cross-origin`. CSP ships as `Content-Security-Policy-Report-Only` first; flip to enforcing once all UI routes are clean.
 - [ ] **5A-7.** Per-mode refresh-cookie policy. Move cookie config to `server/src/auth/cookies.ts`. `maxAge` defaults to 30 days on HTTPS, session-only on HTTP. Expose `refresh_cookie_max_days` admin override (0–30) via `PATCH /api/admin/server-settings`. Uses existing `TRUST_PROXY` infra — no new env work needed.
 - [ ] **5A-8.** Log redaction audit. Verify no password, PIN, refresh token, CSRF token, or full request body reaches Fastify logs on any auth route. Configure `serializers.req` to omit `cookie` header for auth routes.

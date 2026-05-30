@@ -76,6 +76,50 @@ async function resolveAuthSession(
   return { campaignId, seatId: seat.id, seatRole: seat.role };
 }
 
+// ── Origin validation ─────────────────────────────────────────────────────────
+
+/**
+ * Returns true if the WebSocket upgrade Origin is allowed.
+ *
+ * In production: only the configured PUBLIC_BASE_URL origin is permitted.
+ * Absent Origin in production is rejected (browser WS always sends Origin).
+ * In development: additionally allows localhost / 127.0.0.1 / [::1] and
+ * absent Origin (e.g. wscat, test clients).
+ */
+function isOriginAllowed(origin: string | null): boolean {
+  const isProd = process.env.NODE_ENV === 'production';
+
+  if (!origin) {
+    return !isProd; // dev: allow; prod: reject
+  }
+
+  const publicBaseUrl = process.env.PUBLIC_BASE_URL;
+  if (publicBaseUrl) {
+    try {
+      if (origin === new URL(publicBaseUrl).origin) return true;
+    } catch {
+      // malformed PUBLIC_BASE_URL — ignore, continue to other checks
+    }
+  }
+
+  if (!isProd) {
+    try {
+      const u = new URL(origin);
+      if (
+        u.hostname === 'localhost' ||
+        u.hostname === '127.0.0.1' ||
+        u.hostname === '[::1]'
+      ) {
+        return true;
+      }
+    } catch {
+      // malformed origin — reject
+    }
+  }
+
+  return false;
+}
+
 // ── Route registration ────────────────────────────────────────────────────────
 
 export async function wsRoutes(
@@ -101,6 +145,13 @@ export async function wsRoutes(
    * auth stack.
    */
   server.get('/ws', { websocket: true }, async (socket, req) => {
+    // 5A-5: Reject upgrades from disallowed origins.
+    const origin = (req.headers.origin as string | undefined) ?? null;
+    if (!isOriginAllowed(origin)) {
+      socket.close(4403, 'Forbidden origin');
+      return;
+    }
+
     const query = req.query as Record<string, string | undefined>;
     const campaignIdParam = query['campaign'];
     const isProduction = process.env.NODE_ENV === 'production';

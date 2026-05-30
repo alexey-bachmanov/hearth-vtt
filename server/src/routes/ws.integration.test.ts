@@ -204,7 +204,9 @@ describe('WS route — connection and welcome', () => {
   it('closes with code 4001 when no valid session exists (production auth)', async () => {
     // Temporarily switch to production to test the hard auth rejection.
     const original = process.env.NODE_ENV;
+    const originalBaseUrl = process.env.PUBLIC_BASE_URL;
     process.env.NODE_ENV = 'production';
+    process.env.PUBLIC_BASE_URL = `http://127.0.0.1:${port}`;
 
     try {
       const campaign = await storage.createCampaign('Unauthenticated');
@@ -212,6 +214,7 @@ describe('WS route — connection and welcome', () => {
         const ws = new WebSocket(
           `ws://127.0.0.1:${port}/ws?campaign=${campaign.id}`,
           // No cookie provided.
+          { headers: { Origin: `http://127.0.0.1:${port}` } },
         );
         ws.on('close', (code) => resolve(code));
         ws.on('error', () => resolve(-1));
@@ -219,6 +222,7 @@ describe('WS route — connection and welcome', () => {
       expect(closeCode).toBe(4001);
     } finally {
       process.env.NODE_ENV = original;
+      process.env.PUBLIC_BASE_URL = originalBaseUrl;
     }
   });
 });
@@ -549,7 +553,9 @@ describe('WS route — ?seat= dev override', () => {
 
   it('?seat= is ignored in production — connection rejected without valid auth', async () => {
     const original = process.env.NODE_ENV;
+    const originalBaseUrl = process.env.PUBLIC_BASE_URL;
     process.env.NODE_ENV = 'production';
+    process.env.PUBLIC_BASE_URL = `http://127.0.0.1:${port}`;
 
     try {
       const campaign = await storage.createCampaign('Prod No Bypass');
@@ -564,6 +570,7 @@ describe('WS route — ?seat= dev override', () => {
         const ws = new WebSocket(
           `ws://127.0.0.1:${port}/ws?campaign=${campaign.id}&seat=${seat.id}`,
           // No cookie.
+          { headers: { Origin: `http://127.0.0.1:${port}` } },
         );
         ws.on('close', (code) => resolve(code));
         ws.on('error', () => resolve(-1));
@@ -571,6 +578,7 @@ describe('WS route — ?seat= dev override', () => {
       expect(closeCode).toBe(4001);
     } finally {
       process.env.NODE_ENV = original;
+      process.env.PUBLIC_BASE_URL = originalBaseUrl;
     }
   });
 });
