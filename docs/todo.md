@@ -48,8 +48,8 @@ As work completes, check off tasks.
 
 ### Phase C — Client: dice drawer wiring
 
-- [ ] **C1.** In [`DiceRollerDrawer.svelte`](../client/src/ui/toolbar/drawers/DiceRollerDrawer.svelte): wire d4/d6/d8/d10/d12/d20/d100 buttons to `wsClient.dispatch('dice.roll', { formula: '1dN' })` on click. Wire custom-formula input + Roll button: read value verbatim, apply the same pre-flight regex as the chat path, show inline error if it fails, else dispatch `{ formula }`. Buttons do not accumulate or build a formula — each is a one-click roll.
-- [ ] **C2.** Component tests in `DiceRollerDrawer.test.ts`: clicking d20 dispatches `{ formula: '1d20' }`; valid custom formula dispatches verbatim; malformed custom formula shows error and does not dispatch.
+- [x] **C1.** In [`DiceRollerDrawer.svelte`](../client/src/ui/toolbar/drawers/DiceRollerDrawer.svelte): wire d4/d6/d8/d10/d12/d20/d100 buttons to `wsClient.dispatch('dice.roll', { formula: '1dN' })` on click. Wire custom-formula input + Roll button: read value verbatim, apply the same pre-flight regex as the chat path, show inline error if it fails, else dispatch `{ formula }`. Buttons do not accumulate or build a formula — each is a one-click roll.
+- [x] **C2.** Component tests in `DiceRollerDrawer.test.ts`: clicking d20 dispatches `{ formula: '1d20' }`; valid custom formula dispatches verbatim; malformed custom formula shows error and does not dispatch.
 
 ---
 
