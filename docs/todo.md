@@ -55,9 +55,9 @@ As work completes, check off tasks.
 
 ### Phase D — Client: event rendering
 
-- [ ] **D1.** In [`GameEventCard.svelte`](../client/src/ui/sidebar/GameEventCard.svelte): add a `dice.rolled` case that renders the sender's display name, the formula, individual rolls (e.g. `[4, 2, 6]`), and the total. Confirm `chat.message` case renders `data.displayName` and `data.text` (not a stub or mock field).
-- [ ] **D2.** Verify [`campaign.svelte.ts`](../client/src/state/campaign.svelte.ts) `applyEvent()` appends the incoming `GameEvent` to the structure that `ChatLog.svelte` reads. Fix the projection if it doesn't.
-- [ ] **D3.** Component tests in `GameEventCard.test.ts`: renders chat-message variant with display name and text; renders dice-rolled variant with formula, individual rolls, and total.
+- [x] **D1.** In [`GameEventCard.svelte`](../client/src/ui/sidebar/GameEventCard.svelte): add a `dice.rolled` case that renders the sender's display name, the formula, individual rolls (e.g. `[4, 2, 6]`), and the total. Confirm `chat.message` case renders `data.displayName` and `data.text` (not a stub or mock field).
+- [x] **D2.** Verify [`campaign.svelte.ts`](../client/src/state/campaign.svelte.ts) `applyEvent()` appends the incoming `GameEvent` to the structure that `ChatLog.svelte` reads. Fix the projection if it doesn't.
+- [x] **D3.** Component tests in `GameEventCard.test.ts`: renders chat-message variant with display name and text; renders dice-rolled variant with formula, individual rolls, and total.
 
 ---
 

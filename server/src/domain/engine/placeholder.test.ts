@@ -247,13 +247,19 @@ describe('PlaceholderEngine', () => {
       expect(events).toHaveLength(1);
       const full = events[0] as { kind: 'full'; event: GameEvent };
       expect(full.event.type).toBe('dice.rolled');
-      const data = full.event.data as { formula: string; rolls: number[]; total: number };
+      const data = full.event.data as {
+        formula: string;
+        rolls: number[];
+        total: number;
+        displayName: string;
+      };
       expect(data.formula).toBe('2d6');
       expect(data.rolls).toHaveLength(2);
       for (const roll of data.rolls) {
         expect(roll).toBeGreaterThanOrEqual(1);
         expect(roll).toBeLessThanOrEqual(6);
       }
+      expect(typeof data.displayName).toBe('string');
 
       unsubscribe();
     });

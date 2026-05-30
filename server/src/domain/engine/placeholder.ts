@@ -145,6 +145,7 @@ interface _DiceRolledData extends BaseEventData {
   formula: string;
   rolls: number[];
   total: number;
+  displayName: string;
 }
 
 // ============================================================================
@@ -717,6 +718,8 @@ export class PlaceholderEngine implements GameEngine {
       return { ok: false, reason: result.reason };
     }
 
+    const seat = this.state.seats.get(seatId);
+    const displayName = seat?.displayName ?? seatId;
     return {
       ok: true,
       storable: {
@@ -728,6 +731,7 @@ export class PlaceholderEngine implements GameEngine {
           formula,
           rolls: result.rolls,
           total: result.total,
+          displayName,
         },
       },
     };

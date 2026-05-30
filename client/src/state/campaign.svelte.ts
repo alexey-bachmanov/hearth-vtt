@@ -29,29 +29,29 @@ export interface Effect {
   isConcentration?: boolean;
 }
 
-export interface GameEvent {
-  id: string;
-  timestamp: number;
-  type:
-    | 'chat.message'
-    | 'roll.result'
-    | 'damage.applied'
-    | 'effect.applied'
-    | 'system';
-  actorId?: string;
-  actorName?: string;
-  message?: string;
-  // Roll-specific
-  formula?: string;
-  total?: number;
-  dice?: { sides: number; result: number }[];
-  // Damage-specific
-  damage?: number;
-  damageType?: string;
-  target?: string;
-  // Effect-specific
-  effectName?: string;
-}
+export type GameEvent =
+  | {
+      id: string;
+      timestamp: number;
+      type: 'chat.message';
+      displayName: string;
+      text: string;
+    }
+  | {
+      id: string;
+      timestamp: number;
+      type: 'dice.rolled';
+      displayName: string;
+      formula: string;
+      rolls: number[];
+      total: number;
+    }
+  | {
+      id: string;
+      timestamp: number;
+      type: 'system';
+      message: string;
+    };
 
 // ============================================================================
 // CampaignState Class
@@ -276,7 +276,7 @@ export class CampaignState {
         break;
       }
 
-      case 'chat.sent': {
+      case 'chat.message': {
         this.appendEvent(this.#toUIEvent(event));
         break;
       }
@@ -369,31 +369,29 @@ export class CampaignState {
     const base = { id: e.id, timestamp: Date.parse(e.time) };
 
     switch (e.type) {
-      case 'chat.sent': {
+      case 'chat.message': {
         const d = e.data as { text: string; displayName: string };
         return {
           ...base,
           type: 'chat.message',
-          message: d.text,
-          actorName: d.displayName,
+          displayName: d.displayName,
+          text: d.text,
         };
       }
       case 'dice.rolled': {
         const d = e.data as {
-          count: number;
-          sides: number;
+          displayName: string;
+          formula: string;
           rolls: number[];
           total: number;
-          formula: string;
-          displayName: string;
         };
         return {
           ...base,
-          type: 'roll.result',
-          actorName: d.displayName,
+          type: 'dice.rolled',
+          displayName: d.displayName,
           formula: d.formula,
+          rolls: d.rolls,
           total: d.total,
-          dice: d.rolls.map((r) => ({ sides: d.sides, result: r })),
         };
       }
       default:
@@ -635,67 +633,40 @@ export class CampaignState {
         id: 'event-1',
         timestamp: Date.now() - 300000,
         type: 'chat.message',
-        actorId: kael.id,
-        actorName: 'Kael Sunblade',
-        message:
-          'I stride into the tavern, hand on my sword hilt, scanning for trouble.',
+        displayName: 'Kael Sunblade',
+        text: 'I stride into the tavern, hand on my sword hilt, scanning for trouble.',
       },
       {
         id: 'event-2',
         timestamp: Date.now() - 240000,
-        type: 'roll.result',
-        actorId: lyra.id,
-        actorName: 'Lyra Whisperwind',
+        type: 'dice.rolled',
+        displayName: 'Lyra Whisperwind',
         formula: '1d20+5',
+        rolls: [18],
         total: 23,
-        dice: [{ sides: 20, result: 18 }],
-        message: 'Perception check',
       },
       {
         id: 'event-3',
         timestamp: Date.now() - 180000,
         type: 'chat.message',
-        actorName: 'GM',
-        message:
-          'A cloaked figure in the corner watches you intently. Roll for initiative!',
+        displayName: 'GM',
+        text: 'A cloaked figure in the corner watches you intently. Roll for initiative!',
       },
       {
         id: 'event-4',
         timestamp: Date.now() - 120000,
-        type: 'roll.result',
-        actorId: thadric.id,
-        actorName: 'Thadric Ironfoot',
+        type: 'dice.rolled',
+        displayName: 'Thadric Ironfoot',
         formula: '1d20+2',
+        rolls: [17],
         total: 19,
-        dice: [{ sides: 20, result: 17 }],
-        message: 'Initiative',
       },
       {
         id: 'event-5',
-        timestamp: Date.now() - 60000,
-        type: 'damage.applied',
-        actorId: kael.id,
-        actorName: 'Kael Sunblade',
-        target: 'Goblin Warrior',
-        damage: 15,
-        damageType: 'slashing',
-      },
-      {
-        id: 'event-6',
-        timestamp: Date.now() - 30000,
-        type: 'effect.applied',
-        actorId: lyra.id,
-        actorName: 'Lyra Whisperwind',
-        effectName: 'Haste',
-        target: 'Thadric Ironfoot',
-      },
-      {
-        id: 'event-7',
         timestamp: Date.now() - 10000,
         type: 'chat.message',
-        actorId: zara.id,
-        actorName: 'Zara Swiftarrow',
-        message: "I'll slip into the shadows and flank the necromancer.",
+        displayName: 'Zara Swiftarrow',
+        text: "I'll slip into the shadows and flank the necromancer.",
       },
     ];
 

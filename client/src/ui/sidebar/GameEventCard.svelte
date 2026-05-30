@@ -1,9 +1,8 @@
 <script lang="ts">
 /**
  * GameEventCard - Single event/message entry.
- * 
- * Displays a chat message, dice roll, damage, effect, or system event.
- * Renders appropriate content based on event type.
+ *
+ * Renders a chat message or dice roll result from the campaign event log.
  */
 
 import type { GameEvent } from '../../state/campaign.svelte';
@@ -14,53 +13,39 @@ interface Props {
 
 let { event }: Props = $props();
 
-// Format timestamp from ISO string
+// Format timestamp from milliseconds
 const timestamp = $derived(() => {
   try {
-    const date = new Date(event.timestamp);
-    return date.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' });
+    return new Date(event.timestamp).toLocaleTimeString('en-US', {
+      hour: '2-digit',
+      minute: '2-digit',
+    });
   } catch {
     return '';
   }
 });
-
-// Generate event content based on type
-const content = $derived(() => {
-  switch (event.type) {
-    case 'chat.message':
-      return `${event.actorName || 'Unknown'}: ${event.message || ''}`;
-    
-    case 'roll.result': {
-      const dice = event.dice?.map(d => `d${d.sides}:${d.result}`).join(', ') || '';
-      return `${event.actorName || 'Unknown'} rolled ${event.formula || ''}: ${event.total || 0}${dice ? ` (${dice})` : ''}`;
-    }
-    
-    case 'damage.applied':
-      return `${event.actorName || 'Unknown'} dealt ${event.damage || 0} ${event.damageType || 'damage'} to ${event.target || 'target'}`;
-    
-    case 'effect.applied':
-      return `${event.effectName || 'Effect'} applied to ${event.target || event.actorName || 'target'}`;
-    
-    case 'system':
-      return event.message || 'System event';
-    
-    default:
-      return 'Unknown event';
-  }
-});
-
-// Determine card styling variant
-const variant = $derived(() => {
-  if (event.type === 'roll.result') return 'roll';
-  if (event.type === 'damage.applied') return 'damage';
-  if (event.type === 'system') return 'system';
-  return 'chat';
-});
 </script>
 
-<div class="event-card" data-variant={variant()}>
+<div class="event-card" data-type={event.type}>
   <div class="event-timestamp">{timestamp()}</div>
-  <div class="event-content">{content()}</div>
+
+  {#if event.type === 'chat.message'}
+    <div class="event-content">
+      <span class="event-sender">{event.displayName}</span>
+      <span class="event-text">{event.text}</span>
+    </div>
+
+  {:else if event.type === 'dice.rolled'}
+    <div class="event-content event-content--roll">
+      <span class="event-sender">{event.displayName}</span>
+      <span class="event-roll-formula">rolled {event.formula}</span>
+      <span class="event-roll-dice">[{event.rolls.join(', ')}]</span>
+      <span class="event-roll-total">= {event.total}</span>
+    </div>
+
+  {:else}
+    <div class="event-content event-content--system">{event.message}</div>
+  {/if}
 </div>
 
 <style>
@@ -72,19 +57,15 @@ const variant = $derived(() => {
     font-size: var(--font-size-sm);
   }
 
-  .event-card[data-variant="system"] {
-    background-color: var(--color-bg-elevated);
-    border-color: var(--color-accent-primary);
-  }
-
-  .event-card[data-variant="roll"] {
+  .event-card[data-type='dice.rolled'] {
     background-color: var(--color-bg-elevated);
     border-left: 3px solid var(--color-accent-primary);
   }
 
-  .event-card[data-variant="damage"] {
+  .event-card[data-type='system'] {
     background-color: var(--color-bg-elevated);
-    border-left: 3px solid var(--color-danger);
+    border-color: var(--color-accent-primary);
+    font-style: italic;
   }
 
   .event-timestamp {
@@ -96,5 +77,35 @@ const variant = $derived(() => {
   .event-content {
     color: var(--color-text-primary);
     line-height: var(--line-height-relaxed);
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.25rem;
+    align-items: baseline;
+  }
+
+  .event-sender {
+    font-weight: 600;
+  }
+
+  .event-sender::after {
+    content: ':';
+  }
+
+  .event-roll-formula {
+    color: var(--color-text-secondary);
+  }
+
+  .event-roll-dice {
+    color: var(--color-text-tertiary);
+    font-size: 0.85em;
+  }
+
+  .event-roll-total {
+    font-weight: 700;
+    color: var(--color-accent-primary, var(--color-text-primary));
+  }
+
+  .event-content--system {
+    color: var(--color-text-secondary);
   }
 </style>
