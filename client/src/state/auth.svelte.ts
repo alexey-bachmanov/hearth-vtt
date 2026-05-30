@@ -15,11 +15,18 @@
  * @see docs/components/auth-join-flow.md
  */
 
-import { navigate } from '../app/routes.js';
+import { navigate, navigateWithReturnTo } from '../app/routes.js';
 import type { MeResponse } from '@hearth-vtt/shared';
 
 class AuthState {
   me = $state<MeResponse | null>(null);
+  /**
+   * Player CSRF token stored after login/refresh.
+   *
+   * Injected by HttpClient into X-CSRF-Token on all POST/PATCH/DELETE requests.
+   * Cleared on logout or when an unexpected 401 is received.
+   */
+  csrfToken = $state<string | null>(null);
   loading = $state(false);
 
   private _loadingPromise: Promise<MeResponse | null> | null = null;
@@ -87,8 +94,24 @@ class AuthState {
       console.error('[AuthState] logout() network error', err);
     } finally {
       this.me = null;
+      this.csrfToken = null;
       navigate('/');
     }
+  }
+
+  /**
+   * Called when an authenticated request unexpectedly receives a 401.
+   *
+   * Clears session state and redirects to the login page with a returnTo param
+   * so the user can resume where they left off.
+   */
+  handleUnauthenticated(): void {
+    this.me = null;
+    this.csrfToken = null;
+    navigateWithReturnTo(
+      '/play/login',
+      window.location.pathname + window.location.search,
+    );
   }
 }
 

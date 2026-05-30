@@ -720,7 +720,10 @@ describe('POST /api/auth/change-password', () => {
       url: '/api/auth/change-password',
       remoteAddress: SUITE_IP,
       headers: { cookie, 'x-csrf-token': csrfToken },
-      payload: { currentPassword: 'wrong-password', newPassword: 'newpassword99' },
+      payload: {
+        currentPassword: 'wrong-password',
+        newPassword: 'newpassword99',
+      },
     });
     expect(res.statusCode).toBe(401);
     expect(res.json<{ error: { code: string } }>().error.code).toBe(
@@ -744,7 +747,10 @@ describe('POST /api/auth/change-password', () => {
       payload: { username: 'mustchange', password: USER_PASSWORD },
     });
     expect(loginRes.statusCode).toBe(200);
-    const loginBody = loginRes.json<{ mustChangePassword: boolean; csrfToken: string }>();
+    const loginBody = loginRes.json<{
+      mustChangePassword: boolean;
+      csrfToken: string;
+    }>();
     expect(loginBody.mustChangePassword).toBe(true);
 
     // Change password — clears mustChangePassword
@@ -754,7 +760,10 @@ describe('POST /api/auth/change-password', () => {
       url: '/api/auth/change-password',
       remoteAddress: SUITE_IP,
       headers: { cookie, 'x-csrf-token': loginBody.csrfToken },
-      payload: { currentPassword: USER_PASSWORD, newPassword: 'newpassword123' },
+      payload: {
+        currentPassword: USER_PASSWORD,
+        newPassword: 'newpassword123',
+      },
     });
     expect(changeRes.statusCode).toBe(200);
     const changeBody = changeRes.json<{ mustChangePassword: boolean }>();
@@ -768,7 +777,9 @@ describe('POST /api/auth/change-password', () => {
       headers: { cookie },
     });
     expect(meRes.statusCode).toBe(200);
-    expect(meRes.json<{ mustChangePassword: boolean }>().mustChangePassword).toBe(false);
+    expect(
+      meRes.json<{ mustChangePassword: boolean }>().mustChangePassword,
+    ).toBe(false);
   });
 });
 

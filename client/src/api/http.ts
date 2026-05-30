@@ -17,7 +17,9 @@ import type {
   RefreshResponse,
   ClaimInviteRequest,
   ClaimInviteResponse,
+  ChangePasswordRequest,
 } from '@hearth-vtt/shared';
+import { authState } from '../state/auth.svelte.js';
 
 /**
  * API error response format from server.
@@ -95,12 +97,20 @@ class HttpClient {
 
     console.log(`[HttpClient] ${method} ${url}`, body);
 
+    // Build headers; inject CSRF token on mutating requests.
+    const headers: Record<string, string> = {
+      'Content-Type': 'application/json',
+    };
+    const isMutation =
+      method === 'POST' || method === 'PATCH' || method === 'DELETE';
+    if (isMutation && authState.csrfToken) {
+      headers['X-CSRF-Token'] = authState.csrfToken;
+    }
+
     try {
       const response = await fetch(url, {
         method,
-        headers: {
-          'Content-Type': 'application/json',
-        },
+        headers,
         body: body ? JSON.stringify(body) : undefined,
         credentials: 'include', // Include cookies for auth
       });
@@ -114,6 +124,10 @@ class HttpClient {
 
       // Check for error response
       if (!response.ok) {
+        if (response.status === 401 && authState.me !== null) {
+          // Unexpected 401: session has been revoked. Clear state + redirect.
+          authState.handleUnauthenticated();
+        }
         const apiError = data as ApiErrorResponse;
         throw new ApiError(
           apiError.error?.code || 'UNKNOWN_ERROR',
@@ -197,6 +211,29 @@ export class AuthApi {
    */
   async claimInvite(data: ClaimInviteRequest): Promise<ClaimInviteResponse> {
     return this.http.post<ClaimInviteResponse>('/auth/claim-invite', data);
+  }
+
+  /**
+   * Change the current player's password.
+   *
+   * Requires an active session and CSRF token (injected automatically).
+   *
+   * @param data - Current and new password.
+   * @returns Updated MeResponse with mustChangePassword cleared.
+   * @throws ApiError 401 on wrong current password, 403 on CSRF failure.
+   */
+  async changePassword(data: ChangePasswordRequest): Promise<MeResponse> {
+    return this.http.post<MeResponse>('/auth/change-password', data);
+  }
+
+  /**
+   * Revoke all sessions for the current account ("log out everywhere").
+   *
+   * Requires an active session and CSRF token (injected automatically).
+   * Returns 204 on success; the caller should navigate to login.
+   */
+  async logoutAll(): Promise<void> {
+    return this.http.post<void>('/auth/logout-all');
   }
 }
 

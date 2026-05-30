@@ -67,8 +67,10 @@ export type LoginRequest = z.infer<typeof loginRequestSchema>;
  * On success the server also sets the `hearth_refresh` HttpOnly cookie.
  * 401 on invalid credentials. 429 on rate-limit.
  */
-export const loginResponseSchema = meResponseSchema;
-export type LoginResponse = MeResponse;
+export const loginResponseSchema = meResponseSchema.extend({
+  csrfToken: z.string(),
+});
+export type LoginResponse = z.infer<typeof loginResponseSchema>;
 
 // ============================================================================
 // POST /api/auth/logout
@@ -96,6 +98,7 @@ export type LoginResponse = MeResponse;
  */
 export const refreshResponseSchema = z.object({
   accessToken: z.string(),
+  csrfToken: z.string(),
 });
 export type RefreshResponse = z.infer<typeof refreshResponseSchema>;
 
@@ -138,6 +141,7 @@ export const claimInviteResponseSchema = z.object({
   campaignId: z.string(),
   seatId: z.string(),
   role: seatRoleSchema,
+  csrfToken: z.string(),
 });
 export type ClaimInviteResponse = z.infer<typeof claimInviteResponseSchema>;
 

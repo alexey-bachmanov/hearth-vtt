@@ -40,8 +40,9 @@ export async function inviteRoutes(
       const inviteArrays = await Promise.all(
         seats.map((seat) => storage.listInvitesForSeat(campaignId, seat.id)),
       );
-      const invites = inviteArrays.flat().map(
-        ({ pinHash: _pinHash, ...rest }) => ({
+      const invites = inviteArrays
+        .flat()
+        .map(({ pinHash: _pinHash, ...rest }) => ({
           ...rest,
           expiresAt: new Date(rest.expiresAt).toISOString(),
           createdAt: new Date(rest.createdAt).toISOString(),
@@ -49,8 +50,7 @@ export async function inviteRoutes(
             rest.revokedAt != null
               ? new Date(rest.revokedAt).toISOString()
               : null,
-        }),
-      );
+        }));
       return { invites };
     },
   );
@@ -86,11 +86,7 @@ export async function inviteRoutes(
         };
       }
 
-      if (
-        typeof pin !== 'string' ||
-        pin.length < 4 ||
-        pin.length > 64
-      ) {
+      if (typeof pin !== 'string' || pin.length < 4 || pin.length > 64) {
         reply.code(400);
         return {
           error: {
@@ -100,7 +96,11 @@ export async function inviteRoutes(
         };
       }
 
-      if (typeof expiresIn !== 'number' || !Number.isInteger(expiresIn) || expiresIn <= 0) {
+      if (
+        typeof expiresIn !== 'number' ||
+        !Number.isInteger(expiresIn) ||
+        expiresIn <= 0
+      ) {
         reply.code(400);
         return {
           error: {
@@ -113,7 +113,9 @@ export async function inviteRoutes(
       const resolvedMaxUses =
         maxUses === undefined
           ? 1
-          : typeof maxUses === 'number' && Number.isInteger(maxUses) && maxUses > 0
+          : typeof maxUses === 'number' &&
+              Number.isInteger(maxUses) &&
+              maxUses > 0
             ? maxUses
             : null;
 
@@ -193,4 +195,3 @@ export async function inviteRoutes(
     },
   );
 }
-

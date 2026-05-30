@@ -696,7 +696,12 @@ export async function authRoutes(
       const updated = await storage.getPlayerAccountById(resolved.account.id);
       if (!updated) {
         reply.code(500);
-        return { error: { code: 'INTERNAL', message: 'Account not found after update.' } };
+        return {
+          error: {
+            code: 'INTERNAL',
+            message: 'Account not found after update.',
+          },
+        };
       }
 
       reply.code(200);

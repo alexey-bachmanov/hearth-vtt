@@ -3,7 +3,8 @@
 // ---------------------------------------------------------------------------
 process.env.NODE_ENV = 'development';
 process.env.ADMIN_ALLOW_REMOTE = 'true'; // Allows inject() to use any IP
-process.env.COOKIE_SECRET = 'test-cookie-secret-value-must-be-at-least-32-chars';
+process.env.COOKIE_SECRET =
+  'test-cookie-secret-value-must-be-at-least-32-chars';
 
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import { tmpdir } from 'os';

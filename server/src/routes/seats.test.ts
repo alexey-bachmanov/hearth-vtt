@@ -3,7 +3,8 @@
 // ---------------------------------------------------------------------------
 process.env.NODE_ENV = 'development';
 process.env.ADMIN_ALLOW_REMOTE = 'true'; // Allows inject() to use any IP
-process.env.COOKIE_SECRET = 'test-cookie-secret-value-must-be-at-least-32-chars';
+process.env.COOKIE_SECRET =
+  'test-cookie-secret-value-must-be-at-least-32-chars';
 
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import { tmpdir } from 'os';
@@ -115,8 +116,16 @@ describe('GET /api/campaigns/:id/seats', () => {
     // Seed a campaign with 2 seats
     const campaign = await storage.createCampaign('Test Campaign');
     campaignId = campaign.id;
-    await storage.createSeat({ campaignId, displayName: 'Game Master', role: 'gm' });
-    await storage.createSeat({ campaignId, displayName: 'Player 1', role: 'player' });
+    await storage.createSeat({
+      campaignId,
+      displayName: 'Game Master',
+      role: 'gm',
+    });
+    await storage.createSeat({
+      campaignId,
+      displayName: 'Player 1',
+      role: 'player',
+    });
   });
 
   afterAll(async () => {
