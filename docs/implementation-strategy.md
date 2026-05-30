@@ -17,7 +17,7 @@
   - [Phase 1 — UI Completion](#phase-1--ui-completion)
   - [Phase 2 — Renderer + Canvas Input](#phase-2--renderer--canvas-input)
   - [Phase 3 — Server CampaignState + Sync](#phase-3--server-campaignstate--sync)
-  - [Phase 4 — Minimal GameEngine](#phase-4--minimal-gameengine)
+  - [Phase 4 — Wire Chat + Dice; Complete M2](#phase-4--wire-chat--dice-complete-m2)
   - [Phase 5 — Player Auth](#phase-5--player-auth)
   - [Phase 6 — Campaign Creation & Lifecycle](#phase-6--campaign-creation--lifecycle)
   - [Phase 7 — DSL & RulesetRuntime](#phase-7--dsl--rulesetruntime)
@@ -269,50 +269,44 @@ The backend half of M1. Builds real state durability and wires the placeholder e
 
 ---
 
-### Phase 4 — Minimal GameEngine
+### Phase 4 — Wire Chat + Dice; Complete M2
 
-> **Estimated effort:** ~2–3 weeks  
-> **Track:** A (Backend)  
-> **Dependencies:** Phase 3
+> **Status: In progress**  
+> **Track:** A + B  
+> **Dependencies:** Phase 3 (complete)
 
-Adds the action processing pipeline with a mock runtime. Replaces the hardcoded handlers from Phase 3.
+Completes Milestone M2 by wiring the client-side chat and dice surfaces to the engine pipeline that already exists. The original Phase 4 plan was written before Phase 2.5 and 3 reshaped the boundary; most of its items were delivered early or are now explicitly retired.
+
+**Retired from original plan:**
+
+- `AsyncQueue` — delivered in Phase 3 (inside `PlaceholderEngine`).
+- `GameEngine` facade and `CampaignManager` — delivered in Phase 2.5/3.
+- `MockRulesetRuntime` / `RulesetRuntime` interface — retired. The placeholder engine handles `token.move`, `chat.send`, and `dice.roll` natively. The runtime form is a separate engine-interior design pass per [ADR 011](decisions/011-engine-facade-and-dsl-reversal.md); introducing an interface now would constrain that pass without a concrete user.
+- `RealtimeHub` adapter — retired. `engine.subscribe(seatId, listener)` is already the transport abstraction. `routes/ws.ts` is the sole consumer; extracting a `RealtimeHub` wrapper buys nothing until a second transport materialises.
 
 #### Tasks
 
-1. **AsyncQueue.** Implement the sequential action queue (one action at a time per campaign). Pure utility, well-tested.
+**Server**
 
-2. **GameEngine class.** Create `server/src/domain/game-engine.ts`. Implement:
-   - `static async create(options: GameEngineOptions): Promise<GameEngine>`
-   - `handleAction(envelope: ActionEnvelope): Promise<EngineResult>`
-   - `handleWorkflowInput(input): Promise<EngineResult>`
-   - `getInitialSync(seatId): SyncBundle`
-   - `close(): Promise<void>`
+1. **Dice wrapper module.** Add `@dice-roller/rpg-dice-roller` and `pure-rand` to `server/package.json`. Create `server/src/domain/engine/dice/` module exposing `evaluate(formula, seed) → { ok: true; rolls; total } | { ok: false; reason }`. Internally derives a deterministic PRNG from `sha256(seed)` via `pure-rand`, adapts to rpg-dice-roller's `NumberGenerator` interface, caps formula length at 200 chars, and sanitises all library exceptions — no stack traces reach the caller.
 
-   All dependencies injected: `Storage`, `RealtimeHub`, `RulesetRuntime`, `IdGenerator`, `Clock`, `Logger`.
+2. **Dice payload migration.** Replace `validateDiceRoll`'s `{ count, sides, modifier }` payload with `{ formula: string }`. Dispatch path calls `evaluate(formula, actionId)` and stores rolls in the event. Update the `dice.roll` Zod schema in `shared/`. Rolls stored in the event are the source of truth on replay; the library is never re-invoked during replay.
 
-3. **MockRulesetRuntime.** Implement `RulesetRuntime` interface with hardcoded action→resolution mappings:
-   - `token.move` → position patch
-   - `chat.send` → chat event
-   - `roll.dice` → random roll event
+**Client**
 
-   This lets you test the full engine pipeline without any DSL.
+3. **Chat send wiring.** Wire `ChatLog.svelte`'s send button: plain text → `chat.send`; `/roll` or `/r` prefix → `dice.roll` with formula. A lightweight pre-flight regex catches obvious syntax errors before dispatch without duplicating the server's parser. Server re-validates everything. No optimistic rendering.
 
-4. **CampaignManager.** Create `server/src/domain/campaign-manager.ts`. Manages `Map<CampaignId, GameEngine>`:
-   - `openCampaign()` creates engine on first WS connection
-   - Inactivity timer closes idle campaigns
-   - `shutdown()` closes all
+4. **Dice drawer wiring.** Wire `DiceRollerDrawer.svelte`'s seven quick-roll buttons to fire `dice.roll` with `{ formula: '1dN' }` immediately. Wire custom-formula input to dispatch the raw string. Buttons fire one die each — no expression-builder UI.
 
-5. **Wire WS → GameEngine.** Replace Phase 3's hardcoded token.move handler with proper routing: WS `action` message → `CampaignManager.get(campaignId).handleAction(envelope)` → engine processes → broadcasts results.
+5. **Event rendering.** Extend `GameEventCard.svelte` with a `dice.rolled` case (formula + individual rolls + total). Confirm `chat.message` renders `data.displayName` and `data.text`. Verify `campaignState.applyEvent()` feeds these into the structure `ChatLog.svelte` reads.
 
-6. **Built-in chat.** `chat.send` action → `GameEvent` with `type: 'chat'` → broadcast → appears in client sidebar chat log.
-
-7. **RealtimeHub adapter.** Implement the `RealtimeHub` interface as a thin wrapper around the WS connection map. `broadcastEvents()` filters by audience. `sendPrompts()` targets specific seats.
+6. **Rejection UX.** Surface `ACTION_REJECTED` WS error messages as `(client, ephemeral)` toasts via `notificationState`. No new component — reuses `NotificationCard`.
 
 #### Verification — M2
 
-> **Token moves now flow through the engine. Chat messages work (type in sidebar → appears for all connected clients). Server logs show action→resolution→event pipeline.**
+> **Chat messages appear in both tabs when sent from either. Dice rolls (from drawer quick-buttons, custom formula, or `/roll` in chat) appear as dice cards in both tabs. Malformed formulas or oversized text show a toast on the sending side only, without clearing the input. Restart server — chat history survives via event replay.**
 
-**Test coverage:** GameEngine unit tests (MockRulesetRuntime + InMemoryBackend + mock RealtimeHub). AsyncQueue concurrency tests. CampaignManager lifecycle tests.
+**Test coverage:** dice wrapper unit tests (seeded determinism, library-throw sanitisation, oversize rejection); client ChatLog branching; dice drawer interaction; `GameEventCard` variant rendering; rejection-toast integration.
 
 ---
 

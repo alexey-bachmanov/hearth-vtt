@@ -8,58 +8,63 @@ As work completes, check off tasks.
 
 # Current Projects
 
-## Phase 3 — Durable Engine State + Two-Computer Sync
+## Phase 4 — Wire Chat + Dice; Complete M2
 
-**Goal:** Drag a token on one computer, see it on a second. Restart the server, see the token in its new position. Engine state is durable via snapshot-load + event-replay. Dispatch is serialized so concurrent actions can't corrupt in-memory state.
+**Goal:** Complete Milestone M2 ("actions flow through the engine"). The engine pipeline already exists; what remains is client-side wiring for chat send and dice rolls, a real dice grammar backed by `@dice-roller/rpg-dice-roller`, event rendering for `chat.message` and `dice.rolled`, and rejection toast UX.
 
-**Out of scope:** auto-snapshot triggers + pruning, engine create-actions, admin entity-placement routes, real player auth (Phase 5), heavy renderer/UI work, schema migration (delete dev DB on schema change), `resume` replay optimisation.
+**Dropped from original Phase 4 plan:**
 
-**Verification:** `npm test -w server` green (new engine + storage tests included). `npm run seed-dev-db` produces a seeded dev DB idempotently. Manual two-computer demo: drag token on computer A → appears on B. Kill server → restart → both clients reconnect → token still in new position.
+- `AsyncQueue`, `GameEngine` facade, `CampaignManager` — completed in Phases 2.5/3.
+- `MockRulesetRuntime` and `RulesetRuntime` interface — retired. The placeholder engine handles baseline actions natively; the runtime form is a separate engine-interior design pass per [ADR 011](decisions/011-engine-facade-and-dsl-reversal.md).
+- `RealtimeHub` adapter — retired. `engine.subscribe(seatId, listener)` IS the transport abstraction; `routes/ws.ts` is the single consumer. No second transport materialised. Extractable in one day if that ever changes.
 
----
+**Out of scope:** engine-interior design (RulesetRuntime form, effects, workflows), baseline action expansion (`drawing.*`, `measurement.*`, `label.*`), audience-restricted rolls, dev-bypass displayName fix, optimistic chat rendering, recent-rolls history panel.
 
-### Phase A — Storage primitives
-
-- [x] **A1.** Add `seq INTEGER NOT NULL` column to the `events` table CREATE statement in [`sqlite-storage.ts`](../server/src/storage/sqlite-storage.ts). Update `appendEvent` to accept + persist `seq`; update `getEvents` to return it. Mirror in [`in-memory-storage.ts`](../server/src/storage/in-memory-storage.ts).
-- [x] **A2.** Add `getMaxEventSeq(campaignId): Promise<number>` to `StorageBackend` and `Storage` facade, returning `0` for empty campaigns. Implement in both backends.
-- [x] **A3.** Add `afterSeq` filter option to `getEvents(campaignId, {afterSeq?: number})` in the interface and both backends. Used by `open()` to replay only events after the snapshot.
-- [x] **A4.** Add `snapshots` table to SQLite schema: `(campaign_id TEXT PRIMARY KEY, seq INTEGER NOT NULL, data_json TEXT NOT NULL, created_at INTEGER NOT NULL)`. Single-row-per-campaign; write replaces the existing row.
-- [x] **A5.** Add `getLatestSnapshot(campaignId): Promise<{seq: number, blob: unknown} | null>` and `putSnapshot(campaignId, seq, blob): Promise<void>` to `StorageBackend`, `Storage` facade, and both backends.
-- [x] **A6.** Tests in [`sqlite-storage.test.ts`](../server/src/storage/sqlite-storage.test.ts): snapshot put/get round-trip; `seq` persistence on events; `getMaxEventSeq` for empty + populated campaigns; `afterSeq` filter; each new method covered in `InMemoryBackend` as well.
+**Verification:** `npm test --workspaces` green. Manual walkthrough: chat message appears in both tabs; `/roll 1d20` appears as dice card in both tabs; dice drawer quick-buttons fire rolls; oversized chat or malformed formula shows toast in sending tab without clearing input; server restart preserves chat history.
 
 ---
 
-### Phase B — Engine refactor
+### Phase A — Server: dice wrapper + payload migration
 
-- [x] **B1.** Define `SnapshotBlobV1` type inside [`placeholder.ts`](../server/src/domain/engine/placeholder.ts) (or a co-located `state.ts`): `{ schemaVersion: 1, activeSceneId: string | null, scenes: Record<string, Scene>, tokens: Record<string, Token>, actors: Record<string, Actor> }`. Type stays engine-internal — not exported to `shared/`.
-- [x] **B2.** Split each action handler into two parts: (a) validate + build event (`validateTokenMove`, `validateChatSend`, `validateDiceRoll`) returning `{event, eventData} | {rejected, reason}`; (b) `apply(event)` that mutates `CampaignState` and appends to `recentEvents`. Live dispatch path becomes: validate → assign `nextSeq()` → `storage.appendEvent(seq)` → `apply(event)` → broadcast. Replay path: `apply(event)` only.
-- [x] **B3.** Rewrite `PlaceholderEngine.open()`: load snapshot → seed `CampaignState` from blob (or empty state if null) → `storage.getEvents({afterSeq: snapshot?.seq ?? 0})` → replay each via `apply()` → `state.seq = await storage.getMaxEventSeq(campaignId)`. Stop calling `storage.listEntities` — remove from the `Promise.all`. Document that `state.seats` loads once and doesn't refresh until engine reopen (Phase 5 concern).
-- [x] **B4.** Implement AsyncQueue inside `PlaceholderEngine`: private `dispatchQueue: Promise<unknown> = Promise.resolve()`. `dispatch(input)` chains onto the queue: `this.dispatchQueue = this.dispatchQueue.then(() => this.dispatchInternal(input)).catch(() => ...)`. Each `dispatchInternal` error is caught and returned as `{accepted: false}` so the queue chain never poisons on rejection. The `GameEngine` interface is unchanged.
-- [x] **B5.** Implement close-on-apply-throw: wrap `apply(event)` inside `dispatchInternal` in try/catch. On throw: log the error, mark `state.closed = true`, schedule `void this.close()` on next tick. Subsequent `dispatch` calls return `{accepted: false, reason: 'engine closed'}`. `subscribe` after close is a no-op returning a no-op unsubscriber. `getView` after close returns an empty/zeroed `SeatView`.
-- [x] **B6.** Tests in [`placeholder.test.ts`](../server/src/domain/engine/placeholder.test.ts) (using `InMemoryBackend`):
-  - **Restart persistence:** dispatch `token.move`, close, reopen with same storage, `getView()` shows new position.
-  - **Replay correctness:** hand-write snapshot + 3 events into `InMemoryBackend`, open engine, verify state.
-  - **Dispatch serialisation:** fire 3 concurrent `dispatch` calls, verify `seq` values are 1, 2, 3 in arrival order with no duplicates.
-  - **Close-on-throw:** monkey-patch `apply` to throw; dispatch; verify engine closes and subsequent dispatches return `{accepted: false}`.
-  - **Seq monotonicity across reopen:** dispatch 2 events, close, reopen, dispatch 1 more → `seq=3`, not `seq=1`.
+- [ ] **A1.** Add `@dice-roller/rpg-dice-roller` and `pure-rand` to `server/package.json`.
+- [ ] **A2.** Create `server/src/domain/engine/dice/` module. Export `evaluate(formula: string, seed: string): { ok: true; rolls: number[]; total: number } | { ok: false; reason: string }`. Internally: derive a deterministic PRNG from `sha256(seed)` using `pure-rand`; adapt to rpg-dice-roller's `NumberGenerator` interface; cap formula length at 200 chars before invoking the library (bound parser work); catch all library throws and return them as `{ ok: false, reason: 'invalid dice formula' }` — no stack traces exposed.
+- [ ] **A3.** Unit tests for the wrapper (`dice.test.ts`): same seed → same result; different seed → different result (probabilistic check over several dice); malformed formulas → `{ ok: false }` with stable reason; oversize formula → rejected before parse; no library exception leaks to caller.
+- [ ] **A4.** Migrate `PlaceholderEngine.validateDiceRoll`: change payload from `{ count, sides, modifier }` to `{ formula: string }`. Dispatch path derives `actionId` (already done for the hash), calls `evaluate(formula, actionId)`, writes event `type: 'dice.rolled'` with `data: { originSeatId, formula, rolls, total }`. Rolls are stored in the event; replay reads storage, never re-evaluates the formula.
+- [ ] **A5.** Update `dice.roll` Zod schema in `shared/` to `{ formula: z.string() }`.
+- [ ] **A6.** Update [`placeholder.test.ts`](../server/src/domain/engine/placeholder.test.ts) for the new payload shape and event-data fields. Add a seed-determinism test (same formula + same seed via same actionId → same rolls).
 
 ---
 
-### Phase C — Dev seed + dev-bypass extension
+### Phase B — Client: chat send wiring
 
-- [x] **C1.** Create [`server/src/domain/engine/dev-seed.ts`](../server/src/domain/engine/dev-seed.ts): exports `buildDevSeed(): SnapshotBlobV1` — one scene, two tokens, two actors. Actor `seatPermissions` assigns `seat-mock-001` (GM) `'control'` and `seat-mock-002` (player) `'control'` over their respective tokens. Pure function, no IO.
-- [x] **C2.** Create [`scripts/seed-dev-db.ts`](../scripts/seed-dev-db.ts): CLI wrapper that opens `SqliteStorage` at the dev DB path, creates campaign `campaign-mock-001` (hardcoded, matches `DEV_CAMPAIGN_ID`), creates seats `seat-mock-001` (GM) and `seat-mock-002` (player), calls `storage.putSnapshot('campaign-mock-001', 0, buildDevSeed())`. Idempotent: if the campaign already exists, delete it and recreate. Add `"seed-dev-db": "tsx scripts/seed-dev-db.ts"` to root [`package.json`](../package.json).
-- [x] **C3.** Extend dev-bypass in [`ws.ts`](../server/src/routes/ws.ts): if `NODE_ENV !== 'production'` and `?seat=<id>` is present, validate the seat exists in the requested campaign via `storage.listSeats`; if found, use it. Otherwise fall back to `DEV_SEAT_ID`. Add `DEV_SEAT_ID_2 = 'seat-mock-002'` constant for documentation purposes. Hard-gate: the `?seat=` param read is inside the `!isProduction` branch and cannot be reached in production.
-- [x] **C4.** Tests in [`ws.integration.test.ts`](../server/src/routes/ws.integration.test.ts): `?seat=` accepted in dev when seat belongs to campaign; `?seat=` ignored (falls back to `DEV_SEAT_ID`) in prod (`NODE_ENV=production`); `?seat=` with unknown seat ID falls back to `DEV_SEAT_ID` in dev.
+- [ ] **B1.** In [`ChatLog.svelte`](../client/src/ui/sidebar/ChatLog.svelte) `handleSend()`: replace `console.log` TODO with a branching dispatcher:
+  - Trim input; if empty, return.
+  - If matches `/^\/r(?:oll)?\s+(.+)$/` → apply pre-flight regex `/^[0-9dkhlrf<>=!+\-*/()\s]+$/i`; if it fails, show inline error (do not clear input). If it passes, `wsClient.dispatch('dice.roll', { formula })` and clear input.
+  - Otherwise: if text exceeds 2000 chars, show inline error (do not clear input). Else `wsClient.dispatch('chat.send', { text })` and clear input.
+  - No optimistic rendering — message appears when the server event arrives.
+- [ ] **B2.** Unit tests in [`ChatLog.test.ts`](../client/src/ui/sidebar/ChatLog.test.ts): plain text dispatches `chat.send`; `/roll 1d20` dispatches `dice.roll`; `/r 1d20` dispatches `dice.roll`; oversized text does not dispatch and shows inline error; malformed `/roll <garbage>` does not dispatch and shows inline error; valid dispatch clears input.
+
+---
+
+### Phase C — Client: dice drawer wiring
+
+- [ ] **C1.** In [`DiceRollerDrawer.svelte`](../client/src/ui/toolbar/drawers/DiceRollerDrawer.svelte): wire d4/d6/d8/d10/d12/d20/d100 buttons to `wsClient.dispatch('dice.roll', { formula: '1dN' })` on click. Wire custom-formula input + Roll button: read value verbatim, apply the same pre-flight regex as the chat path, show inline error if it fails, else dispatch `{ formula }`. Buttons do not accumulate or build a formula — each is a one-click roll.
+- [ ] **C2.** Component tests in `DiceRollerDrawer.test.ts`: clicking d20 dispatches `{ formula: '1d20' }`; valid custom formula dispatches verbatim; malformed custom formula shows error and does not dispatch.
 
 ---
 
-### Phase D — Doc updates + verification
+### Phase D — Client: event rendering
 
-- [x] **D1.** Update [Phase 3 in `implementation-strategy.md`](../docs/implementation-strategy.md): mark WS dispatch/broadcast/view.request as already shipped in Phase 2.5; mark snapshot auto-trigger + pruning as deferred to a separate mini-sprint; note `expectedSeq`-in-actions as rejected (AsyncQueue makes it unnecessary).
-- [x] **D2.** Update [`todo.md`](../docs/todo.md) tech debt: remove "Snapshot chain (deferred to Phase 3)" bullet (partially landed — read path done, auto-trigger deferred). Add "Drop `entities` table and storage methods (engine no longer uses them)" under Code Quality.
+- [ ] **D1.** In [`GameEventCard.svelte`](../client/src/ui/sidebar/GameEventCard.svelte): add a `dice.rolled` case that renders the sender's display name, the formula, individual rolls (e.g. `[4, 2, 6]`), and the total. Confirm `chat.message` case renders `data.displayName` and `data.text` (not a stub or mock field).
+- [ ] **D2.** Verify [`campaign.svelte.ts`](../client/src/state/campaign.svelte.ts) `applyEvent()` appends the incoming `GameEvent` to the structure that `ChatLog.svelte` reads. Fix the projection if it doesn't.
+- [ ] **D3.** Component tests in `GameEventCard.test.ts`: renders chat-message variant with display name and text; renders dice-rolled variant with formula, individual rolls, and total.
 
 ---
+
+### Phase E — Client: rejection UX
+
+- [ ] **E1.** In [`ws.ts`](../client/src/api/ws.ts) message handler: when server sends `{ type: 'error', payload: { code: 'ACTION_REJECTED', message } }`, push a `(client, ephemeral)` toast to `notificationState`. Reuse existing `NotificationCard` flow — no new component.
+- [ ] **E2.** Test: simulate a rejected dispatch (mock a server error response) → assert toast appears with the rejection message.
 
 ---
 
