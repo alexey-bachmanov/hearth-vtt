@@ -23,7 +23,7 @@ As work completes, check off tasks.
 - [x] **5A-3.** Unified auth error shapes + timing envelope.
 - [x] **5A-4.** CSRF tokens for the player auth surface.
 - [x] **5A-5.** WS Origin allow-list in [`ws.ts`](../server/src/routes/ws.ts).
-- [ ] **5A-6.** Security response headers. New `server/src/plugins/security-headers.ts`: `X-Content-Type-Options: nosniff`, `X-Frame-Options: DENY`, `Referrer-Policy: strict-origin-when-cross-origin`. CSP ships as `Content-Security-Policy-Report-Only` first; flip to enforcing once all UI routes are clean.
+- [x] **5A-6.** Security response headers.
 - [ ] **5A-7.** Per-mode refresh-cookie policy. Move cookie config to `server/src/auth/cookies.ts`. `maxAge` defaults to 30 days on HTTPS, session-only on HTTP. Expose `refresh_cookie_max_days` admin override (0–30) via `PATCH /api/admin/server-settings`. Uses existing `TRUST_PROXY` infra — no new env work needed.
 - [ ] **5A-8.** Log redaction audit. Verify no password, PIN, refresh token, CSRF token, or full request body reaches Fastify logs on any auth route. Configure `serializers.req` to omit `cookie` header for auth routes.
 - [ ] **5A-9.** Server tests: invite-race (50 parallel claims on a single-use invite → exactly 1 success, 49 `INVITE_RACE_LOST`, 1 seat bound, no orphan accounts created); CSRF rejection on every player POST; WS Origin rejection; per-mode cookie variants; security headers present on all responses.

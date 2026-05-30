@@ -17,6 +17,7 @@ import { inviteRoutes } from './routes/invites.js';
 import { sessionRoutes } from './routes/sessions.js';
 import { wsRoutes } from './routes/ws.js';
 import { CampaignManager } from './domain/engine/index.js';
+import { registerSecurityHeaders } from './plugins/security-headers.js';
 
 // Handle both ESM (development) and CJS (bundled) environments
 const currentDir =
@@ -166,6 +167,10 @@ export async function buildServer(
   await server.register(fastifyCookie, {
     secret: process.env.COOKIE_SECRET!,
   });
+
+  // Attach security headers (X-Content-Type-Options, X-Frame-Options,
+  // Referrer-Policy, Content-Security-Policy-Report-Only) to all responses.
+  registerSecurityHeaders(server);
 
   // Register WebSocket support
   await server.register(fastifyWebsocket);
