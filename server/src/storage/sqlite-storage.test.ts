@@ -686,7 +686,10 @@ describe('SqliteStorage (:memory: mode)', () => {
       const first = await storage.consumeInviteAtomic('zero-token', Date.now());
       expect(first).toBe(true);
 
-      const second = await storage.consumeInviteAtomic('zero-token', Date.now());
+      const second = await storage.consumeInviteAtomic(
+        'zero-token',
+        Date.now(),
+      );
       expect(second).toBe(false);
 
       const invite = await storage.getInvite('zero-token');
@@ -703,7 +706,10 @@ describe('SqliteStorage (:memory: mode)', () => {
         expiresAt: Date.now() - 1, // already expired
       });
 
-      const result = await storage.consumeInviteAtomic('expired-token', Date.now());
+      const result = await storage.consumeInviteAtomic(
+        'expired-token',
+        Date.now(),
+      );
       expect(result).toBe(false);
 
       const invite = await storage.getInvite('expired-token');
@@ -722,7 +728,10 @@ describe('SqliteStorage (:memory: mode)', () => {
 
       await storage.revokeInvite('revoked-consume-token');
 
-      const result = await storage.consumeInviteAtomic('revoked-consume-token', Date.now());
+      const result = await storage.consumeInviteAtomic(
+        'revoked-consume-token',
+        Date.now(),
+      );
       expect(result).toBe(false);
 
       const invite = await storage.getInvite('revoked-consume-token');

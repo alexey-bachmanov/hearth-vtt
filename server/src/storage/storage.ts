@@ -324,6 +324,12 @@ export interface StorageBackend {
   revokeAuthSession(sessionId: string): Promise<void>;
   revokeAllAuthSessionsForAccount(accountId: string): Promise<void>;
   listAuthSessionsForAccount(accountId: string): Promise<AuthSession[]>;
+
+  /**
+   * Server settings (key–value store for admin-configurable options).
+   */
+  getServerSetting(key: string): Promise<string | null>;
+  setServerSetting(key: string, value: string): Promise<void>;
 }
 
 /**
@@ -597,7 +603,10 @@ export class Storage {
    * Atomically consume one invite use. Returns `false` if the invite is
    * already exhausted / expired / revoked (caller should return 410).
    */
-  async consumeInviteAtomic(inviteToken: string, now: number): Promise<boolean> {
+  async consumeInviteAtomic(
+    inviteToken: string,
+    now: number,
+  ): Promise<boolean> {
     return this.backend.consumeInviteAtomic(inviteToken, now);
   }
 
@@ -681,5 +690,13 @@ export class Storage {
 
   async listAuthSessionsForAccount(accountId: string): Promise<AuthSession[]> {
     return this.backend.listAuthSessionsForAccount(accountId);
+  }
+
+  async getServerSetting(key: string): Promise<string | null> {
+    return this.backend.getServerSetting(key);
+  }
+
+  async setServerSetting(key: string, value: string): Promise<void> {
+    return this.backend.setServerSetting(key, value);
   }
 }

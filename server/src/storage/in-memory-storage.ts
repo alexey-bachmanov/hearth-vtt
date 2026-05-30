@@ -35,6 +35,7 @@ export class InMemoryBackend implements StorageBackend {
   private seats = new Map<string, Map<string, Seat>>();
   private invites = new Map<string, Invite>();
   private authSessions = new Map<string, AuthSession>(); // keyed by session id
+  private serverSettings = new Map<string, string>();
 
   // ---------------------------------------------------------------------------
   // Lifecycle
@@ -421,7 +422,10 @@ export class InMemoryBackend implements StorageBackend {
     if (invite) invite.revokedAt = Date.now();
   }
 
-  async consumeInviteAtomic(inviteToken: string, now: number): Promise<boolean> {
+  async consumeInviteAtomic(
+    inviteToken: string,
+    now: number,
+  ): Promise<boolean> {
     const invite = this.invites.get(inviteToken);
     if (
       !invite ||
@@ -577,5 +581,13 @@ export class InMemoryBackend implements StorageBackend {
     return [...this.authSessions.values()]
       .filter((s) => s.accountId === accountId)
       .map((s) => ({ ...s }));
+  }
+
+  async getServerSetting(key: string): Promise<string | null> {
+    return this.serverSettings.get(key) ?? null;
+  }
+
+  async setServerSetting(key: string, value: string): Promise<void> {
+    this.serverSettings.set(key, value);
   }
 }

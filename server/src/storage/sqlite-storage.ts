@@ -248,6 +248,12 @@ export class SqliteStorage implements StorageBackend {
         created_at INTEGER NOT NULL,
         FOREIGN KEY (campaign_id) REFERENCES campaigns(id) ON DELETE CASCADE
       );
+
+      -- Server settings (key–value store for admin-configurable options)
+      CREATE TABLE IF NOT EXISTS server_settings (
+        key   TEXT PRIMARY KEY,
+        value TEXT NOT NULL
+      );
     `);
   }
 
@@ -262,9 +268,9 @@ export class SqliteStorage implements StorageBackend {
     const db = this.ensureDb();
 
     // Migration: add csrf_token to auth_sessions (introduced in 5A-4)
-    const authCols = db
-      .prepare("PRAGMA table_info('auth_sessions')")
-      .all() as { name: string }[];
+    const authCols = db.prepare("PRAGMA table_info('auth_sessions')").all() as {
+      name: string;
+    }[];
     if (!authCols.some((c) => c.name === 'csrf_token')) {
       db.exec(
         "ALTER TABLE auth_sessions ADD COLUMN csrf_token TEXT NOT NULL DEFAULT ''",
@@ -1188,7 +1194,10 @@ export class SqliteStorage implements StorageBackend {
    * @returns `true` if a row was updated; `false` means the invite was already
    *   exhausted / expired / revoked at the moment of the update.
    */
-  async consumeInviteAtomic(inviteToken: string, now: number): Promise<boolean> {
+  async consumeInviteAtomic(
+    inviteToken: string,
+    now: number,
+  ): Promise<boolean> {
     const db = this.ensureDb();
     const stmt = db.prepare(`
       UPDATE invites
@@ -1543,5 +1552,26 @@ export class SqliteStorage implements StorageBackend {
     `);
 
     return stmt.all(accountId) as AuthSession[];
+  }
+
+  /**
+   * Get a server setting by key.  Returns null if not set.
+   */
+  async getServerSetting(key: string): Promise<string | null> {
+    const db = this.ensureDb();
+    const row = db
+      .prepare('SELECT value FROM server_settings WHERE key = ?')
+      .get(key) as { value: string } | undefined;
+    return row?.value ?? null;
+  }
+
+  /**
+   * Set (upsert) a server setting.
+   */
+  async setServerSetting(key: string, value: string): Promise<void> {
+    const db = this.ensureDb();
+    db.prepare(
+      'INSERT INTO server_settings (key, value) VALUES (?, ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value',
+    ).run(key, value);
   }
 }

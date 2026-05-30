@@ -87,7 +87,10 @@ export function requireAdminCsrfToken(storage: Storage) {
     if (!headerToken || typeof headerToken !== 'string') {
       reply.code(403);
       return reply.send({
-        error: { code: 'CSRF_TOKEN_MISSING', message: 'CSRF token is required.' },
+        error: {
+          code: 'CSRF_TOKEN_MISSING',
+          message: 'CSRF token is required.',
+        },
       });
     }
 
@@ -95,7 +98,10 @@ export function requireAdminCsrfToken(storage: Storage) {
     if (!sessionCookie) {
       reply.code(401);
       return reply.send({
-        error: { code: 'UNAUTHORIZED', message: 'Admin authentication required.' },
+        error: {
+          code: 'UNAUTHORIZED',
+          message: 'Admin authentication required.',
+        },
       });
     }
 
@@ -105,7 +111,10 @@ export function requireAdminCsrfToken(storage: Storage) {
     if (!session) {
       reply.code(401);
       return reply.send({
-        error: { code: 'INVALID_SESSION', message: 'Admin session not found or revoked.' },
+        error: {
+          code: 'INVALID_SESSION',
+          message: 'Admin session not found or revoked.',
+        },
       });
     }
 
@@ -154,7 +163,10 @@ export function requirePlayerCsrfToken(storage: Storage) {
     if (!headerToken || typeof headerToken !== 'string') {
       reply.code(403);
       return reply.send({
-        error: { code: 'CSRF_TOKEN_MISSING', message: 'CSRF token is required.' },
+        error: {
+          code: 'CSRF_TOKEN_MISSING',
+          message: 'CSRF token is required.',
+        },
       });
     }
 
@@ -169,10 +181,17 @@ export function requirePlayerCsrfToken(storage: Storage) {
     const tokenHash = hashPlayerToken(refreshCookie);
     const session = await storage.getAuthSession(tokenHash);
 
-    if (!session || session.revokedAt !== null || session.expiresAt < Date.now()) {
+    if (
+      !session ||
+      session.revokedAt !== null ||
+      session.expiresAt < Date.now()
+    ) {
       reply.code(401);
       return reply.send({
-        error: { code: 'UNAUTHORIZED', message: 'Session not found or expired.' },
+        error: {
+          code: 'UNAUTHORIZED',
+          message: 'Session not found or expired.',
+        },
       });
     }
 

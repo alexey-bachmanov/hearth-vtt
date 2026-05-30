@@ -22,10 +22,8 @@ import type { FastifyInstance, FastifyRequest, FastifyReply } from 'fastify';
 import { randomBytes, createHash } from 'crypto';
 import type { Storage, PlayerAccount, Seat } from '../storage/index.js';
 import type { MeResponse, SeatSummary } from '@hearth-vtt/shared';
-import {
-  generateCsrfToken,
-  requirePlayerCsrfToken,
-} from '../auth/csrf.js';
+import { generateCsrfToken, requirePlayerCsrfToken } from '../auth/csrf.js';
+import { buildRefreshCookieOptions } from '../auth/cookies.js';
 import {
   createAccount,
   bindSeat,
@@ -39,8 +37,7 @@ import { verifyPassword, hashPassword } from '../utils/password.js';
 // ============================================================================
 
 const REFRESH_COOKIE = 'hearth_refresh';
-const REFRESH_DURATION_MS = 30 * 24 * 60 * 60 * 1000; // 30 days
-const REFRESH_DURATION_S = 30 * 24 * 60 * 60; // cookie maxAge (seconds)
+const REFRESH_DURATION_MS = 30 * 24 * 60 * 60 * 1000; // 30 days (session expiresAt)
 
 /**
  * In-memory rate limit: max login attempts per IP within a window.
@@ -196,7 +193,11 @@ async function resolvePlayerSession(
   request: FastifyRequest,
   reply: FastifyReply,
   storage: Storage,
-): Promise<{ account: PlayerAccount; sessionId: string; csrfToken: string } | null> {
+): Promise<{
+  account: PlayerAccount;
+  sessionId: string;
+  csrfToken: string;
+} | null> {
   const refreshToken = request.cookies[REFRESH_COOKIE];
 
   if (!refreshToken) {
@@ -446,13 +447,11 @@ export async function authRoutes(
 
     await storage.updatePlayerAccountLastLogin(account.id);
 
-    reply.setCookie(REFRESH_COOKIE, refreshToken, {
-      httpOnly: true,
-      secure: process.env.NODE_ENV === 'production',
-      sameSite: 'lax',
-      path: '/',
-      maxAge: REFRESH_DURATION_S,
-    });
+    reply.setCookie(
+      REFRESH_COOKIE,
+      refreshToken,
+      await buildRefreshCookieOptions(request, storage),
+    );
 
     reply.code(200);
     return {
@@ -539,16 +538,14 @@ export async function authRoutes(
 
       await storage.updatePlayerAccountLastLogin(account.id);
 
-      reply.setCookie(REFRESH_COOKIE, refreshToken, {
-        httpOnly: true,
-        secure: process.env.NODE_ENV === 'production',
-        sameSite: 'lax',
-        path: '/',
-        maxAge: REFRESH_DURATION_S,
-      });
+      reply.setCookie(
+        REFRESH_COOKIE,
+        refreshToken,
+        await buildRefreshCookieOptions(request, storage),
+      );
 
       reply.code(200);
-      return { ...await buildMeResponse(account, storage), csrfToken };
+      return { ...(await buildMeResponse(account, storage)), csrfToken };
     },
   );
 
@@ -565,20 +562,21 @@ export async function authRoutes(
     '/api/auth/logout',
     { preHandler: requirePlayerCsrfToken(storage) },
     async (request, reply) => {
-    const refreshToken = request.cookies[REFRESH_COOKIE];
+      const refreshToken = request.cookies[REFRESH_COOKIE];
 
-    if (refreshToken) {
-      const tokenHash = hashToken(refreshToken);
-      const session = await storage.getAuthSession(tokenHash);
-      if (session && session.revokedAt === null) {
-        await storage.revokeAuthSession(session.id);
+      if (refreshToken) {
+        const tokenHash = hashToken(refreshToken);
+        const session = await storage.getAuthSession(tokenHash);
+        if (session && session.revokedAt === null) {
+          await storage.revokeAuthSession(session.id);
+        }
       }
-    }
 
-    reply.clearCookie(REFRESH_COOKIE, { path: '/' });
-    reply.code(204);
-    return;
-  });
+      reply.clearCookie(REFRESH_COOKIE, { path: '/' });
+      reply.code(204);
+      return;
+    },
+  );
 
   // --------------------------------------------------------------------------
   // POST /api/auth/refresh

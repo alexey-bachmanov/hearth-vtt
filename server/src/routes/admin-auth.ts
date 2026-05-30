@@ -19,10 +19,7 @@ import type { FastifyInstance, FastifyRequest, FastifyReply } from 'fastify';
 import { randomBytes, createHash } from 'crypto';
 import type { Storage } from '../storage/storage';
 import { deleteSetupPinFile } from '../auth/setup-pin.js';
-import {
-  generateCsrfToken,
-  requireAdminCsrfToken,
-} from '../auth/csrf.js';
+import { generateCsrfToken, requireAdminCsrfToken } from '../auth/csrf.js';
 import {
   hashPassword,
   verifyPassword,
