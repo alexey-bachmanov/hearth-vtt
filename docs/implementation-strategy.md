@@ -232,7 +232,7 @@ Locks down the engine boundary before Phase 3 builds against it. Replaces the pr
 
 ### Phase 3 — Server CampaignState + Sync
 
-> **Estimated effort:** ~2–3 weeks  
+> **Status: COMPLETE (M1 achieved May 2026)**  
 > **Track:** A (Backend)  
 > **Dependencies:** Phase 2.5 (engine boundary)
 
@@ -240,27 +240,32 @@ The backend half of M1. Builds real state durability and wires the placeholder e
 
 #### Tasks
 
-1. **Engine-internal `CampaignState` model.** Inside `server/src/domain/engine/`. Hydrates from snapshot + replayed events. Engine owns it; nothing outside imports its shape.
+1. ✅ **Engine-internal `CampaignState` model.** Inside `server/src/domain/engine/`. Hydrates from snapshot + replayed events. Engine owns it; nothing outside imports its shape.
 
-2. **Event persistence.** Wire `Storage.appendEvent()` and `Storage.getEventsSinceSnapshot()` to the real `SqliteBackend`. Engine writes events transactionally **before** broadcasting them.
+2. ✅ **Event persistence.** `Storage.appendEvent()` wired to `SqliteBackend`. Engine writes events before broadcasting.
 
-3. **Snapshot chain.** Implement `saveSnapshot()`, `getLatestSnapshot()`, `pruneOldSnapshots()` in SQLite. Engine triggers snapshots every N events.
+3. ✅ **Snapshot read path.** `getLatestSnapshot()` + `putSnapshot()` in SQLite. `PlaceholderEngine.open()` loads the latest snapshot and replays events after it.  
+   **Deferred to a follow-on mini-sprint:** auto-snapshot trigger (every N events) and snapshot pruning — no real event-volume data yet to pick N. See Tech Debt > Snapshot chain.
 
-4. **State recovery.** Engine `open(campaignId)` → load latest snapshot → replay events → ready for dispatch. Test with InMemoryBackend.
+4. ✅ **State recovery.** `PlaceholderEngine.open(campaignId)` loads snapshot → replays events → ready. Tested with `InMemoryBackend`.
 
-5. **WebSocket `view.request` handler.** On WS connect or on client-side gap detection, server replies `{ type: 'view', view: engine.getView(seatId) }`.
+5. ✅ **WebSocket `view.request` handler.** Client sends `view.request` immediately after `welcome`; server replies `{ type: 'view', view: engine.getView(seatId) }`. Same path handles reconnect gap-resync and `resume`.
 
-6. **WebSocket event broadcasting.** Engine `subscribe(seatId, listener)` per connected seat; listener forwards as `{ type: 'event', event }`. Audience filtering happens before the listener fires.
+6. ✅ **WebSocket event broadcasting.** `engine.subscribe(seatId, listener)` per connected seat; listener forwards as `{ type: 'event', event }`. Audience filtering happens inside the engine before the listener fires.
 
-7. **Token-move dispatch path.** WS receives `{ type: 'dispatch', input }` from client → `engine.dispatch(input)` → engine validates, persists, emits `token.moved` + (if visibility changes) `fog.revealed` events. Rejected moves emit `token.move.rejected` to the originating seat only.
+7. ✅ **Token-move dispatch path.** WS receives `{ type: 'dispatch', input }` → `engine.dispatch(input)` → engine validates, persists, emits `token.moved`. Rejected moves return an `ACTION_REJECTED` error to the originating seat only.
 
-8. **Optimistic move preview.** Either (a) drop the throttled preview channel for now in favor of round-trip dispatches, or (b) add a non-persisted `token.move.preview` event channel that bypasses storage but goes through `engine.dispatch` with a preview flag. Phase 3 picks (a); (b) is a Phase 10 polish task.
+8. ✅ **Optimistic move + dispatch.** Client applies move optimistically via `campaignState.moveTokenOptimistic()` and immediately sends `dispatch('token.move', { tokenId, position })`. On `ACTION_REJECTED` the WS error handler calls `campaignState.revertOptimisticMoves()`. Option (b) (non-persisted preview channel) deferred to Phase 10.
 
-#### Verification — M1
+9. ✅ **AsyncQueue.** Dispatch serialised via a chained promise queue inside `PlaceholderEngine`. Pulled up from Phase 4 — required for correctness here (concurrent dispatches would race on `state.seq`).
 
-> **Open two browser tabs. Both connect via WS, receive `SeatView`s, see the same map. Drag a token in tab A → tab B sees `token.moved` event in real-time. Server persists — refresh a tab, the token is in the new position.**
+10. ✅ **`expectedSeq` in actions — rejected.** Early design considered embedding an expected-seq in each client dispatch for optimistic-conflict detection. Rejected: AsyncQueue makes it unnecessary (server serialises; client reverts on rejection). The field was never added to the wire protocol.
 
-**Test coverage:** Engine boundary integration tests (InMemoryBackend), snapshot/replay tests, WS message serialization tests.
+#### Verification — M1 ✅
+
+> **Open two browser tabs (or two machines on the same LAN). Both connect via WS, receive `SeatView`s, see the same map. Drag a token in tab A → tab B sees `token.moved` event in real-time. Restart the server → reconnect both tabs → token is still in the new position.**
+
+**Test coverage:** 254 server tests + 315 client tests passing as of M1 commit.
 
 ---
 

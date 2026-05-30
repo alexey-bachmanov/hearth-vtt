@@ -56,8 +56,8 @@ As work completes, check off tasks.
 
 ### Phase D — Doc updates + verification
 
-- [ ] **D1.** Update [Phase 3 in `implementation-strategy.md`](../docs/implementation-strategy.md): mark WS dispatch/broadcast/view.request as already shipped in Phase 2.5; mark snapshot auto-trigger + pruning as deferred to a separate mini-sprint; note `expectedSeq`-in-actions as rejected (AsyncQueue makes it unnecessary).
-- [ ] **D2.** Update [`todo.md`](../docs/todo.md) tech debt: remove "Snapshot chain (deferred to Phase 3)" bullet (partially landed — read path done, auto-trigger deferred). Add "Drop `entities` table and storage methods (engine no longer uses them)" under Code Quality.
+- [x] **D1.** Update [Phase 3 in `implementation-strategy.md`](../docs/implementation-strategy.md): mark WS dispatch/broadcast/view.request as already shipped in Phase 2.5; mark snapshot auto-trigger + pruning as deferred to a separate mini-sprint; note `expectedSeq`-in-actions as rejected (AsyncQueue makes it unnecessary).
+- [x] **D2.** Update [`todo.md`](../docs/todo.md) tech debt: remove "Snapshot chain (deferred to Phase 3)" bullet (partially landed — read path done, auto-trigger deferred). Add "Drop `entities` table and storage methods (engine no longer uses them)" under Code Quality.
 
 ---
 
@@ -78,6 +78,8 @@ Follow-on mini-sprint after the engine boundary is locked. Adds the remaining VT
 - [ ] **`label.*`** — text labels pinned to the scene.
 
 ### Snapshot chain (auto-trigger + pruning — deferred from Phase 3)
+
+Read path (load snapshot + replay events) shipped in Phase 3. Write path (auto-trigger + pruning) deferred pending real event-volume data.
 
 - [ ] **Auto-snapshot trigger.** Engine emits a snapshot every N events. Trigger threshold TBD from real event-volume data. Implemented inside `PlaceholderEngine`; wired through `Storage.putSnapshot`.
 - [ ] **Snapshot pruning.** Retain the latest K snapshots per campaign; prune older rows. Schema already supports multi-row retention (`(campaign_id, seq)` PK); pruning logic not yet implemented.
@@ -150,7 +152,7 @@ Files to clean up, tracked in [implementation-strategy.md Phase 5, task 7](../do
   - [ ] AdminLogin [AdminLogin.svelte](../client/src/ui/admin/AdminLogin.svelte#L36)
   - [ ] AdminSetup [AdminSetup.svelte](../client/src/ui/admin/AdminSetup.svelte#L40)
 - [ ] **Admin panel Campaigns/Accounts tabs use mock data** — wire `AccountDetail`, `CampaignDetail`, `SeatSettings` to real API endpoints once the admin API layer is built [admin.svelte.ts](../client/src/state/admin.svelte.ts)
-- [ ] WebSocket message handlers all stub (console.log only) [ws.ts](../client/src/api/ws.ts#L261-L342)
+- [ ] WebSocket message handlers were stubs (console.log only) — now wired: `welcome` → sends `view.request`; `view` → `campaignState.applyView()`; `event` → `campaignState.applyEvent()`. Remaining: reconnect gap-detection path not yet exercised in client tests [ws.ts](../client/src/api/ws.ts)
 - [ ] `adminFetch` in state layer should arguably be in API layer [admin.svelte.ts](../client/src/state/admin.svelte.ts#L55)
 
 ### Error Handling
