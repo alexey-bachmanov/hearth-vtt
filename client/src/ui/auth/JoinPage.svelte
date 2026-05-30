@@ -33,11 +33,13 @@ let username = $state('');
 let password = $state('');
 let isLoading = $state(false);
 let error = $state<string | null>(null);
+let usernameError = $state<string | null>(null);
 let success = $state(false);
 
 function toggleMode() {
   mode = mode === 'register' ? 'login' : 'register';
   error = null;
+  usernameError = null;
 }
 
 async function handleSubmit(event: Event) {
@@ -60,6 +62,7 @@ async function handleSubmit(event: Event) {
 
   isLoading = true;
   error = null;
+  usernameError = null;
 
   try {
     const result = await api.auth.claimInvite({
@@ -70,7 +73,8 @@ async function handleSubmit(event: Event) {
       password,
     });
 
-    // Refresh session state so downstream pages see the new account
+    // Store csrfToken and seed authState from the claim-invite response
+    authState.csrfToken = result.csrfToken;
     await authState.loadMe();
 
     success = true;
@@ -81,29 +85,35 @@ async function handleSubmit(event: Event) {
     }, 1200);
   } catch (err) {
     if (err instanceof ApiError) {
-      switch (err.status) {
-        case 400:
-          error = 'This invite link is invalid or has expired.';
-          break;
-        case 401:
-          error = 'Incorrect PIN. Please check with your Game Master.';
-          break;
-        case 409:
-          error =
-            mode === 'register'
-              ? 'That username is already taken. Try logging in instead.'
-              : 'Account not found. Try registering instead.';
-          break;
-        case undefined:
-          // HttpClient wraps network failures as ApiError with code NETWORK_ERROR
-          if (err.code === 'NETWORK_ERROR') {
-            error = 'Could not connect to the server. Please try again.';
-          } else {
+      if (err.code === 'INVITE_RACE_LOST') {
+        error =
+          'Someone just claimed this invite — ask your GM for a new one.';
+      } else if (err.code === 'USERNAME_TAKEN') {
+        usernameError = 'That username is already taken.';
+      } else {
+        switch (err.status) {
+          case 400:
+            error = 'This invite link is invalid or has expired.';
+            break;
+          case 401:
+            error = 'Incorrect PIN. Please check with your Game Master.';
+            break;
+          case 409:
+            error =
+              mode === 'register'
+                ? 'That username is already taken. Try logging in instead.'
+                : 'Account not found. Try registering instead.';
+            break;
+          case undefined:
+            if (err.code === 'NETWORK_ERROR') {
+              error = 'Could not connect to the server. Please try again.';
+            } else {
+              error = 'An error occurred. Please try again.';
+            }
+            break;
+          default:
             error = 'An error occurred. Please try again.';
-          }
-          break;
-        default:
-          error = 'An error occurred. Please try again.';
+        }
       }
     } else {
       error = 'Could not connect to the server. Please try again.';
@@ -134,7 +144,7 @@ async function handleSubmit(event: Event) {
           type="button"
           class="mode-btn"
           class:active={mode === 'register'}
-          onclick={() => { mode = 'register'; error = null; }}
+          onclick={() => { mode = 'register'; error = null; usernameError = null; }}
           aria-pressed={mode === 'register'}
         >
           New player
@@ -143,7 +153,7 @@ async function handleSubmit(event: Event) {
           type="button"
           class="mode-btn"
           class:active={mode === 'login'}
-          onclick={() => { mode = 'login'; error = null; }}
+          onclick={() => { mode = 'login'; error = null; usernameError = null; }}
           aria-pressed={mode === 'login'}
         >
           Existing account
@@ -186,7 +196,12 @@ async function handleSubmit(event: Event) {
             bind:value={username}
             disabled={isLoading}
             autocomplete="username"
+            aria-describedby={usernameError ? 'username-error' : undefined}
+            aria-invalid={usernameError ? 'true' : undefined}
           />
+          {#if usernameError}
+            <span id="username-error" class="field-error" role="alert">{usernameError}</span>
+          {/if}
         </div>
 
         <!-- Password -->
@@ -333,6 +348,11 @@ async function handleSubmit(event: Event) {
     border-radius: var(--radius-sm);
     color: var(--color-danger, #dc2626);
     font-size: var(--font-size-sm);
+  }
+
+  .field-error {
+    font-size: var(--font-size-xs, 0.75rem);
+    color: var(--color-danger, #dc2626);
   }
 
   .submit-button {

@@ -41,8 +41,8 @@ As work completes, check off tasks.
 
 ### Phase 5C — Client auth UX
 
-- [ ] **5C-1.** Wire [`PlayLoginPage.svelte`](../client/src/ui/auth/PlayLoginPage.svelte) to `POST /api/auth/login`. On success: store `csrfToken` in `authState`, redirect to `validateReturnTo(returnTo) ?? '/play'`. Handle 401 and 429. "Forgot password" → "Contact your server admin" modal only.
-- [ ] **5C-2.** Wire [`JoinPage.svelte`](../client/src/ui/auth/JoinPage.svelte) to `POST /api/auth/claim-invite`. Real form with login/register mode toggle. On success: store `csrfToken`, redirect to `/play/<campaignId>`. Surface `INVITE_RACE_LOST` as "Someone just claimed this invite — ask your GM for a new one." Surface `USERNAME_TAKEN` inline on the username field.
+- [x] **5C-1.** Wire [`PlayLoginPage.svelte`](../client/src/ui/auth/PlayLoginPage.svelte) to `POST /api/auth/login`. On success: store `csrfToken` in `authState`, redirect to `validateReturnTo(returnTo) ?? '/play'`. Handle 401 and 429. "Forgot password" → "Contact your server admin" modal only.
+- [x] **5C-2.** Wire [`JoinPage.svelte`](../client/src/ui/auth/JoinPage.svelte) to `POST /api/auth/claim-invite`. Real form with login/register mode toggle. On success: store `csrfToken`, redirect to `/play/<campaignId>`. Surface `INVITE_RACE_LOST` as "Someone just claimed this invite — ask your GM for a new one." Surface `USERNAME_TAKEN` inline on the username field.
 - [ ] **5C-3.** Wire [`CampaignPickerPage.svelte`](../client/src/ui/auth/CampaignPickerPage.svelte) to `authState.me.seats`. Read `?error=campaign-access-revoked` once via `replaceState` and show a transient toast.
 - [ ] **5C-4.** Stale-seat redirect. When WS upgrade returns 4403 or the seat is absent from `authState.me.seats`, navigate to `/play?error=campaign-access-revoked`.
 - [x] **5C-5.** CSRF injection in [`http.ts`](../client/src/api/http.ts). Auto-inject `X-CSRF-Token` from `authState.csrfToken` on all POST/PATCH/DELETE. On 401, clear in-memory tokens and trigger re-auth.

@@ -42,6 +42,7 @@ async function handleSubmit(event: Event) {
   try {
     const me = await api.auth.login(username, password);
     authState.me = me;
+    authState.csrfToken = me.csrfToken;
     navigate(returnTo ?? '/play');
   } catch (err) {
     if (err instanceof ApiError) {
