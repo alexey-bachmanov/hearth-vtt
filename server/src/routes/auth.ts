@@ -24,11 +24,10 @@ import type { Storage, PlayerAccount, Seat } from '../storage/index.js';
 import type { MeResponse, SeatSummary } from '@hearth-vtt/shared';
 import {
   createAccount,
-  verifyAccountPassword,
   bindSeat,
   AccountError,
 } from '../domain/auth/account.js';
-import { verifyPassword } from '../utils/password.js';
+import { verifyPassword, hashPassword } from '../utils/password.js';
 
 // ============================================================================
 // Constants
@@ -50,6 +49,30 @@ const loginRateLimitMap = new Map<string, { count: number; resetAt: number }>();
 
 const LOGIN_RATE_MAX = 10;
 const LOGIN_RATE_WINDOW_MS = 10 * 60 * 1000; // 10 minutes
+
+/**
+ * Minimum response time for credential-validation paths (ms).
+ *
+ * Ensures that both "account not found" and "wrong password" responses take at
+ * least this long, making it impractical to enumerate valid usernames via
+ * wall-clock timing even if scrypt completes faster than usual.
+ */
+const AUTH_MIN_DELAY_MS = 200;
+
+/**
+ * Dummy scrypt hash used to normalise timing when an account does not exist.
+ * Pre-computed once at module load; running verifyPassword against it ensures
+ * scrypt always executes on the credential-validation path regardless of
+ * whether the username was found.
+ */
+const DUMMY_HASH_FOR_TIMING: Promise<string> = hashPassword(
+  'hearth-dummy-timing-normalisation-do-not-use',
+);
+
+/**
+ * Sleep for the given number of milliseconds.
+ */
+const sleep = (ms: number) => new Promise<void>((r) => setTimeout(r, ms));
 
 // ============================================================================
 // Token helpers (SHA-256 hashing of random tokens — mirrors admin-auth.ts)
@@ -293,7 +316,11 @@ export async function authRoutes(
     }
 
     // --- Verify PIN ---
-    const pinValid = await verifyPassword(pin, invite.pinHash);
+    // 200ms floor normalises timing between invalid-PIN and correct-PIN paths.
+    const [pinValid] = await Promise.all([
+      verifyPassword(pin, invite.pinHash),
+      sleep(AUTH_MIN_DELAY_MS),
+    ]);
     if (!pinValid) {
       reply.code(401);
       return { error: { code: 'INVALID_PIN', message: 'Incorrect PIN.' } };
@@ -367,9 +394,12 @@ export async function authRoutes(
       }
 
       const existing = await storage.getPlayerAccountByUsername(username);
-      const passwordValid = existing
-        ? await verifyAccountPassword(existing, password)
-        : false;
+      const hashToCheck =
+        existing?.passwordHash ?? (await DUMMY_HASH_FOR_TIMING);
+      const [passwordValid] = await Promise.all([
+        verifyPassword(password, hashToCheck),
+        sleep(AUTH_MIN_DELAY_MS),
+      ]);
 
       if (!existing || !passwordValid) {
         reply.code(401);
@@ -466,10 +496,15 @@ export async function authRoutes(
 
       const account = await storage.getPlayerAccountByUsername(username);
 
-      // Always run password verification to prevent username enumeration via timing
-      const passwordValid = account
-        ? await verifyAccountPassword(account, password)
-        : false;
+      // Always run scrypt regardless of account existence to prevent
+      // username enumeration via timing. The 200ms floor further normalises
+      // the response time between not-found and wrong-password paths.
+      const hashToCheck =
+        account?.passwordHash ?? (await DUMMY_HASH_FOR_TIMING);
+      const [passwordValid] = await Promise.all([
+        verifyPassword(password, hashToCheck),
+        sleep(AUTH_MIN_DELAY_MS),
+      ]);
 
       if (!account || !passwordValid) {
         reply.code(401);

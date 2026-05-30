@@ -20,7 +20,7 @@ As work completes, check off tasks.
 
 - [x] **5A-1.** Atomic invite-claim race fix.
 - [x] **5A-2.** Timing-safe comparison audit.
-- [ ] **5A-3.** Unified auth error shapes + timing envelope. `claim-invite` and `login` return `INVALID_CREDENTIALS` for unknown-username, wrong-password, and wrong-PIN. Add ~200ms minimum delay on credential-validation paths to level out timing between not-found and wrong-password.
+- [x] **5A-3.** Unified auth error shapes + timing envelope.
 - [ ] **5A-4.** CSRF tokens for the player auth surface. Extract `requireCsrfToken` from [`admin-auth.ts`](../server/src/routes/admin-auth.ts) into `server/src/auth/csrf.ts`. Add `csrf_token` column to `auth_sessions`. Mint + return `csrfToken` from `claim-invite`, `login`, and `refresh`. Validate `X-CSRF-Token` on every player POST/PATCH/DELETE via a `preHandler` on the player route prefix.
 - [ ] **5A-5.** WS Origin allow-list in [`ws.ts`](../server/src/routes/ws.ts). Reject upgrades whose `Origin` does not match `PUBLIC_BASE_URL` (or `localhost:*` in dev). Close with 4403. Absent `Origin` in production is a rejection.
 - [ ] **5A-6.** Security response headers. New `server/src/plugins/security-headers.ts`: `X-Content-Type-Options: nosniff`, `X-Frame-Options: DENY`, `Referrer-Policy: strict-origin-when-cross-origin`. CSP ships as `Content-Security-Policy-Report-Only` first; flip to enforcing once all UI routes are clean.
