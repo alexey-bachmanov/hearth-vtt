@@ -43,9 +43,7 @@ const SETUP_PIN_FILE = join(DATA_DIR, 'admin-setup-pin.txt');
 function main(): void {
   if (!existsSync(DB_PATH)) {
     console.log('No database found — nothing to reset.');
-    console.log(
-      "Run `npm run seed-dev-db` first to create the dev database.",
-    );
+    console.log('Run `npm run seed-dev-db` first to create the dev database.');
     return;
   }
 

@@ -110,7 +110,16 @@ async function main(): Promise<void> {
       `INSERT INTO seats
          (id, campaign_id, display_name, role, account_id, is_active, created_at, updated_at)
        VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
-    ).run(DEV_SEAT_GM_ID, DEV_CAMPAIGN_ID, 'Game Master', 'gm', null, 1, now, now);
+    ).run(
+      DEV_SEAT_GM_ID,
+      DEV_CAMPAIGN_ID,
+      'Game Master',
+      'gm',
+      null,
+      1,
+      now,
+      now,
+    );
 
     db.prepare(
       `INSERT INTO seats
