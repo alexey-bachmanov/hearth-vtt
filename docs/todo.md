@@ -59,7 +59,7 @@ As work completes, check off tasks.
 - [x] **5D-1.** Extend [`seed-dev-db.ts`](../scripts/seed-dev-db.ts). Create `PlayerAccount` (username `dev`, password from `HEARTH_DEV_ADMIN_PASSWORD` env; random+logged if unset). Bind to `seat-mock-001`. Hard-gate entire seeding path with `if (process.env.NODE_ENV === 'production') throw`. Idempotent: skip if `dev` account already exists.
 - [x] **5D-2.** New `scripts/reset-admin-setup.ts` (`npm run dev:reset-setup`). Nulls `server_admin` password hash + setup-PIN state so next startup re-runs first-time setup. Gated by `NODE_ENV !== 'production'`.
 - [x] **5D-3.** Remove `&seat=` URL bypass from [`server/src/routes/ws.ts`](../server/src/routes/ws.ts) (delete `?seat=` query parsing and `DEV_SEAT_ID` fallback), [`client/src/api/ws.ts`](../client/src/api/ws.ts) (remove `seatId` param from `connect()` and `&seat=` URL append), [`client/src/app/routes.ts`](../client/src/app/routes.ts) (remove `seatId?: string` from `play-campaign` type), [`client/src/app/Router.svelte`](../client/src/app/Router.svelte) (remove auth-guard bypass and `seatId` prop on `<PlayLayout>`), [`client/src/ui/layout/PlayLayout.svelte`](../client/src/ui/layout/PlayLayout.svelte) (remove `seatId` prop and its use in `wsClient.connect()`).
-- [ ] **5D-4.** Document the new dev flow in `CONTRIBUTING.md` and a comment in `seed-dev-db.ts`.
+- [x] **5D-4.** Document the new dev flow in `CONTRIBUTING.md` and a comment in `seed-dev-db.ts`.
 
 ---
 

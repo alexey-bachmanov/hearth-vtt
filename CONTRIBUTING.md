@@ -77,6 +77,39 @@ The HearthVTT name, logo, and visual identity are **not** covered by the AGPL â€
 
 ---
 
+## Local development
+
+### First-time setup
+
+1. Install dependencies: `npm install`
+2. Seed the dev database: `npm run seed-dev-db`
+   - Creates `campaign-mock-001` with a `dev` player account bound to the GM seat.
+   - Set `HEARTH_DEV_ADMIN_PASSWORD` in your environment for a fixed password, or copy the randomly generated one from the terminal output.
+3. Start all services: `npm run dev:all`
+4. Open `http://localhost:5173/admin/setup` to create the server admin account (the server will print a setup PIN on startup).
+5. Log in at `http://localhost:5173/play/login` as `dev` to enter the pre-seeded campaign.
+
+### Re-seeding
+
+If you want to wipe the game database and start fresh:
+
+```bash
+rm server/data/db/hearth.db   # or: del server\data\db\hearth.db on Windows
+npm run seed-dev-db
+```
+
+### Resetting admin setup
+
+To re-run the first-time admin setup without affecting player accounts or game data:
+
+```bash
+npm run dev:reset-setup
+```
+
+Restart the server â€” it will print a new setup PIN and redirect to `/admin/setup`.
+
+---
+
 ## How to contribute
 
 1. Open or comment on an issue describing what you want to do, before starting non-trivial work.
