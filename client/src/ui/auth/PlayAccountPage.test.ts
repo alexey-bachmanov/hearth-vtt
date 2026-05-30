@@ -51,9 +51,7 @@ describe('PlayAccountPage rendering', () => {
 
   it('renders a Log Out button', () => {
     render(PlayAccountPage);
-    expect(
-      screen.getByRole('button', { name: 'Log Out' }),
-    ).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Log Out' })).toBeInTheDocument();
   });
 
   it('renders a Log Out Everywhere button', () => {
@@ -70,9 +68,7 @@ describe('PlayAccountPage rendering', () => {
 
 describe('PlayAccountPage — Log Out Everywhere', () => {
   it('calls POST /api/auth/logout-all', async () => {
-    vi.mocked(fetch).mockResolvedValue(
-      new Response(null, { status: 204 }),
-    );
+    vi.mocked(fetch).mockResolvedValue(new Response(null, { status: 204 }));
 
     render(PlayAccountPage);
     fireEvent.click(screen.getByRole('button', { name: 'Log Out Everywhere' }));
@@ -88,9 +84,7 @@ describe('PlayAccountPage — Log Out Everywhere', () => {
   });
 
   it('navigates to /play/login after logout-all', async () => {
-    vi.mocked(fetch).mockResolvedValue(
-      new Response(null, { status: 204 }),
-    );
+    vi.mocked(fetch).mockResolvedValue(new Response(null, { status: 204 }));
 
     render(PlayAccountPage);
     fireEvent.click(screen.getByRole('button', { name: 'Log Out Everywhere' }));

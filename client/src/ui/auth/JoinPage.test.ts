@@ -353,7 +353,9 @@ describe('JoinPage error states', () => {
 
     // USERNAME_TAKEN renders inline below the username field, not in the main error div
     await screen.findByText('That username is already taken.');
-    expect(screen.queryByText(/Try logging in instead/)).not.toBeInTheDocument();
+    expect(
+      screen.queryByText(/Try logging in instead/),
+    ).not.toBeInTheDocument();
   });
 
   it('shows generic error on 500', async () => {

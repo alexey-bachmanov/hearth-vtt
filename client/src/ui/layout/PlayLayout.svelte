@@ -13,8 +13,6 @@
  *
  * Props:
  *   campaignId - Campaign to connect to.
- *   seatId     - (dev only) Seat override forwarded to wsClient.connect().
- *                DEV HACK: remove `seatId` prop after Phase 5 (real player auth).
  *
  * Forced password-change modal: when `authState.me.mustChangePassword` is true,
  * a blocking overlay is shown that the player cannot dismiss. The player must
@@ -30,12 +28,9 @@ import { FloatingWindowLayer } from '../window';
 import { ContextMenu } from '../canvas';
 import { authState } from '../../state/auth.svelte.js';
 
-// DEV HACK: seatId prop threads the ?seat= bypass down from Router.
-// Remove seatId after Phase 5 (real player auth).
 let {
   campaignId,
-  seatId,
-}: { campaignId?: string; seatId?: string } = $props();
+}: { campaignId?: string } = $props();
 
 // ── Forced-change-password modal state ──────────────────────────────────────
 let currentPassword = $state('');
@@ -73,7 +68,7 @@ async function handlePasswordChange(event: Event) {
 // ────────────────────────────────────────────────────────────────────────────
 
 onMount(() => {
-  wsClient.connect(campaignId, seatId);
+  wsClient.connect(campaignId);
   return () => wsClient.disconnect();
 });
 </script>

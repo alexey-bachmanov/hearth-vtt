@@ -166,7 +166,13 @@ describe('PlayLayout forced-password-change modal', () => {
       )
       .mockResolvedValueOnce(
         new Response(
-          JSON.stringify({ accountId: 'a', username: 'u', csrfToken: 'c', seats: [], mustChangePassword: false }),
+          JSON.stringify({
+            accountId: 'a',
+            username: 'u',
+            csrfToken: 'c',
+            seats: [],
+            mustChangePassword: false,
+          }),
           { status: 200, headers: { 'Content-Type': 'application/json' } },
         ),
       );

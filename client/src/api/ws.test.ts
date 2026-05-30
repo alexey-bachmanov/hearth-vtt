@@ -98,7 +98,7 @@ describe('WebSocketClient ACTION_REJECTED error handling', () => {
     // Import wsClient AFTER mocking WebSocket so the constructor gets the mock
     const { wsClient } = await import('./ws');
 
-    wsClient.connect('mock-campaign-id', 'player');
+    wsClient.connect('mock-campaign-id');
     // Simulate the server sending an ACTION_REJECTED error
     mockWsFactory.emit('message', {
       data: buildErrorMessage(
@@ -117,7 +117,7 @@ describe('WebSocketClient ACTION_REJECTED error handling', () => {
   it('shows an ephemeral error toast when DISPATCH_ERROR is received', async () => {
     const { wsClient } = await import('./ws');
 
-    wsClient.connect('mock-campaign-id', 'player');
+    wsClient.connect('mock-campaign-id');
     mockWsFactory.emit('message', {
       data: buildErrorMessage('DISPATCH_ERROR', 'Server error during dispatch'),
     });
@@ -142,7 +142,7 @@ describe('WebSocketClient close code handling', () => {
     vi.spyOn(window, 'dispatchEvent').mockImplementation(() => true);
 
     const { wsClient } = await import('./ws');
-    wsClient.connect('camp-1', 'player');
+    wsClient.connect('camp-1');
 
     mockWsFactory.emit('close', { code: 4403, reason: 'Forbidden' });
 
@@ -155,19 +155,21 @@ describe('WebSocketClient close code handling', () => {
   });
 
   it('attempts silent refresh on close code 4401 (success path)', async () => {
-    const fetchMock = vi.fn().mockResolvedValue(
-      new Response(
-        JSON.stringify({ accessToken: 'new-at', csrfToken: 'new-csrf' }),
-        { status: 200, headers: { 'Content-Type': 'application/json' } },
-      ),
-    );
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValue(
+        new Response(
+          JSON.stringify({ accessToken: 'new-at', csrfToken: 'new-csrf' }),
+          { status: 200, headers: { 'Content-Type': 'application/json' } },
+        ),
+      );
     vi.stubGlobal('fetch', fetchMock);
     vi.spyOn(window, 'dispatchEvent').mockImplementation(() => true);
 
     authState.csrfToken = 'old-csrf';
 
     const { wsClient } = await import('./ws');
-    wsClient.connect('camp-1', 'player');
+    wsClient.connect('camp-1');
 
     mockWsFactory.emit('close', { code: 4401, reason: 'Unauthorized' });
 
@@ -198,7 +200,7 @@ describe('WebSocketClient close code handling', () => {
     authState.me = { accountId: 'a', username: 'u', seats: [], csrfToken: 'x' };
 
     const { wsClient } = await import('./ws');
-    wsClient.connect('camp-1', 'player');
+    wsClient.connect('camp-1');
 
     mockWsFactory.emit('close', { code: 4401, reason: 'Unauthorized' });
 

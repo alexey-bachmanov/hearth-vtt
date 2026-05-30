@@ -143,9 +143,14 @@ describe('CampaignPickerPage — stale-seat toast', () => {
   let replaceStateSpy: ReturnType<typeof vi.spyOn>;
 
   beforeEach(() => {
-    warningSpy = vi.spyOn(notificationState, 'warning').mockImplementation(
-      () => ({ id: '1', type: 'persistent', kind: 'warning', message: '' }),
-    );
+    warningSpy = vi
+      .spyOn(notificationState, 'warning')
+      .mockImplementation(() => ({
+        id: '1',
+        type: 'persistent',
+        kind: 'warning',
+        message: '',
+      }));
     replaceStateSpy = vi
       .spyOn(window.history, 'replaceState')
       .mockImplementation(() => {});

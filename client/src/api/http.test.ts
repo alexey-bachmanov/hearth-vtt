@@ -53,7 +53,12 @@ describe('HttpClient CSRF injection', () => {
   it('injects X-CSRF-Token header on POST when csrfToken is set', async () => {
     authState.csrfToken = 'tok-123';
     vi.mocked(fetch).mockResolvedValue(
-      makeOkResponse({ accountId: 'a', username: 'u', csrfToken: 'tok-123', seats: [] }),
+      makeOkResponse({
+        accountId: 'a',
+        username: 'u',
+        csrfToken: 'tok-123',
+        seats: [],
+      }),
     );
 
     const { api } = await import('./http');
@@ -62,9 +67,9 @@ describe('HttpClient CSRF injection', () => {
     });
 
     // logout is a POST
-    const logoutCall = vi.mocked(fetch).mock.calls.find(([url]) =>
-      (url as string).includes('logout'),
-    );
+    const logoutCall = vi
+      .mocked(fetch)
+      .mock.calls.find(([url]) => (url as string).includes('logout'));
     expect(logoutCall).toBeDefined();
     const headers = logoutCall![1]?.headers as Record<string, string>;
     expect(headers?.['X-CSRF-Token']).toBe('tok-123');
@@ -73,15 +78,21 @@ describe('HttpClient CSRF injection', () => {
   it('does not inject X-CSRF-Token on GET requests', async () => {
     authState.csrfToken = 'tok-123';
     vi.mocked(fetch).mockResolvedValue(
-      makeOkResponse({ accountId: 'a', username: 'u', csrfToken: 'tok-123', seats: [], mustChangePassword: false }),
+      makeOkResponse({
+        accountId: 'a',
+        username: 'u',
+        csrfToken: 'tok-123',
+        seats: [],
+        mustChangePassword: false,
+      }),
     );
 
     const { api } = await import('./http');
     await api.auth.me();
 
-    const meCall = vi.mocked(fetch).mock.calls.find(([url]) =>
-      (url as string).includes('/me'),
-    );
+    const meCall = vi
+      .mocked(fetch)
+      .mock.calls.find(([url]) => (url as string).includes('/me'));
     expect(meCall).toBeDefined();
     const headers = meCall![1]?.headers as Record<string, string>;
     expect(headers?.['X-CSRF-Token']).toBeUndefined();
@@ -90,7 +101,12 @@ describe('HttpClient CSRF injection', () => {
   it('does not inject X-CSRF-Token when csrfToken is null', async () => {
     authState.csrfToken = null;
     vi.mocked(fetch).mockResolvedValue(
-      makeOkResponse({ accountId: 'a', username: 'u', csrfToken: null, seats: [] }),
+      makeOkResponse({
+        accountId: 'a',
+        username: 'u',
+        csrfToken: null,
+        seats: [],
+      }),
     );
 
     const { api } = await import('./http');
@@ -98,9 +114,9 @@ describe('HttpClient CSRF injection', () => {
       /* ok */
     });
 
-    const logoutCall = vi.mocked(fetch).mock.calls.find(([url]) =>
-      (url as string).includes('logout'),
-    );
+    const logoutCall = vi
+      .mocked(fetch)
+      .mock.calls.find(([url]) => (url as string).includes('logout'));
     const headers = logoutCall![1]?.headers as Record<string, string>;
     expect(headers?.['X-CSRF-Token']).toBeUndefined();
   });

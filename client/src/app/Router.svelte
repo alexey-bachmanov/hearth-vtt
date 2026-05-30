@@ -51,17 +51,10 @@ function handlePopState() {
  *
  * If the destination is a protected route and the user is not logged in,
  * redirects to /play/login with a returnTo parameter.
- *
- * DEV HACK: when `currentRoute.seatId` is present on a play-campaign route
- * the guard is skipped entirely, letting the WS dev-bypass take over.
- * Remove after Phase 5 (real player auth).
  */
 $effect(() => {
   const type = currentRoute.type;
   if (type === 'play' || type === 'play-account' || type === 'play-campaign') {
-    // DEV HACK: ?seat= param bypasses auth guard. Remove after Phase 5.
-    if (type === 'play-campaign' && currentRoute.seatId) return;
-
     authState.loadMe().then((me) => {
       if (!me) {
         navigateWithReturnTo(
@@ -100,10 +93,10 @@ onMount(() => {
     <PlayAccountPage />
   {/if}
 {:else if currentRoute.type === 'play-campaign'}
-  {#if !currentRoute.seatId && (authState.loading || !authState.me)}
+  {#if authState.loading || !authState.me}
     <div class="auth-loading" aria-live="polite" aria-busy="true"></div>
   {:else}
-    <PlayLayout campaignId={currentRoute.campaignId} seatId={currentRoute.seatId} />
+    <PlayLayout campaignId={currentRoute.campaignId} />
   {/if}
 {:else if currentRoute.type === 'admin-setup'}
   <AdminSetup />

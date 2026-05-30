@@ -113,7 +113,6 @@ describe('parseRoute() — /play/:campaignId', () => {
     expect(parseRoute('/play/campaign-abc')).toStrictEqual({
       type: 'play-campaign',
       campaignId: 'campaign-abc',
-      seatId: undefined,
     });
   });
 
@@ -123,7 +122,6 @@ describe('parseRoute() — /play/:campaignId', () => {
     ).toStrictEqual({
       type: 'play-campaign',
       campaignId: '550e8400-e29b-41d4-a716-446655440000',
-      seatId: undefined,
     });
   });
 
