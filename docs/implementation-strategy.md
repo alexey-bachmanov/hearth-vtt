@@ -315,7 +315,7 @@ Completes Milestone M2 by wiring the client-side chat and dice surfaces to the e
 > **Estimated effort:** ~4–6 weeks  
 > **Track:** A + B  
 > **Dependencies:** Phase 4 (complete)  
-> **Status:** In progress
+> **Status:** Complete
 
 Complete all auth, identity, and security work outside the GameEngine before resuming engine-interior work. The previous Phase 5 entry was written before Phase 4 was built; most of its tasks (claim flow, session resolver, WS auth, account domain, `auth.ts` endpoints) were implemented during Phase 3–4. The actual remaining work is client-side auth UX completion, security hardening, password-reset/logout flows, and dev-affordance redesign.
 
@@ -399,6 +399,35 @@ Complete all auth, identity, and security work outside the GameEngine before res
 > **Admin creates campaign → creates invite → shares link. Player opens link → enters PIN (login or register mode) → joins campaign → sees synced state. Two players can see each other's token moves. Revoking a session disconnects the player. Bookmark visited after session expires → silent refresh succeeds → play resumes without login prompt. Admin resets player password → player forced through password-change modal on next visit. `npm run dev:reset-setup` restores the admin setup screen without touching player data.**
 
 **Test coverage:** all items in 5A/5B have server unit tests; all items in 5C have client component tests; `&seat=` removal verified by checking `?seat=` is unrecognised and redirects to `/play/login`.
+
+---
+
+### Phase 5.1 — Auth Cleanup
+
+> **Estimated effort:** ~1 week  
+> **Track:** A + B  
+> **Dependencies:** Phase 5 (complete)  
+> **Status:** In progress
+
+Closes the remaining auth gaps from Phase 5.
+
+1. **Ruleset security constraints.** Document hard rules in `ruleset-engine.md`: no innerHTML, closed declarative UI grammar, no DOM/fetch/Promise/setTimeout/postMessage in QuickJS, engine-mediated state mutation only. Threat model included (untrusted ruleset, supply-chain compromise, targeted GM ruleset). Enforcement mechanism deferred.
+
+2. **Single-token migration.** Remove dead `accessToken` field from `RefreshResponse` and the `/api/auth/refresh` handler. Cookie + CSRF is the sole auth scheme. XSS tradeoff documented and accepted at current scale; mitigated by CSP (next sprint) and ruleset constraints.
+
+3. **Logout CSRF bug.** `authState.logout()` calls bare `fetch` without `X-CSRF-Token`; server rejects with 403; the refresh cookie is never revoked. Fix: route through `api.auth.logout()`.
+
+4. **Admin change-password response normalization.** Currently returns `{ success: true }`; should return 204 to match `logout-all` semantics and force re-login.
+
+5. **Admin password recovery endpoint.** `POST /api/admin/reset` — public, localhost-only (existing `ADMIN_ALLOW_REMOTE` rules apply), rate-limited, gated by `${DATA_DIR}/admin-reset.flag` filesystem flag. Deletes flag before touching DB; nulls `server_admin` row; regenerates setup PIN. Client UI: "Forgot password?" link on the admin login page → instructions page with "Check again" button.
+
+#### Verification
+
+- Player logout revokes server session (cookie cleared; `GET /api/auth/me` → 401).
+- Admin change-password → 204; client redirects to `/admin/login`.
+- `POST /api/admin/reset` without flag → 404; with flag → 200 + new PIN, flag deleted.
+- `grep -r accessToken client/ server/ shared/` returns zero active-code matches.
+- Full test suite green.
 
 ---
 
