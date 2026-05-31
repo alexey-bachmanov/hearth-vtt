@@ -521,7 +521,6 @@ export class InMemoryBackend implements StorageBackend {
   async createAuthSession(data: {
     accountId: string;
     refreshTokenHash: string;
-    accessTokenHash: string;
     csrfToken: string;
     expiresAt: number;
   }): Promise<AuthSession> {
@@ -530,7 +529,6 @@ export class InMemoryBackend implements StorageBackend {
       id: randomUUID(),
       accountId: data.accountId,
       refreshTokenHash: data.refreshTokenHash,
-      accessTokenHash: data.accessTokenHash,
       csrfToken: data.csrfToken,
       expiresAt: data.expiresAt,
       createdAt: now,
@@ -554,9 +552,7 @@ export class InMemoryBackend implements StorageBackend {
 
   async updateAuthSession(
     sessionId: string,
-    data: Partial<
-      Pick<AuthSession, 'refreshTokenHash' | 'accessTokenHash' | 'lastUsedAt'>
-    >,
+    data: Partial<Pick<AuthSession, 'refreshTokenHash' | 'lastUsedAt'>>,
   ): Promise<void> {
     const session = this.authSessions.get(sessionId);
     if (!session) throw new Error(`AuthSession ${sessionId} not found`);

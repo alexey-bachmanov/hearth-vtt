@@ -474,7 +474,7 @@ describe('POST /api/auth/refresh', () => {
     storage.close();
   });
 
-  it('returns a new accessToken when refresh cookie is valid', async () => {
+  it('returns a csrfToken when refresh cookie is valid', async () => {
     const loginRes = await server.inject({
       method: 'POST',
       url: '/api/auth/login',
@@ -490,7 +490,7 @@ describe('POST /api/auth/refresh', () => {
     });
 
     expect(res.statusCode).toBe(200);
-    expect(res.json().accessToken).toBeTruthy();
+    expect(res.json().csrfToken).toBeTruthy();
   });
 
   it('refresh token is stable — same cookie works on second call', async () => {
@@ -515,8 +515,9 @@ describe('POST /api/auth/refresh', () => {
 
     expect(res1.statusCode).toBe(200);
     expect(res2.statusCode).toBe(200);
-    // Access tokens are different but both valid
-    expect(res1.json().accessToken).not.toBe(res2.json().accessToken);
+    // Both calls return a csrfToken and the same cookie remains valid
+    expect(res1.json().csrfToken).toBeTruthy();
+    expect(res2.json().csrfToken).toBeTruthy();
   });
 
   it('returns 401 with no cookie', async () => {

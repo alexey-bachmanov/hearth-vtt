@@ -118,7 +118,6 @@ export interface AuthSession {
   id: string;
   accountId: string; // References PlayerAccount.id
   refreshTokenHash: string; // Hashed refresh token
-  accessTokenHash: string; // Hashed access token (short-lived)
   csrfToken: string; // CSRF token (plain text, returned to client in response body)
   expiresAt: number; // Unix timestamp
   createdAt: number;
@@ -310,16 +309,13 @@ export interface StorageBackend {
   createAuthSession(data: {
     accountId: string;
     refreshTokenHash: string;
-    accessTokenHash: string;
     csrfToken: string;
     expiresAt: number;
   }): Promise<AuthSession>;
   getAuthSession(refreshTokenHash: string): Promise<AuthSession | null>;
   updateAuthSession(
     sessionId: string,
-    data: Partial<
-      Pick<AuthSession, 'refreshTokenHash' | 'accessTokenHash' | 'lastUsedAt'>
-    >,
+    data: Partial<Pick<AuthSession, 'refreshTokenHash' | 'lastUsedAt'>>,
   ): Promise<void>;
   revokeAuthSession(sessionId: string): Promise<void>;
   revokeAllAuthSessionsForAccount(accountId: string): Promise<void>;
@@ -660,7 +656,6 @@ export class Storage {
   async createAuthSession(data: {
     accountId: string;
     refreshTokenHash: string;
-    accessTokenHash: string;
     csrfToken: string;
     expiresAt: number;
   }): Promise<AuthSession> {
@@ -673,9 +668,7 @@ export class Storage {
 
   async updateAuthSession(
     sessionId: string,
-    data: Partial<
-      Pick<AuthSession, 'refreshTokenHash' | 'accessTokenHash' | 'lastUsedAt'>
-    >,
+    data: Partial<Pick<AuthSession, 'refreshTokenHash' | 'lastUsedAt'>>,
   ): Promise<void> {
     return this.backend.updateAuthSession(sessionId, data);
   }

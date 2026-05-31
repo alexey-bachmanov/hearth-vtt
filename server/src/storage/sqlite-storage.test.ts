@@ -808,7 +808,6 @@ describe('SqliteStorage (:memory: mode)', () => {
       const session = await storage.createAuthSession({
         accountId,
         refreshTokenHash: 'refresh-hash-xyz',
-        accessTokenHash: 'access-hash-xyz',
         expiresAt: Date.now() + 3600_000,
         csrfToken: 'csrf-xyz',
       });
@@ -822,7 +821,6 @@ describe('SqliteStorage (:memory: mode)', () => {
       const session = await storage.createAuthSession({
         accountId,
         refreshTokenHash: 'to-revoke-hash',
-        accessTokenHash: 'access-hash',
         expiresAt: Date.now() + 3600_000,
         csrfToken: 'csrf-revoke',
       });
@@ -835,7 +833,6 @@ describe('SqliteStorage (:memory: mode)', () => {
       const session = await storage.createAuthSession({
         accountId,
         refreshTokenHash: 'old-refresh-hash',
-        accessTokenHash: 'access-hash',
         expiresAt: Date.now() + 3600_000,
         csrfToken: 'csrf-update',
       });
@@ -857,14 +854,12 @@ describe('SqliteStorage (:memory: mode)', () => {
       await storage.createAuthSession({
         accountId,
         refreshTokenHash: 'hash-s1',
-        accessTokenHash: 'access-s1',
         expiresAt: Date.now() + 3600_000,
         csrfToken: 'csrf-s1',
       });
       await storage.createAuthSession({
         accountId: otherAccount.id,
         refreshTokenHash: 'hash-s2',
-        accessTokenHash: 'access-s2',
         expiresAt: Date.now() + 3600_000,
         csrfToken: 'csrf-s2',
       });
@@ -878,14 +873,12 @@ describe('SqliteStorage (:memory: mode)', () => {
       await storage.createAuthSession({
         accountId,
         refreshTokenHash: 'hash-b1',
-        accessTokenHash: 'access-b1',
         expiresAt: Date.now() + 3600_000,
         csrfToken: 'csrf-b1',
       });
       await storage.createAuthSession({
         accountId,
         refreshTokenHash: 'hash-b2',
-        accessTokenHash: 'access-b2',
         expiresAt: Date.now() + 3600_000,
         csrfToken: 'csrf-b2',
       });

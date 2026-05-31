@@ -163,9 +163,6 @@ describe('Phase 5A — CSRF rejection on player mutating endpoints', () => {
       refreshTokenHash: createHash('sha256')
         .update('csrf-test-token')
         .digest('hex'),
-      accessTokenHash: createHash('sha256')
-        .update('csrf-test-access')
-        .digest('hex'),
       csrfToken: 'correct-csrf-token',
       expiresAt: Date.now() + 60 * 60 * 1000,
     });

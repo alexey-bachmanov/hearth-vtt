@@ -421,6 +421,8 @@ Closes the remaining auth gaps from Phase 5.
 
 5. **Admin password recovery endpoint.** `POST /api/admin/reset` — public, localhost-only (existing `ADMIN_ALLOW_REMOTE` rules apply), rate-limited, gated by `${DATA_DIR}/admin-reset.flag` filesystem flag. Deletes flag before touching DB; nulls `server_admin` row; regenerates setup PIN. Client UI: "Forgot password?" link on the admin login page → instructions page with "Check again" button.
 
+6. **Session cap (max 64 per account).** Before creating a new session in `/login` and `/claim-invite`, count active (non-revoked, non-expired) sessions for the account. If already at 64, revoke the oldest by `createdAt` to make room. Prevents unbounded session accumulation from clients that never call `/logout`. Device-level deduplication and active-devices UI deferred to tech debt.
+
 #### Verification
 
 - Player logout revokes server session (cookie cleared; `GET /api/auth/me` → 401).

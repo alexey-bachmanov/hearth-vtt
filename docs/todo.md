@@ -27,10 +27,10 @@ As work completes, check off tasks.
 
 ### Phase 5.1B — Single-token migration
 
-- [ ] **5.1B-1.** Remove `accessToken` field from `RefreshResponse` in [`shared/src/protocol/http.ts`](../shared/src/protocol/http.ts).
-- [ ] **5.1B-2.** Remove access-token generation from the `/api/auth/refresh` handler in [`server/src/routes/auth.ts`](../server/src/routes/auth.ts). Update the CSRF-rotation comment to reflect single-token model.
-- [ ] **5.1B-3.** Grep `client/` for reads of `data.accessToken` or `response.accessToken`; remove all remaining references including in `auth.svelte.ts` and the WS silent-refresh path.
-- [ ] **5.1B-4.** Update server and client tests that assert on `accessToken` field presence.
+- [x] **5.1B-1.** Remove `accessToken` field from `RefreshResponse` in [`shared/src/protocol/http.ts`](../shared/src/protocol/http.ts).
+- [x] **5.1B-2.** Remove access-token generation from the `/api/auth/refresh` handler in [`server/src/routes/auth.ts`](../server/src/routes/auth.ts). Update the CSRF-rotation comment to reflect single-token model.
+- [x] **5.1B-3.** Grep `client/` for reads of `data.accessToken` or `response.accessToken`; remove all remaining references including in `auth.svelte.ts` and the WS silent-refresh path.
+- [x] **5.1B-4.** Update server and client tests that assert on `accessToken` field presence.
 
 ---
 
@@ -52,6 +52,14 @@ As work completes, check off tasks.
 - [ ] **5.1D-5.** Create `client/src/ui/admin/Recovery.svelte`: generic instructions ("create empty file `admin-reset.flag` in your data directory; see [docs] for path") + "Check again" button. On 200 → navigate to `/admin/setup`. On 404 → toast "Flag not found". On 500 → error message.
 - [ ] **5.1D-6.** Document data-directory paths per deployment (installer, Docker `/data`, SEA, raw `npm start`) in [`server.md`](components/server.md).
 - [ ] **5.1D-7.** Server integration tests: no flag → 404; with flag → 200 + PIN, flag deleted, admin row nulled; flag exists but unreadable → 500, admin row untouched.
+
+---
+
+### Phase 5.1E — Session cap
+
+- [ ] **5.1E-1.** Add `countActiveAuthSessionsForAccount(accountId)` and `revokeOldestAuthSessionForAccount(accountId)` to the Storage interface in [`server/src/storage/index.ts`](../server/src/storage/index.ts). Implement in SQLite and in-memory backends. "Active" = not revoked and not expired.
+- [ ] **5.1E-2.** In `/api/auth/login` and `/api/auth/claim-invite` in [`server/src/routes/auth.ts`](../server/src/routes/auth.ts): before creating a new session, if active session count is already 64, revoke the oldest (by `createdAt`) to make room.
+- [ ] **5.1E-3.** Unit tests: at 64 active sessions the oldest is evicted before the new one is created; at 63 no eviction occurs; the newly created session counts toward the limit.
 
 ---
 
@@ -104,6 +112,8 @@ Read path (load snapshot + replay events) shipped in Phase 3. Write path (auto-t
 ### Auth & Sessions
 
 - [ ] **PIN cooldown change**: per-invite PIN cooldown is 60s (not "until expiry") so a typo'd PIN doesn't dead-end the invite.
+- [ ] **Device-level session deduplication**: one refresh cookie per browser/device (requires a device label on sessions, e.g. user-agent hash stored at login; dedup logic in `/login` and `/claim-invite`). Prevents session accumulation when the same device logs in repeatedly without clearing cookies.
+- [ ] **Active devices management UI**: surface the session list (with device hints and `lastUsedAt`) in player account settings; add "Sign out other devices" action.
 - [ ] **Rate-limit productionization**: in-memory rate-limit bucket on `POST /api/auth/login`. Replace with `@fastify/rate-limit` for persistence across restarts and distributed deployments.
 - [ ] **Audit log surface**: claims, login failures, password resets, and session revocations should be visible in the admin Accounts tab.
 

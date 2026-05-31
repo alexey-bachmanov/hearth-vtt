@@ -90,14 +90,13 @@ export type LoginResponse = z.infer<typeof loginResponseSchema>;
 /**
  * POST /api/auth/refresh has no request body.
  *
- * Reads the `hearth_refresh` cookie and mints a new short-lived access token.
- * The refresh token itself is NOT rotated (stable refresh per ADR-010).
- * Returns the new access token in the response body.
+ * Validates the `hearth_refresh` cookie. The refresh token is NOT rotated
+ * (stable refresh per ADR-010). Returns a fresh CSRF token in the response
+ * body. Cookie + CSRF is the sole auth scheme (single-token model).
  *
  * 401 when the refresh cookie is absent or the session has been revoked.
  */
 export const refreshResponseSchema = z.object({
-  accessToken: z.string(),
   csrfToken: z.string(),
 });
 export type RefreshResponse = z.infer<typeof refreshResponseSchema>;

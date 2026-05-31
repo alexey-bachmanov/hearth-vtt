@@ -91,7 +91,6 @@ async function seedSession(
   await storage.createAuthSession({
     accountId: account.id,
     refreshTokenHash: hashToken(refreshToken),
-    accessTokenHash: hashToken(`access-${refreshToken}`),
     expiresAt: Date.now() + 60 * 60 * 1000, // 1 hour
     csrfToken: 'test-csrf-token',
   });

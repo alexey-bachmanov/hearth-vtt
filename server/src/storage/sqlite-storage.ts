@@ -224,7 +224,7 @@ export class SqliteStorage implements StorageBackend {
         id TEXT PRIMARY KEY,
         account_id TEXT NOT NULL,
         refresh_token_hash TEXT NOT NULL UNIQUE,
-        access_token_hash TEXT NOT NULL,
+        access_token_hash TEXT NOT NULL DEFAULT '',
         csrf_token TEXT NOT NULL DEFAULT '',
         expires_at INTEGER NOT NULL,
         created_at INTEGER NOT NULL,
@@ -1396,7 +1396,6 @@ export class SqliteStorage implements StorageBackend {
   async createAuthSession(data: {
     accountId: string;
     refreshTokenHash: string;
-    accessTokenHash: string;
     csrfToken: string;
     expiresAt: number;
   }): Promise<AuthSession> {
@@ -1408,7 +1407,6 @@ export class SqliteStorage implements StorageBackend {
       id,
       accountId: data.accountId,
       refreshTokenHash: data.refreshTokenHash,
-      accessTokenHash: data.accessTokenHash,
       csrfToken: data.csrfToken,
       expiresAt: data.expiresAt,
       createdAt: now,
@@ -1418,16 +1416,15 @@ export class SqliteStorage implements StorageBackend {
 
     const stmt = db.prepare(`
       INSERT INTO auth_sessions (
-        id, account_id, refresh_token_hash, access_token_hash,
+        id, account_id, refresh_token_hash,
         csrf_token, expires_at, created_at, last_used_at, revoked_at
       )
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?)
     `);
     stmt.run(
       session.id,
       session.accountId,
       session.refreshTokenHash,
-      session.accessTokenHash,
       session.csrfToken,
       session.expiresAt,
       session.createdAt,
@@ -1449,7 +1446,6 @@ export class SqliteStorage implements StorageBackend {
         id,
         account_id as accountId,
         refresh_token_hash as refreshTokenHash,
-        access_token_hash as accessTokenHash,
         csrf_token as csrfToken,
         expires_at as expiresAt,
         created_at as createdAt,
@@ -1468,9 +1464,7 @@ export class SqliteStorage implements StorageBackend {
    */
   async updateAuthSession(
     sessionId: string,
-    data: Partial<
-      Pick<AuthSession, 'refreshTokenHash' | 'accessTokenHash' | 'lastUsedAt'>
-    >,
+    data: Partial<Pick<AuthSession, 'refreshTokenHash' | 'lastUsedAt'>>,
   ): Promise<void> {
     const db = this.ensureDb();
 
@@ -1480,11 +1474,6 @@ export class SqliteStorage implements StorageBackend {
     if (data.refreshTokenHash !== undefined) {
       updates.push('refresh_token_hash = ?');
       values.push(data.refreshTokenHash);
-    }
-
-    if (data.accessTokenHash !== undefined) {
-      updates.push('access_token_hash = ?');
-      values.push(data.accessTokenHash);
     }
 
     if (data.lastUsedAt !== undefined) {
@@ -1541,7 +1530,7 @@ export class SqliteStorage implements StorageBackend {
         id,
         account_id as accountId,
         refresh_token_hash as refreshTokenHash,
-        access_token_hash as accessTokenHash,
+        csrf_token as csrfToken,
         expires_at as expiresAt,
         created_at as createdAt,
         last_used_at as lastUsedAt,

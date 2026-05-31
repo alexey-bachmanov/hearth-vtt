@@ -437,14 +437,12 @@ export async function authRoutes(
 
     // --- Create auth session ---
     const refreshToken = generateToken();
-    const accessToken = generateToken();
     const csrfToken = generateCsrfToken();
     const now = Date.now();
 
     await storage.createAuthSession({
       accountId: account.id,
       refreshTokenHash: hashToken(refreshToken),
-      accessTokenHash: hashToken(accessToken),
       csrfToken,
       expiresAt: now + REFRESH_DURATION_MS,
     });
@@ -528,14 +526,12 @@ export async function authRoutes(
       }
 
       const refreshToken = generateToken();
-      const accessToken = generateToken();
       const csrfToken = generateCsrfToken();
       const now = Date.now();
 
       await storage.createAuthSession({
         accountId: account.id,
         refreshTokenHash: hashToken(refreshToken),
-        accessTokenHash: hashToken(accessToken),
         csrfToken,
         expiresAt: now + REFRESH_DURATION_MS,
       });
@@ -587,12 +583,14 @@ export async function authRoutes(
   // --------------------------------------------------------------------------
 
   /**
-   * Mint a new short-lived access token from the stable refresh cookie.
+   * Refresh the CSRF token for the current session.
    *
-   * The refresh token is NOT rotated (stable refresh per ADR-010 §4).
-   * Reuse detection: a revoked token returns 401 (session already revoked).
+   * The refresh cookie is validated; the refresh token itself is NOT rotated
+   * (stable refresh per ADR-010 §4). Cookie + CSRF is the sole auth scheme
+   * (single-token model; no access token). Reuse detection: a revoked session
+   * returns 401.
    *
-   * Returns: RefreshResponse `{ accessToken }`.
+   * Returns: RefreshResponse `{ csrfToken }`.
    * 401: missing cookie, session not found, expired, or revoked.
    */
   server.post('/api/auth/refresh', async (request, reply) => {
@@ -600,15 +598,13 @@ export async function authRoutes(
     if (!resolved) return;
 
     const { sessionId, csrfToken } = resolved;
-    const newAccessToken = generateToken();
 
     await storage.updateAuthSession(sessionId, {
-      accessTokenHash: hashToken(newAccessToken),
       lastUsedAt: Date.now(),
     });
 
     reply.code(200);
-    return { accessToken: newAccessToken, csrfToken };
+    return { csrfToken };
   });
 
   // --------------------------------------------------------------------------

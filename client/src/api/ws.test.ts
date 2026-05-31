@@ -159,7 +159,7 @@ describe('WebSocketClient close code handling', () => {
       .fn()
       .mockResolvedValue(
         new Response(
-          JSON.stringify({ accessToken: 'new-at', csrfToken: 'new-csrf' }),
+          JSON.stringify({ csrfToken: 'new-csrf' }),
           { status: 200, headers: { 'Content-Type': 'application/json' } },
         ),
       );

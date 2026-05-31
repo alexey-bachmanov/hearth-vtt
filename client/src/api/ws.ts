@@ -351,7 +351,6 @@ export class WebSocketClient {
           });
           if (res.ok) {
             const data = (await res.json()) as {
-              accessToken: string;
               csrfToken: string;
             };
             authState.csrfToken = data.csrfToken;
