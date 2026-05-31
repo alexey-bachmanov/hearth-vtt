@@ -121,9 +121,37 @@ Within `server/` (current structure):
 Runtime data directory:
 
 - `${DATA_DIR}/db/hearth.db` — SQLite database file
+- `${DATA_DIR}/admin-setup-pin.txt` — One-time setup PIN (auto-deleted after setup)
+- `${DATA_DIR}/admin-reset.flag` — Create this empty file to enable `POST /api/admin/reset`
 - `${DATA_DIR}/assets/` — uploaded maps/tokens/etc.
 - `${DATA_DIR}/imports/` — optional staging for campaign import
 - `${DATA_DIR}/exports/` — optional staging for campaign export
+
+### Data-directory paths by deployment
+
+The value of `DATA_DIR` (default: `./data`) depends on how the server is run:
+
+| Deployment                             | Default data directory              |
+| -------------------------------------- | ----------------------------------- |
+| `npm start` (raw node, from repo root) | `<repo>/data/`                      |
+| `npm start` (from `server/`)           | `<server>/data/`                    |
+| Docker (`docker-compose.yml`)          | `/data/` (mounted volume)           |
+| Native executable (`.exe` / SEA)       | `<directory containing .exe>/data/` |
+
+**Example: creating the recovery flag**
+
+```bash
+# Raw npm start from repo root
+touch ./data/admin-reset.flag
+
+# Docker
+docker exec <container> touch /data/admin-reset.flag
+
+# Windows
+New-Item -ItemType File -Path ".\data\admin-reset.flag"
+```
+
+After calling `POST /api/admin/reset` (or clicking "Check again" on `/admin/recovery`) the flag is deleted and a new setup PIN is written to `admin-setup-pin.txt`.
 
 ---
 

@@ -11,6 +11,7 @@
  * - /admin          - Admin SPA (requires admin auth)
  * - /admin/setup    - Initial admin setup
  * - /admin/login    - Admin login
+ * - /admin/recovery - Admin password recovery (public)
  * - fallback        - 404 not-found
  */
 
@@ -24,6 +25,7 @@ export type Route =
   | { type: 'admin' }
   | { type: 'admin-setup' }
   | { type: 'admin-login' }
+  | { type: 'admin-recovery' }
   | { type: 'not-found' };
 
 /**
@@ -106,6 +108,11 @@ export function parseRoute(pathname: string, search: string = ''): Route {
   // Match /admin/login
   if (path === '/admin/login') {
     return { type: 'admin-login' };
+  }
+
+  // Match /admin/recovery
+  if (path === '/admin/recovery') {
+    return { type: 'admin-recovery' };
   }
 
   // Match /admin (exact)

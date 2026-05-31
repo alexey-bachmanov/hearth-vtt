@@ -457,6 +457,31 @@ export class SessionApi {
 }
 
 /**
+ * Admin authentication API client.
+ *
+ * Covers the public (no-auth) admin recovery endpoint.
+ */
+export class AdminAuthApi {
+  constructor(private http: HttpClient) {}
+
+  /**
+   * Trigger an admin password reset via the filesystem-flag mechanism.
+   *
+   * The operator must have created an empty `admin-reset.flag` file in the
+   * server's data directory before calling this. The server deletes the flag,
+   * revokes all admin sessions, and generates a new setup PIN.
+   *
+   * @returns The newly generated setup PIN (also written to admin-setup-pin.txt).
+   * @throws ApiError 404 when the flag file is absent.
+   * @throws ApiError 429 on rate-limit.
+   * @throws ApiError 500 when the flag could not be deleted.
+   */
+  async requestReset(): Promise<{ setupPin: string }> {
+    return this.http.post<{ setupPin: string }>('/admin/reset');
+  }
+}
+
+/**
  * Main API client instance.
  *
  * Exposes typed methods for all API endpoints.
@@ -466,6 +491,7 @@ export class Api {
   public http: HttpClient;
 
   auth: AuthApi;
+  adminAuth: AdminAuthApi;
   campaigns: CampaignApi;
   seats: SeatApi;
   invites: InviteApi;
@@ -475,6 +501,7 @@ export class Api {
     this.http = new HttpClient(baseUrl);
 
     this.auth = new AuthApi(this.http);
+    this.adminAuth = new AdminAuthApi(this.http);
     this.campaigns = new CampaignApi();
     this.seats = new SeatApi();
     this.invites = new InviteApi();

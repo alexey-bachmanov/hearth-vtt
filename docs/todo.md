@@ -36,22 +36,22 @@ As work completes, check off tasks.
 
 ### Phase 5.1C — Logout bug + change-password normalization
 
-- [ ] **5.1C-1.** Fix `logout()` in [`client/src/state/auth.svelte.ts`](../client/src/state/auth.svelte.ts): replace bare `fetch('/api/auth/logout', ...)` with `api.auth.logout()` (auto-injects `X-CSRF-Token`). Preserve the "navigate to `/` regardless of success" finally-block. Audit rest of `auth.svelte.ts` for other bare mutating fetches; route through `api`.
-- [ ] **5.1C-2.** Change admin `change-password` handler in [`server/src/routes/admin-auth.ts`](../server/src/routes/admin-auth.ts) to return `reply.code(204).send()`. Confirm all admin sessions are revoked before responding.
-- [ ] **5.1C-3.** Handle 204 from `change-password` in admin client state: clear local session and navigate to `/admin/login`.
-- [ ] **5.1C-4.** Update tests: server logout returns 200 (not silently-ignored 403); change-password response is 204 with no body.
+- [x] **5.1C-1.** Fix `logout()` in [`client/src/state/auth.svelte.ts`](../client/src/state/auth.svelte.ts): replace bare `fetch('/api/auth/logout', ...)` with `api.auth.logout()` (auto-injects `X-CSRF-Token`). Preserve the "navigate to `/` regardless of success" finally-block. Audit rest of `auth.svelte.ts` for other bare mutating fetches; route through `api`.
+- [x] **5.1C-2.** Change admin `change-password` handler in [`server/src/routes/admin-auth.ts`](../server/src/routes/admin-auth.ts) to return `reply.code(204).send()`. Confirm all admin sessions are revoked before responding.
+- [x] **5.1C-3.** Handle 204 from `change-password` in admin client state: clear local session and navigate to `/admin/login`.
+- [x] **5.1C-4.** Update tests: server logout returns 200 (not silently-ignored 403); change-password response is 204 with no body.
 
 ---
 
 ### Phase 5.1D — Filesystem-flag recovery endpoint
 
-- [ ] **5.1D-1.** Create [`server/src/routes/admin-recovery.ts`](../server/src/routes/admin-recovery.ts): `POST /api/admin/reset` — public, no auth, no CSRF, subject to existing `ADMIN_ALLOW_REMOTE`/localhost rules, in-memory rate limit 5 req/hour per IP. Handler: check `${DATA_DIR}/admin-reset.flag` (404 if absent) → delete flag first (500 + no DB touch if delete fails) → null `server_admin` row + revoke all admin sessions → regenerate setup PIN + write `admin-setup-pin.txt` + log to console → return `{ setupPin }`.
-- [ ] **5.1D-2.** Register admin-recovery routes in [`server/src/server.ts`](../server/src/server.ts).
-- [ ] **5.1D-3.** Add `api.adminAuth.requestReset()` to [`client/src/api/http.ts`](../client/src/api/http.ts).
-- [ ] **5.1D-4.** Add "Forgot password?" link to `/admin/login` page navigating to `/admin/recovery`.
-- [ ] **5.1D-5.** Create `client/src/ui/admin/Recovery.svelte`: generic instructions ("create empty file `admin-reset.flag` in your data directory; see [docs] for path") + "Check again" button. On 200 → navigate to `/admin/setup`. On 404 → toast "Flag not found". On 500 → error message.
-- [ ] **5.1D-6.** Document data-directory paths per deployment (installer, Docker `/data`, SEA, raw `npm start`) in [`server.md`](components/server.md).
-- [ ] **5.1D-7.** Server integration tests: no flag → 404; with flag → 200 + PIN, flag deleted, admin row nulled; flag exists but unreadable → 500, admin row untouched.
+- [x] **5.1D-1.** Create [`server/src/routes/admin-recovery.ts`](../server/src/routes/admin-recovery.ts): `POST /api/admin/reset` — public, no auth, no CSRF, subject to existing `ADMIN_ALLOW_REMOTE`/localhost rules, in-memory rate limit 5 req/hour per IP. Handler: check `${DATA_DIR}/admin-reset.flag` (404 if absent) → delete flag first (500 + no DB touch if delete fails) → null `server_admin` row + revoke all admin sessions → regenerate setup PIN + write `admin-setup-pin.txt` + log to console → return `{ setupPin }`.
+- [x] **5.1D-2.** Register admin-recovery routes in [`server/src/server.ts`](../server/src/server.ts).
+- [x] **5.1D-3.** Add `api.adminAuth.requestReset()` to [`client/src/api/http.ts`](../client/src/api/http.ts).
+- [x] **5.1D-4.** Add "Forgot password?" link to `/admin/login` page navigating to `/admin/recovery`.
+- [x] **5.1D-5.** Create `client/src/ui/admin/Recovery.svelte`: generic instructions ("create empty file `admin-reset.flag` in your data directory; see [docs] for path") + "Check again" button. On 200 → navigate to `/admin/setup`. On 404 → toast "Flag not found". On 500 → error message.
+- [x] **5.1D-6.** Document data-directory paths per deployment (installer, Docker `/data`, SEA, raw `npm start`) in [`server.md`](components/server.md).
+- [x] **5.1D-7.** Server integration tests: no flag → 404; with flag → 200 + PIN, flag deleted, admin row nulled; flag exists but unreadable → 500, admin row untouched.
 
 ---
 

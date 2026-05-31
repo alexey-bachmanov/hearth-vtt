@@ -578,7 +578,10 @@ describe('POST /api/admin/change-password', () => {
       method: 'POST',
       url: '/api/admin/change-password',
       headers: { Cookie: cookie }, // intentionally omit X-CSRF-Token
-      payload: { currentPassword: TEST_PASSWORD, newPassword: 'new-password-123' },
+      payload: {
+        currentPassword: TEST_PASSWORD,
+        newPassword: 'new-password-123',
+      },
       remoteAddress: '10.21.0.2',
     });
 
@@ -593,7 +596,10 @@ describe('POST /api/admin/change-password', () => {
       method: 'POST',
       url: '/api/admin/change-password',
       headers: { 'X-CSRF-Token': 'some-token' }, // no session cookie
-      payload: { currentPassword: TEST_PASSWORD, newPassword: 'new-password-123' },
+      payload: {
+        currentPassword: TEST_PASSWORD,
+        newPassword: 'new-password-123',
+      },
       remoteAddress: '10.21.0.3',
     });
 
@@ -607,7 +613,10 @@ describe('POST /api/admin/change-password', () => {
       method: 'POST',
       url: '/api/admin/change-password',
       headers: { Cookie: cookie, 'X-CSRF-Token': csrfToken },
-      payload: { currentPassword: 'wrong-password', newPassword: 'new-password-123' },
+      payload: {
+        currentPassword: 'wrong-password',
+        newPassword: 'new-password-123',
+      },
       remoteAddress: '10.21.0.5',
     });
 
@@ -638,7 +647,9 @@ describe('POST /api/admin/change-password', () => {
       url: '/api/admin/check-auth',
       headers: { Cookie: cookie },
     });
-    expect(checkRes.json<{ authenticated: boolean }>().authenticated).toBe(false);
+    expect(checkRes.json<{ authenticated: boolean }>().authenticated).toBe(
+      false,
+    );
 
     // Login with the new password must succeed
     const loginRes = await server.inject({
@@ -675,7 +686,10 @@ describe('password hashing: login after change-password', () => {
       method: 'POST',
       url: '/api/admin/change-password',
       headers: { Cookie: cookie, 'X-CSRF-Token': csrfToken },
-      payload: { currentPassword: TEST_PASSWORD, newPassword: CHANGED_PASSWORD },
+      payload: {
+        currentPassword: TEST_PASSWORD,
+        newPassword: CHANGED_PASSWORD,
+      },
       remoteAddress: '10.22.0.1',
     });
     expect(res.statusCode).toBe(204);

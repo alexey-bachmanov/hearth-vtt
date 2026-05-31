@@ -179,6 +179,12 @@ onMount(() => {
           Don't have a password? If this is your first time setting up the server,
           use the <a href="/admin/setup">setup page</a> with the PIN from your server logs.
         </p>
+        <p>
+          Forgot your password? Use the
+          <a href="/admin/recovery" onclick={(e) => { e.preventDefault(); navigate('/admin/recovery'); }}>
+            password recovery page
+          </a>.
+        </p>
       </div>
     </div>
   {/if}

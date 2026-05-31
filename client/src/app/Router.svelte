@@ -28,6 +28,7 @@ import PlayLayout from '../ui/layout/PlayLayout.svelte';
 import AdminLayout from '../ui/layout/AdminLayout.svelte';
 import AdminSetup from '../ui/admin/AdminSetup.svelte';
 import AdminLogin from '../ui/admin/AdminLogin.svelte';
+import AdminRecovery from '../ui/admin/Recovery.svelte';
 import JoinPage from '../ui/auth/JoinPage.svelte';
 import SplashPage from '../ui/auth/SplashPage.svelte';
 import PlayLoginPage from '../ui/auth/PlayLoginPage.svelte';
@@ -102,6 +103,8 @@ onMount(() => {
   <AdminSetup />
 {:else if currentRoute.type === 'admin-login'}
   <AdminLogin />
+{:else if currentRoute.type === 'admin-recovery'}
+  <AdminRecovery />
 {:else if currentRoute.type === 'admin'}
   <AdminLayout />
 {:else}

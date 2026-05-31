@@ -158,6 +158,12 @@ describe('parseRoute() — /admin', () => {
     expect(parseRoute('/admin/login')).toStrictEqual({ type: 'admin-login' });
   });
 
+  it('returns admin-recovery for /admin/recovery', () => {
+    expect(parseRoute('/admin/recovery')).toStrictEqual({
+      type: 'admin-recovery',
+    });
+  });
+
   it('returns not-found for unrecognised /admin/unknown', () => {
     expect(parseRoute('/admin/unknown')).toStrictEqual({ type: 'not-found' });
   });

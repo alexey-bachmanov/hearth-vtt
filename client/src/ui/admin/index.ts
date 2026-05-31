@@ -8,6 +8,7 @@
 export { default as AdminTree } from './AdminTree.svelte';
 export { default as AdminSetup } from './AdminSetup.svelte';
 export { default as AdminLogin } from './AdminLogin.svelte';
+export { default as AdminRecovery } from './Recovery.svelte';
 export { default as ServerSettings } from './ServerSettings.svelte';
 export { default as CampaignDetail } from './CampaignDetail.svelte';
 export { default as SeatSettings } from './SeatSettings.svelte';
