@@ -249,7 +249,7 @@ export class CampaignState {
       .slice(-this.maxEvents)
       .map((e) => this.#toUIEvent(e));
 
-    console.log(
+    console.debug(
       '[CampaignState] View applied',
       view.campaignId,
       'seq',
@@ -295,7 +295,7 @@ export class CampaignState {
 
       default:
         // Unknown event types are logged but do not cause errors.
-        console.log(
+        console.warn(
           '[CampaignState] Unhandled event type:',
           event.type,
           event.id,
@@ -339,7 +339,7 @@ export class CampaignState {
       this.events = data.events.slice(-this.maxEvents);
     }
 
-    console.log('[CampaignState] Initial state set', data);
+    console.debug('[CampaignState] Initial state set:', data.campaignId);
   }
 
   /**
