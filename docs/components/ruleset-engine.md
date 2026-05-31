@@ -300,6 +300,38 @@ These are real problems that will need design work. They are _not_ part of the e
 
 ---
 
+## Hard ruleset security constraints
+
+Rulesets are untrusted third-party code. Even a legitimate ruleset distributed by a reputable author may be compromised via a supply-chain attack. A malicious GM could also upload a targeted ruleset designed to attack a specific player's session.
+
+The following rules are **non-negotiable**. They apply regardless of how the ruleset interior is implemented (QuickJS, Lua, restricted TypeScript, etc.). Any implementation of the ruleset engine must enforce them — they are not merely guidelines.
+
+### UI constraints
+
+1. **Ruleset-supplied strings are never injected as HTML.** Ruleset-provided text content is bound as text nodes only. No `innerHTML`, `v-html`, `{@html ...}`, `dangerouslySetInnerHTML`, or any equivalent DOM mutation that interprets the string as markup.
+
+2. **Ruleset UI templates are a closed declarative grammar.** A ruleset contributes UI by providing a declarative component tree (shape TBD during the ruleset-interior design pass). It may not supply:
+   - arbitrary HTML attributes
+   - `style=` string values (whitelist specific styling tokens instead)
+   - event handler expressions (only `dispatch(actionType, payload)` is the permitted interaction primitive)
+   - `<script>` or `<style>` tags
+
+### Code execution constraints
+
+3. **Ruleset code has no access to the DOM.** QuickJS (or equivalent sandbox) must not expose `document`, `window`, `navigator`, `location`, or any browser global. Code cannot read or write the DOM.
+
+4. **Ruleset code cannot make network requests.** No `fetch`, `XMLHttpRequest`, `WebSocket`, `EventSource`, or any equivalent. All I/O is engine-mediated.
+
+5. **Ruleset code must be synchronous.** No `Promise`, `async`/`await`, `setTimeout`, `setInterval`, `queueMicrotask`, or any mechanism that can defer execution or escape the synchronous call. The durability model (see [Determinism and replay](#determinism-and-replay)) requires that ruleset logic is fully resolved within a single synchronous invocation; async code would require saving and restoring host-language call stacks across persistence boundaries, which is explicitly rejected.
+
+6. **Ruleset code cannot directly mutate campaign state.** All state changes go through engine primitives (roll, patch, prompt, emit event, etc.). Ruleset code that needs to modify state must call an engine-provided primitive; it cannot reach into the state object directly.
+
+### Enforcement note
+
+The mechanism for enforcing these constraints (static analysis of ruleset source, capability-based API surface, sandboxed worker with no exported globals, a security scanner run at ruleset install time, or a combination) is **explicitly deferred** to the ruleset-interior design pass. No ruleset execution exists yet. This section documents the constraints, not the implementation.
+
+---
+
 ## Relationship to other documents
 
 - [docs/decisions/011-engine-facade-and-dsl-reversal.md](../decisions/011-engine-facade-and-dsl-reversal.md) — the decision that produced this design.

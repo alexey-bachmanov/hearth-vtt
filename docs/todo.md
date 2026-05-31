@@ -20,8 +20,8 @@ As work completes, check off tasks.
 
 ### Phase 5.1A — Documentation
 
-- [ ] **5.1A-1.** Add "Hard Ruleset Security Constraints" section to [`ruleset-engine.md`](components/ruleset-engine.md): no innerHTML, closed declarative UI grammar, no DOM/fetch/Promise/setTimeout/postMessage in QuickJS, engine-mediated state mutation only. Include threat model (untrusted ruleset, supply-chain attack, targeted GM ruleset). Defer enforcement mechanism.
-- [ ] **5.1A-2.** Update [`auth-join-flow.md`](components/auth-join-flow.md): `RefreshResponse` is `csrfToken` only (no `accessToken`); add "Admin password recovery" section documenting the filesystem-flag flow; document admin change-password returns 204.
+- [x] **5.1A-1.** Add "Hard Ruleset Security Constraints" section to [`ruleset-engine.md`](components/ruleset-engine.md): no innerHTML, closed declarative UI grammar, no DOM/fetch/Promise/setTimeout/postMessage in QuickJS, engine-mediated state mutation only. Include threat model (untrusted ruleset, supply-chain attack, targeted GM ruleset). Defer enforcement mechanism.
+- [x] **5.1A-2.** Update [`auth-join-flow.md`](components/auth-join-flow.md): `RefreshResponse` is `csrfToken` only (no `accessToken`); add "Admin password recovery" section documenting the filesystem-flag flow; document admin change-password returns 204.
 
 ---
 

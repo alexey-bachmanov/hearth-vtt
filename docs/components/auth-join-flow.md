@@ -189,7 +189,7 @@ Uses the `hearth_refresh` cookie to mint a new short-lived access token.
 
 - **Refresh token is stable across normal use** (does not rotate on every refresh). This intentionally diverges from strict OAuth BCP to support multi-tab and multi-device usage, which are the norm for a VTT.
 - **Reuse detection still applies to revoked tokens**: presenting a refresh token whose session has been revoked (by logout, admin kick, or password change) returns 401.
-- Returns `{ accessToken, csrfToken }`. Client stores `csrfToken` in memory (replaces any previously stored value).
+- Returns `{ csrfToken }`. Client stores it in memory (replaces any previously stored value).
 - Refresh tokens have a finite max lifetime (default 30 days, configurable) after which the user must log in again.
 
 ### `POST /api/auth/logout`
@@ -332,8 +332,6 @@ Purpose: mitigate invite link leakage.
 
 - **Refresh token**: long-lived secret bound to the PlayerAccount, stored in the `hearth_refresh` HttpOnly cookie. Default lifetime 30 days on HTTPS, session-only on HTTP (see Cookies below). Used for `/api/auth/refresh` and WS upgrade.
 - **CSRF token**: 32-byte random hex value stored in the session row, returned in the response body of login / claim-invite / refresh. Client stores it in memory (`authState.csrfToken`) and sends it via the `X-CSRF-Token` header on all state-changing requests (logout, logout-all, change-password). Not stored in a cookie (an HttpOnly cookie for CSRF provides no protection — attacker-controlled pages can trigger cookies automatically).
-- **Access token**: also returned by `/api/auth/refresh` alongside the csrfToken. Currently not used for regular HTTP API auth (cookie + CSRF covers that) but is available for future use (e.g., bearer auth, WS sub-protocol extension).
-
 The refresh token is **stable** — it does not rotate on every successful refresh. This is a deliberate departure from strict OAuth BCP, motivated by:
 
 - **Multi-tab safety.** Rotating refresh tokens on every use plus reuse detection produces false-positive session revocations any time two tabs refresh near-simultaneously. Multi-tab is the norm for a VTT (map + character sheet pop-out).
@@ -513,13 +511,30 @@ On next server startup, first-time setup re-triggers automatically: a new setup 
 
 The script is hard-gated: it throws immediately when `NODE_ENV=production`.
 
+#### Production self-hosted and cloud deployments (installer / Docker / SEA build)
+
+The repository `reset-admin-setup.ts` script is not shipped in production builds. Recovery uses a **filesystem-flag HTTP endpoint**:
+
+1. Admin visits `/admin/login` and clicks **"Forgot password?"** → navigates to `/admin/recovery`.
+2. The recovery page shows generic instructions:
+   > Create an empty file named `admin-reset.flag` in your HearthVTT data directory, then click "Check again". See [the self-hosting docs] for where your data directory is per deployment type.
+3. Admin creates the flag file (or an install wizard does it automatically — planned feature), then clicks **"Check again"**.
+4. Browser calls `POST /api/admin/reset`.
+5. Server checks `${DATA_DIR}/admin-reset.flag`:
+   - **Flag absent** → 404. Page re-displays instructions.
+   - **Flag present but delete fails** → 500. DB is not touched. Page shows an error.
+   - **Flag deleted** → null `server_admin` row, revoke all admin sessions, regenerate setup PIN → write `admin-setup-pin.txt` + log to console → return `{ setupPin }`.
+6. On 200: client navigates to `/admin/setup`, where the new PIN flow completes.
+
+**Security properties of this flow:**
+- Requires *two* capabilities: network reach to `POST /api/admin/reset` (subject to existing `ADMIN_ALLOW_REMOTE` / localhost rules) **and** filesystem write to `DATA_DIR`. Collapsing to one would require an additional exploit beyond network access.
+- Flag is deleted *before* any DB mutation. If deletion fails, nothing is changed.
+- Rate-limited (5 requests / hour per IP).
+- No data is deleted. Campaigns, seats, and player accounts are untouched. Admin re-completes setup as on first install.
+
 #### Cloud deployments
 
 For cloud-hosted deployments, the platform provides admin credential recovery through its own channel (same one used to deliver the initial `ADMIN_SETUP_PIN`).
-
-#### Self-hosted deployments
-
-FIX ME: Server admin login page should have a password reset control. This would wipe the current admin account password, and replay the first-time PIN setup ceremony.
 
 ---
 
@@ -603,7 +618,9 @@ FIX ME: Server admin login page should have a password reset control. This would
 
 - Client calls `POST /api/admin/change-password` with `{ currentPassword, newPassword }` and `X-CSRF-Token` header
 - Server validates CSRF token and `currentPassword` against `ServerAdmin.passwordHash`
-- If valid, update `passwordHash`, revoke all `AdminSession` records (force re-login)
+- If valid: update `passwordHash`, revoke all `AdminSession` records, return **204 (no body)**
+- Client must re-login after change; the 204 is the signal to clear local session state and redirect to `/admin/login`
+- (A new session token is not returned inline — the clean security story is "password change proves identity from scratch".)
 
 **Session cleanup**:
 
@@ -732,7 +749,14 @@ All routes require `hearth_admin_session` cookie (except setup/check routes).
 - `POST /api/admin/change-password` → `{ currentPassword, newPassword }`
   - **Requires**: Session cookie + `X-CSRF-Token` header
   - Updates password, revokes all sessions
+  - **Returns**: 204 (no body) — client must re-login
   - Rate limited: 3 attempts / 10 minutes per IP
+
+- `POST /api/admin/reset` (no auth, no CSRF)
+  - Public; subject to `ADMIN_ALLOW_REMOTE` / localhost-only rules
+  - Rate limited: 5 attempts / hour per IP
+  - Checks for `${DATA_DIR}/admin-reset.flag`
+  - **404** if flag absent; **500** if flag cannot be deleted (DB untouched); **200 `{ setupPin }`** on success
 
 #### Campaign Management Routes (all require auth + CSRF)
 
