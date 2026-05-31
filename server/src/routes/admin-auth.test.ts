@@ -617,7 +617,7 @@ describe('POST /api/admin/change-password', () => {
     );
   });
 
-  it('returns 200 and allows login with the new password', async () => {
+  it('returns 204 and revokes all sessions on success', async () => {
     const { cookie, csrfToken } = await loginFresh(server, '10.21.0.6');
     const newPassword = 'brand-new-password-789';
 
@@ -629,8 +629,16 @@ describe('POST /api/admin/change-password', () => {
       remoteAddress: '10.21.0.7',
     });
 
-    expect(changeRes.statusCode).toBe(200);
-    expect(changeRes.json<{ success: boolean }>().success).toBe(true);
+    expect(changeRes.statusCode).toBe(204);
+    expect(changeRes.body).toBe('');
+
+    // Old session cookie must be revoked — /check-auth should return unauthenticated
+    const checkRes = await server.inject({
+      method: 'GET',
+      url: '/api/admin/check-auth',
+      headers: { Cookie: cookie },
+    });
+    expect(checkRes.json<{ authenticated: boolean }>().authenticated).toBe(false);
 
     // Login with the new password must succeed
     const loginRes = await server.inject({
@@ -670,7 +678,7 @@ describe('password hashing: login after change-password', () => {
       payload: { currentPassword: TEST_PASSWORD, newPassword: CHANGED_PASSWORD },
       remoteAddress: '10.22.0.1',
     });
-    expect(res.statusCode).toBe(200);
+    expect(res.statusCode).toBe(204);
   });
 
   afterAll(async () => {

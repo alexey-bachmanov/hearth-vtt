@@ -155,14 +155,12 @@ describe('WebSocketClient close code handling', () => {
   });
 
   it('attempts silent refresh on close code 4401 (success path)', async () => {
-    const fetchMock = vi
-      .fn()
-      .mockResolvedValue(
-        new Response(
-          JSON.stringify({ csrfToken: 'new-csrf' }),
-          { status: 200, headers: { 'Content-Type': 'application/json' } },
-        ),
-      );
+    const fetchMock = vi.fn().mockResolvedValue(
+      new Response(JSON.stringify({ csrfToken: 'new-csrf' }), {
+        status: 200,
+        headers: { 'Content-Type': 'application/json' },
+      }),
+    );
     vi.stubGlobal('fetch', fetchMock);
     vi.spyOn(window, 'dispatchEvent').mockImplementation(() => true);
 
@@ -197,7 +195,12 @@ describe('WebSocketClient close code handling', () => {
     vi.spyOn(window, 'dispatchEvent').mockImplementation(() => true);
 
     // Simulate an active session so handleUnauthenticated redirects
-    authState.me = { accountId: 'a', username: 'u', seats: [], csrfToken: 'x' };
+    authState.me = {
+      accountId: 'a',
+      username: 'u',
+      seats: [],
+      mustChangePassword: false,
+    };
 
     const { wsClient } = await import('./ws');
     wsClient.connect('camp-1');

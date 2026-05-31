@@ -694,10 +694,11 @@ export async function adminAuthRoutes(
         passwordHash: newPasswordHash,
       });
 
-      reply.code(200);
-      return {
-        success: true,
-      };
+      // Revoke all admin sessions so any other open sessions are invalidated.
+      const sessions = await storage.listAdminSessions();
+      await Promise.all(sessions.map((s) => storage.revokeAdminSession(s.id)));
+
+      return reply.code(204).send();
     },
   );
 }

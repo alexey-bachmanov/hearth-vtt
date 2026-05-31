@@ -86,9 +86,12 @@ class AuthState {
    */
   async logout(): Promise<void> {
     try {
+      const headers: Record<string, string> = {};
+      if (this.csrfToken) headers['X-CSRF-Token'] = this.csrfToken;
       await fetch('/api/auth/logout', {
         method: 'POST',
         credentials: 'include',
+        headers,
       });
     } catch (err) {
       console.error('[AuthState] logout() network error', err);

@@ -14,7 +14,8 @@
  *   GET /api/admin/campaigns — campaign list
  */
 
-import { adminTree, type MockCampaign } from '../../state/admin.svelte.js';
+import { adminTree, adminAuth, adminFetch, type MockCampaign } from '../../state/admin.svelte.js';
+import { navigate } from '../../app/routes.js';
 
 // Mock server info
 let serverInfo = $state({
@@ -32,6 +33,8 @@ let passwordForm = $state({
   newPassword: '',
   confirmPassword: '',
   showForm: false,
+  error: '',
+  submitting: false,
 });
 
 function handleCreateCampaign() {
@@ -59,25 +62,47 @@ function handleExportCampaign(campaign: MockCampaign) {
   // TODO: Trigger campaign export download
 }
 
-function handleChangePassword() {
+async function handleChangePassword() {
+  passwordForm.error = '';
+
   if (passwordForm.newPassword !== passwordForm.confirmPassword) {
-    alert('New passwords do not match');
+    passwordForm.error = 'New passwords do not match';
     return;
   }
-  
+
   if (passwordForm.newPassword.length < 8) {
-    alert('Password must be at least 8 characters');
+    passwordForm.error = 'Password must be at least 8 characters';
     return;
   }
-  
-  console.log('Changing password');
-  // TODO: Call API to change password
-  
-  // Reset form
-  passwordForm.currentPassword = '';
-  passwordForm.newPassword = '';
-  passwordForm.confirmPassword = '';
-  passwordForm.showForm = false;
+
+  passwordForm.submitting = true;
+  try {
+    const res = await adminFetch('/api/admin/change-password', {
+      method: 'POST',
+      body: JSON.stringify({
+        currentPassword: passwordForm.currentPassword,
+        newPassword: passwordForm.newPassword,
+      }),
+      headers: { 'Content-Type': 'application/json' },
+    });
+
+    if (res.status === 204) {
+      // All sessions revoked server-side; clear local state and force re-login.
+      adminAuth.clearCsrfToken();
+      navigate('/admin/login');
+      return;
+    }
+
+    const data = await res.json();
+    passwordForm.error = data?.error?.message ?? 'Password change failed';
+  } catch {
+    passwordForm.error = 'Network error. Please try again.';
+  } finally {
+    passwordForm.submitting = false;
+    passwordForm.currentPassword = '';
+    passwordForm.newPassword = '';
+    passwordForm.confirmPassword = '';
+  }
 }
 </script>
 
@@ -205,17 +230,22 @@ function handleChangePassword() {
         </div>
         
         <div class="form-actions">
-          <button type="submit" class="btn btn--primary">
-            Update Password
+          {#if passwordForm.error}
+            <p class="form-error" role="alert">{passwordForm.error}</p>
+          {/if}
+          <button type="submit" class="btn btn--primary" disabled={passwordForm.submitting}>
+            {passwordForm.submitting ? 'Updating…' : 'Update Password'}
           </button>
           <button 
             type="button" 
             class="btn btn--secondary"
+            disabled={passwordForm.submitting}
             onclick={() => {
               passwordForm.showForm = false;
               passwordForm.currentPassword = '';
               passwordForm.newPassword = '';
               passwordForm.confirmPassword = '';
+              passwordForm.error = '';
             }}
           >
             Cancel
