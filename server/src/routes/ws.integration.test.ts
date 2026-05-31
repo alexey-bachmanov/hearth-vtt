@@ -475,5 +475,3 @@ describe('WS route — dispatch and event broadcast', () => {
     await closeWs(ws);
   });
 });
-
-
