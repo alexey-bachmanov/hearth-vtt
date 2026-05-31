@@ -583,9 +583,7 @@ export class InMemoryBackend implements StorageBackend {
     const now = Date.now();
     return [...this.authSessions.values()].filter(
       (s) =>
-        s.accountId === accountId &&
-        s.revokedAt === null &&
-        s.expiresAt > now,
+        s.accountId === accountId && s.revokedAt === null && s.expiresAt > now,
     ).length;
   }
 
@@ -593,9 +591,7 @@ export class InMemoryBackend implements StorageBackend {
     const now = Date.now();
     const active = [...this.authSessions.values()].filter(
       (s) =>
-        s.accountId === accountId &&
-        s.revokedAt === null &&
-        s.expiresAt > now,
+        s.accountId === accountId && s.revokedAt === null && s.expiresAt > now,
     );
     if (active.length === 0) return;
     active.sort((a, b) => a.createdAt - b.createdAt);

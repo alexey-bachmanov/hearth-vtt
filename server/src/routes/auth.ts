@@ -448,8 +448,9 @@ export async function authRoutes(
     const now = Date.now();
 
     // Evict the oldest session if the account is at the cap.
-    const activeCount =
-      await storage.countActiveAuthSessionsForAccount(account.id);
+    const activeCount = await storage.countActiveAuthSessionsForAccount(
+      account.id,
+    );
     if (activeCount >= SESSION_CAP) {
       await storage.revokeOldestAuthSessionForAccount(account.id);
     }
@@ -544,8 +545,9 @@ export async function authRoutes(
       const now = Date.now();
 
       // Evict the oldest session if the account is at the cap.
-      const activeCount =
-        await storage.countActiveAuthSessionsForAccount(account.id);
+      const activeCount = await storage.countActiveAuthSessionsForAccount(
+        account.id,
+      );
       if (activeCount >= SESSION_CAP) {
         await storage.revokeOldestAuthSessionForAccount(account.id);
       }
