@@ -320,6 +320,17 @@ export interface StorageBackend {
   revokeAuthSession(sessionId: string): Promise<void>;
   revokeAllAuthSessionsForAccount(accountId: string): Promise<void>;
   listAuthSessionsForAccount(accountId: string): Promise<AuthSession[]>;
+  /**
+   * Count non-revoked, non-expired sessions for an account.
+   * Used to enforce the per-account session cap.
+   */
+  countActiveAuthSessionsForAccount(accountId: string): Promise<number>;
+  /**
+   * Revoke the oldest active (non-revoked, non-expired) session for an
+   * account. No-op if no active sessions exist.
+   * Used to evict a session when the per-account cap is reached.
+   */
+  revokeOldestAuthSessionForAccount(accountId: string): Promise<void>;
 
   /**
    * Server settings (key–value store for admin-configurable options).
@@ -683,6 +694,14 @@ export class Storage {
 
   async listAuthSessionsForAccount(accountId: string): Promise<AuthSession[]> {
     return this.backend.listAuthSessionsForAccount(accountId);
+  }
+
+  async countActiveAuthSessionsForAccount(accountId: string): Promise<number> {
+    return this.backend.countActiveAuthSessionsForAccount(accountId);
+  }
+
+  async revokeOldestAuthSessionForAccount(accountId: string): Promise<void> {
+    return this.backend.revokeOldestAuthSessionForAccount(accountId);
   }
 
   async getServerSetting(key: string): Promise<string | null> {

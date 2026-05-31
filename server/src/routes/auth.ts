@@ -56,6 +56,13 @@ const LOGIN_RATE_MAX = 10;
 const LOGIN_RATE_WINDOW_MS = 10 * 60 * 1000; // 10 minutes
 
 /**
+ * Maximum number of concurrent active (non-revoked, non-expired) sessions
+ * allowed per account. When a new session is created and the account is at
+ * the cap, the oldest active session is evicted first.
+ */
+const SESSION_CAP = 64;
+
+/**
  * Minimum response time for credential-validation paths (ms).
  *
  * Ensures that both "account not found" and "wrong password" responses take at
@@ -440,6 +447,13 @@ export async function authRoutes(
     const csrfToken = generateCsrfToken();
     const now = Date.now();
 
+    // Evict the oldest session if the account is at the cap.
+    const activeCount =
+      await storage.countActiveAuthSessionsForAccount(account.id);
+    if (activeCount >= SESSION_CAP) {
+      await storage.revokeOldestAuthSessionForAccount(account.id);
+    }
+
     await storage.createAuthSession({
       accountId: account.id,
       refreshTokenHash: hashToken(refreshToken),
@@ -528,6 +542,13 @@ export async function authRoutes(
       const refreshToken = generateToken();
       const csrfToken = generateCsrfToken();
       const now = Date.now();
+
+      // Evict the oldest session if the account is at the cap.
+      const activeCount =
+        await storage.countActiveAuthSessionsForAccount(account.id);
+      if (activeCount >= SESSION_CAP) {
+        await storage.revokeOldestAuthSessionForAccount(account.id);
+      }
 
       await storage.createAuthSession({
         accountId: account.id,

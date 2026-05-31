@@ -57,9 +57,9 @@ As work completes, check off tasks.
 
 ### Phase 5.1E — Session cap
 
-- [ ] **5.1E-1.** Add `countActiveAuthSessionsForAccount(accountId)` and `revokeOldestAuthSessionForAccount(accountId)` to the Storage interface in [`server/src/storage/index.ts`](../server/src/storage/index.ts). Implement in SQLite and in-memory backends. "Active" = not revoked and not expired.
-- [ ] **5.1E-2.** In `/api/auth/login` and `/api/auth/claim-invite` in [`server/src/routes/auth.ts`](../server/src/routes/auth.ts): before creating a new session, if active session count is already 64, revoke the oldest (by `createdAt`) to make room.
-- [ ] **5.1E-3.** Unit tests: at 64 active sessions the oldest is evicted before the new one is created; at 63 no eviction occurs; the newly created session counts toward the limit.
+- [x] **5.1E-1.** Add `countActiveAuthSessionsForAccount(accountId)` and `revokeOldestAuthSessionForAccount(accountId)` to the Storage interface in [`server/src/storage/index.ts`](../server/src/storage/index.ts). Implement in SQLite and in-memory backends. "Active" = not revoked and not expired.
+- [x] **5.1E-2.** In `/api/auth/login` and `/api/auth/claim-invite` in [`server/src/routes/auth.ts`](../server/src/routes/auth.ts): before creating a new session, if active session count is already 64, revoke the oldest (by `createdAt`) to make room.
+- [x] **5.1E-3.** Unit tests: at 64 active sessions the oldest is evicted before the new one is created; at 63 no eviction occurs; the newly created session counts toward the limit.
 
 ---
 

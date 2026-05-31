@@ -919,3 +919,115 @@ describe('POST /api/auth/logout-all', () => {
     expect(meVictim.statusCode).toBe(200);
   });
 });
+
+// ---------------------------------------------------------------------------
+// Session cap
+// ---------------------------------------------------------------------------
+
+describe('Session cap (64 per account)', () => {
+  let server: FastifyInstance;
+  let storage: Storage;
+
+  const SUITE_IP = '10.0.8.1';
+  const CAP_PASSWORD = 'cappassword123';
+
+  beforeAll(async () => {
+    ({ server, storage } = await createTestServer());
+  });
+
+  afterAll(async () => {
+    await server.close();
+    storage.close();
+  });
+
+  /**
+   * Directly seed `n` active sessions for the account, bypassing the route
+   * so that scrypt latency doesn't dominate test time.
+   */
+  async function seedSessions(accountId: string, n: number): Promise<void> {
+    const far = Date.now() + 7 * 24 * 60 * 60 * 1000; // 1 week from now
+    for (let i = 0; i < n; i++) {
+      await storage.createAuthSession({
+        accountId,
+        refreshTokenHash: `seed-hash-${accountId}-${i}`,
+        csrfToken: `seed-csrf-${i}`,
+        expiresAt: far,
+      });
+    }
+  }
+
+  it('does not evict when active count is below the cap (63 active → login → 64)', async () => {
+    await createAccount('cap63', CAP_PASSWORD, storage);
+    const account = (await storage.getPlayerAccountByUsername('cap63'))!;
+
+    await seedSessions(account.id, 63);
+
+    const loginRes = await server.inject({
+      method: 'POST',
+      url: '/api/auth/login',
+      remoteAddress: SUITE_IP,
+      payload: { username: 'cap63', password: CAP_PASSWORD },
+    });
+    expect(loginRes.statusCode).toBe(200);
+
+    const active = await storage.countActiveAuthSessionsForAccount(account.id);
+    expect(active).toBe(64);
+  });
+
+  it('evicts oldest session when at the cap (64 active → login → still 64)', async () => {
+    await createAccount('cap64', CAP_PASSWORD, storage);
+    const account = (await storage.getPlayerAccountByUsername('cap64'))!;
+
+    await seedSessions(account.id, 64);
+
+    // Verify we start at the cap
+    expect(await storage.countActiveAuthSessionsForAccount(account.id)).toBe(
+      64,
+    );
+
+    const loginRes = await server.inject({
+      method: 'POST',
+      url: '/api/auth/login',
+      remoteAddress: SUITE_IP,
+      payload: { username: 'cap64', password: CAP_PASSWORD },
+    });
+    expect(loginRes.statusCode).toBe(200);
+
+    // Cap is enforced: one was evicted, one was created — still 64
+    const active = await storage.countActiveAuthSessionsForAccount(account.id);
+    expect(active).toBe(64);
+
+    // Total sessions in storage is 65 (64 seeded + 1 new; 1 seeded is revoked)
+    const all = await storage.listAuthSessionsForAccount(account.id);
+    expect(all).toHaveLength(65);
+    const revoked = all.filter((s) => s.revokedAt !== null);
+    expect(revoked).toHaveLength(1);
+  });
+
+  it('new session after eviction is valid (can call /api/auth/me)', async () => {
+    await createAccount('cap64b', CAP_PASSWORD, storage);
+    const account = (await storage.getPlayerAccountByUsername('cap64b'))!;
+
+    await seedSessions(account.id, 64);
+
+    const loginRes = await server.inject({
+      method: 'POST',
+      url: '/api/auth/login',
+      remoteAddress: SUITE_IP,
+      payload: { username: 'cap64b', password: CAP_PASSWORD },
+    });
+    expect(loginRes.statusCode).toBe(200);
+
+    const cookie = extractRefreshCookie(loginRes)!;
+    expect(cookie).not.toBeNull();
+
+    const meRes = await server.inject({
+      method: 'GET',
+      url: '/api/auth/me',
+      remoteAddress: SUITE_IP,
+      headers: { cookie },
+    });
+    expect(meRes.statusCode).toBe(200);
+    expect(meRes.json()).toMatchObject({ username: 'cap64b' });
+  });
+});

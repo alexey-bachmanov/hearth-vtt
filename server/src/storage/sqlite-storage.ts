@@ -1544,6 +1544,42 @@ export class SqliteStorage implements StorageBackend {
   }
 
   /**
+   * Count active (non-revoked, non-expired) sessions for an account.
+   */
+  async countActiveAuthSessionsForAccount(accountId: string): Promise<number> {
+    const db = this.ensureDb();
+    const now = Date.now();
+    const row = db
+      .prepare(
+        `SELECT COUNT(*) as count FROM auth_sessions
+         WHERE account_id = ? AND revoked_at IS NULL AND expires_at > ?`,
+      )
+      .get(accountId, now) as { count: number };
+    return row.count;
+  }
+
+  /**
+   * Revoke the oldest active (non-revoked, non-expired) session for an account.
+   * No-op when no active sessions exist.
+   */
+  async revokeOldestAuthSessionForAccount(accountId: string): Promise<void> {
+    const db = this.ensureDb();
+    const now = Date.now();
+    const oldest = db
+      .prepare(
+        `SELECT id FROM auth_sessions
+         WHERE account_id = ? AND revoked_at IS NULL AND expires_at > ?
+         ORDER BY created_at ASC LIMIT 1`,
+      )
+      .get(accountId, now) as { id: string } | undefined;
+    if (!oldest) return;
+    db.prepare('UPDATE auth_sessions SET revoked_at = ? WHERE id = ?').run(
+      now,
+      oldest.id,
+    );
+  }
+
+  /**
    * Get a server setting by key.  Returns null if not set.
    */
   async getServerSetting(key: string): Promise<string | null> {

@@ -579,6 +579,29 @@ export class InMemoryBackend implements StorageBackend {
       .map((s) => ({ ...s }));
   }
 
+  async countActiveAuthSessionsForAccount(accountId: string): Promise<number> {
+    const now = Date.now();
+    return [...this.authSessions.values()].filter(
+      (s) =>
+        s.accountId === accountId &&
+        s.revokedAt === null &&
+        s.expiresAt > now,
+    ).length;
+  }
+
+  async revokeOldestAuthSessionForAccount(accountId: string): Promise<void> {
+    const now = Date.now();
+    const active = [...this.authSessions.values()].filter(
+      (s) =>
+        s.accountId === accountId &&
+        s.revokedAt === null &&
+        s.expiresAt > now,
+    );
+    if (active.length === 0) return;
+    active.sort((a, b) => a.createdAt - b.createdAt);
+    active[0].revokedAt = now;
+  }
+
   async getServerSetting(key: string): Promise<string | null> {
     return this.serverSettings.get(key) ?? null;
   }
