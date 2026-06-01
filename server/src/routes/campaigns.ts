@@ -106,10 +106,9 @@ export async function campaignRoutes(
           },
         };
       }
-      const campaign = await options.storage.updateCampaign(
-        request.params.id,
-        { name: name.trim() },
-      );
+      const campaign = await options.storage.updateCampaign(request.params.id, {
+        name: name.trim(),
+      });
       return { campaign };
     },
   );

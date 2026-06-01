@@ -31,12 +31,12 @@ As work completes, check off tasks.
 
 ### Phase 5.2B — Client API layer
 
-- [ ] **5.2B-1.** Add `AdminAccountApi` class to [`client/src/api/http.ts`](../client/src/api/http.ts): `list()` (GET, returns `AdminAccountSummary[]`), `resetPassword(id)` (POST via `adminFetch`), `revokeSessions(id)` (POST via `adminFetch`), `delete(id)` (DELETE via `adminFetch`, hits 501 stub), `disconnectSeat(accountId, seatId)` (POST via `adminFetch`, hits 501 stub). Expose as `api.adminAccounts`.
-- [ ] **5.2B-2.** Add `AdminCampaignApi` class: `list()` (GET `/api/campaigns`), `create(body: { name })` (POST via `adminFetch`), `rename(id, name)` (PATCH via `adminFetch`), `delete(id)` (DELETE via `adminFetch`). Expose as `api.adminCampaigns`.
-- [ ] **5.2B-3.** Add `AdminSeatApi` class: `listForCampaign(campaignId)` (GET), `create(campaignId, body)` (POST via `adminFetch`), `update(campaignId, seatId, patch)` (PATCH via `adminFetch`), `delete(campaignId, seatId)` (DELETE via `adminFetch`). Expose as `api.adminSeats`.
-- [ ] **5.2B-4.** Add `AdminInviteApi` class: `listForCampaign(campaignId)` (GET), `create(campaignId, body)` (POST via `adminFetch`), `revoke(campaignId, inviteToken)` (DELETE via `adminFetch`). Expose as `api.adminInvites`.
-- [ ] **5.2B-5.** Add `hydrateFromCheckAuth()` to `AdminAuthApi`: calls `GET /api/admin/check-auth`, stores returned `csrfToken` via `adminAuth.setCsrfToken()` if present.
-- [ ] **5.2B-6.** Type tests: each new method shapes its request correctly (mock fetch); TypeScript compiles clean.
+- [x] **5.2B-1.** Add `AdminAccountApi` class to [`client/src/api/http.ts`](../client/src/api/http.ts): `list()` (GET, returns `AdminAccountSummary[]`), `resetPassword(id)` (POST via `adminFetch`), `revokeSessions(id)` (POST via `adminFetch`), `delete(id)` (DELETE via `adminFetch`, hits 501 stub), `disconnectSeat(accountId, seatId)` (POST via `adminFetch`, hits 501 stub). Expose as `api.adminAccounts`.
+- [x] **5.2B-2.** Add `AdminCampaignApi` class: `list()` (GET `/api/campaigns`), `create(body: { name })` (POST via `adminFetch`), `rename(id, name)` (PATCH via `adminFetch`), `delete(id)` (DELETE via `adminFetch`). Expose as `api.adminCampaigns`.
+- [x] **5.2B-3.** Add `AdminSeatApi` class: `listForCampaign(campaignId)` (GET), `create(campaignId, body)` (POST via `adminFetch`), `update(campaignId, seatId, patch)` (PATCH via `adminFetch`), `delete(campaignId, seatId)` (DELETE via `adminFetch`). Expose as `api.adminSeats`.
+- [x] **5.2B-4.** Add `AdminInviteApi` class: `listForCampaign(campaignId)` (GET), `create(campaignId, body)` (POST via `adminFetch`), `revoke(campaignId, inviteToken)` (DELETE via `adminFetch`). Expose as `api.adminInvites`.
+- [x] **5.2B-5.** Add `hydrateFromCheckAuth()` to `AdminAuthApi`: calls `GET /api/admin/check-auth`, stores returned `csrfToken` via `adminAuth.setCsrfToken()` if present.
+- [x] **5.2B-6.** Type tests: each new method shapes its request correctly (mock fetch); TypeScript compiles clean.
 
 ---
 

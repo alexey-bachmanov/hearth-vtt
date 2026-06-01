@@ -493,7 +493,11 @@ describe('POST /api/admin/accounts/:id/disconnect-seat', () => {
   });
 
   it('returns 401 without admin session', async () => {
-    const account = await createAccount('disconnect401', USER_PASSWORD, storage);
+    const account = await createAccount(
+      'disconnect401',
+      USER_PASSWORD,
+      storage,
+    );
     const res = await server.inject({
       method: 'POST',
       url: `/api/admin/accounts/${account.id}/disconnect-seat`,
@@ -505,7 +509,11 @@ describe('POST /api/admin/accounts/:id/disconnect-seat', () => {
   });
 
   it('returns 403 without CSRF token', async () => {
-    const account = await createAccount('disconnect403', USER_PASSWORD, storage);
+    const account = await createAccount(
+      'disconnect403',
+      USER_PASSWORD,
+      storage,
+    );
     const res = await server.inject({
       method: 'POST',
       url: `/api/admin/accounts/${account.id}/disconnect-seat`,
@@ -518,7 +526,11 @@ describe('POST /api/admin/accounts/:id/disconnect-seat', () => {
   });
 
   it('returns 501 NOT_IMPLEMENTED when authenticated', async () => {
-    const account = await createAccount('disconnect501', USER_PASSWORD, storage);
+    const account = await createAccount(
+      'disconnect501',
+      USER_PASSWORD,
+      storage,
+    );
     const res = await server.inject({
       method: 'POST',
       url: `/api/admin/accounts/${account.id}/disconnect-seat`,

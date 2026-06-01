@@ -197,7 +197,12 @@ export async function adminAccountsRoutes(
     { preHandler: [requireAdminAuth(storage), requireCsrfToken(storage)] },
     async (_request, reply) => {
       reply.code(501);
-      return { error: { code: 'NOT_IMPLEMENTED', message: 'Account deletion is not yet implemented' } };
+      return {
+        error: {
+          code: 'NOT_IMPLEMENTED',
+          message: 'Account deletion is not yet implemented',
+        },
+      };
     },
   );
 
@@ -223,7 +228,12 @@ export async function adminAccountsRoutes(
     { preHandler: [requireAdminAuth(storage), requireCsrfToken(storage)] },
     async (_request, reply) => {
       reply.code(501);
-      return { error: { code: 'NOT_IMPLEMENTED', message: 'Seat disconnect is not yet implemented' } };
+      return {
+        error: {
+          code: 'NOT_IMPLEMENTED',
+          message: 'Seat disconnect is not yet implemented',
+        },
+      };
     },
   );
 }
