@@ -46,11 +46,14 @@ export async function adminAccountsRoutes(
 
       const summaries: AdminAccountSummary[] = await Promise.all(
         accounts.map(async (account) => {
-          const seatCount = await storage.countSeatsForAccount(account.id);
+          const [seatIds] = await Promise.all([
+            storage.listSeatIdsForAccount(account.id),
+          ]);
           return {
             id: account.id,
             username: account.username,
-            seatCount,
+            seatCount: seatIds.length,
+            seatIds,
             mustChangePassword: account.mustChangePassword,
             createdAt: new Date(account.createdAt).toISOString(),
             lastLoginAt:

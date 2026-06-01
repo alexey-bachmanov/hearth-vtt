@@ -302,6 +302,8 @@ export interface StorageBackend {
   ): Promise<void>;
   listPlayerAccounts(): Promise<PlayerAccount[]>;
   countSeatsForAccount(accountId: string): Promise<number>;
+  /** Return the IDs of all seats claimed by this account across all campaigns. */
+  listSeatIdsForAccount(accountId: string): Promise<string[]>;
 
   /**
    * Auth session operations (account-scoped per ADR-010)
@@ -659,6 +661,10 @@ export class Storage {
 
   async countSeatsForAccount(accountId: string): Promise<number> {
     return this.backend.countSeatsForAccount(accountId);
+  }
+
+  async listSeatIdsForAccount(accountId: string): Promise<string[]> {
+    return this.backend.listSeatIdsForAccount(accountId);
   }
 
   /**

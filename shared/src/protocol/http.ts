@@ -155,6 +155,7 @@ export const adminAccountSummarySchema = z.object({
   id: z.string(),
   username: z.string(),
   seatCount: z.number().int().nonnegative(),
+  seatIds: z.array(z.string()),
   mustChangePassword: z.boolean(),
   createdAt: z.string(),
   lastLoginAt: z.string().nullable(),

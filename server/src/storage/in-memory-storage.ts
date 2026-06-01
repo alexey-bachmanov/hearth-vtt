@@ -514,6 +514,16 @@ export class InMemoryBackend implements StorageBackend {
     return count;
   }
 
+  async listSeatIdsForAccount(accountId: string): Promise<string[]> {
+    const ids: string[] = [];
+    for (const campaignSeats of this.seats.values()) {
+      for (const seat of campaignSeats.values()) {
+        if (seat.accountId === accountId) ids.push(seat.id);
+      }
+    }
+    return ids;
+  }
+
   // ---------------------------------------------------------------------------
   // Auth sessions
   // ---------------------------------------------------------------------------

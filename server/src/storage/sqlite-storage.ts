@@ -1386,6 +1386,17 @@ export class SqliteStorage implements StorageBackend {
     return row.count;
   }
 
+  async listSeatIdsForAccount(accountId: string): Promise<string[]> {
+    const db = this.ensureDb();
+
+    const stmt = db.prepare(`
+      SELECT id FROM seats WHERE account_id = ?
+    `);
+
+    const rows = stmt.all(accountId) as { id: string }[];
+    return rows.map((r) => r.id);
+  }
+
   // ---------------------------------------------------------------------------
   // Auth session operations
   // ---------------------------------------------------------------------------
