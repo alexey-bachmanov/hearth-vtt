@@ -42,11 +42,11 @@ As work completes, check off tasks.
 
 ### Phase 5.2C — Store rewrite
 
-- [ ] **5.2C-1.** In [`client/src/state/admin.svelte.ts`](../client/src/state/admin.svelte.ts): remove `MOCK_*` constants. Rename `Mock*` interfaces to `Admin*` (e.g. `MockCampaign` → `AdminCampaign`). These will now be populated from API responses.
-- [ ] **5.2C-2.** Replace `buildInitialTree()` with `rebuildTree()` that derives the node map from the current `campaigns`, `seats`, `accounts` arrays already on the store. After a rebuild, prune stale IDs from `expandedIds` and reset `selectedId` to `'settings'` if the selected node no longer exists.
-- [ ] **5.2C-3.** Add `load()` method: parallel-fetch campaigns + accounts; then parallel-fetch seats + invites per campaign; populate state; call `rebuildTree()`. Expose top-level `loading: boolean` and `error: string | null` reactive fields for the shell.
-- [ ] **5.2C-4.** Add `hydrateFromCheckAuth()` to `AdminAuthState`: delegates to `api.adminAuth.hydrateFromCheckAuth()`.
-- [ ] **5.2C-5.** Add mutation methods to `AdminTreeState` — each calls the matching API method, refetches the affected slice, and calls `rebuildTree()`:
+- [x] **5.2C-1.** In [`client/src/state/admin.svelte.ts`](../client/src/state/admin.svelte.ts): remove `MOCK_*` constants. Rename `Mock*` interfaces to `Admin*` (e.g. `MockCampaign` → `AdminCampaign`). These will now be populated from API responses.
+- [x] **5.2C-2.** Replace `buildInitialTree()` with `rebuildTree()` that derives the node map from the current `campaigns`, `seats`, `accounts` arrays already on the store. After a rebuild, prune stale IDs from `expandedIds` and reset `selectedId` to `'settings'` if the selected node no longer exists.
+- [x] **5.2C-3.** Add `load()` method: parallel-fetch campaigns + accounts; then parallel-fetch seats + invites per campaign; populate state; call `rebuildTree()`. Expose top-level `loading: boolean` and `error: string | null` reactive fields for the shell.
+- [x] **5.2C-4.** Add `hydrateFromCheckAuth()` to `AdminAuthState`: delegates to `api.adminAuth.hydrateFromCheckAuth()`.
+- [x] **5.2C-5.** Add mutation methods to `AdminTreeState` — each calls the matching API method, refetches the affected slice, and calls `rebuildTree()`:
   - `createCampaign(name)`, `renameCampaign(id, name)`, `deleteCampaign(id)`
   - `createSeat(campaignId, body)`, `updateSeat(campaignId, seatId, patch)`, `deleteSeat(campaignId, seatId)`
   - `createInvite(campaignId, body)`, `revokeInvite(campaignId, inviteToken)`

@@ -15,7 +15,7 @@
  *   DELETE /api/admin/invites/:token
  */
 
-import { adminTree, type MockSeat, type MockInvite } from '../../state/admin.svelte.js';
+import { adminTree, type AdminSeat, type AdminInviteWithUrl } from '../../state/admin.svelte.js';
 
 interface Props {
   seatId: string;
@@ -23,8 +23,8 @@ interface Props {
 
 let { seatId }: Props = $props();
 
-let seat = $derived<MockSeat | undefined>(adminTree.getSeat(seatId));
-let invites = $derived<MockInvite[]>(adminTree.getInvitesForSeat(seatId));
+let seat = $derived<AdminSeat | undefined>(adminTree.getSeat(seatId));
+let invites = $derived<AdminInviteWithUrl[]>(adminTree.getInvitesForSeat(seatId));
 let claimedByAccount = $derived(adminTree.getAccountForSeat(seatId));
 
 let isEditingName = $state(false);
@@ -72,7 +72,7 @@ function handleCreateInvite() {
   }
 }
 
-function handleRevokeInvite(invite: MockInvite) {
+function handleRevokeInvite(invite: AdminInviteWithUrl) {
   if (confirm('Revoke this invite? Anyone with the link will no longer be able to use it.')) {
     // TODO (Phase 5+): DELETE /api/admin/invites/:token
     console.log('[SeatSettings] Revoke invite (mock):', invite.id);
@@ -95,11 +95,11 @@ function handleDeleteSeat() {
   adminTree.navigateTo(seat.campaignId);
 }
 
-function isInviteExpired(invite: MockInvite): boolean {
+function isInviteExpired(invite: AdminInviteWithUrl): boolean {
   return new Date(invite.expiresAt) < new Date();
 }
 
-function isInviteActive(invite: MockInvite): boolean {
+function isInviteActive(invite: AdminInviteWithUrl): boolean {
   return !invite.revokedAt && !isInviteExpired(invite) && invite.usesRemaining > 0;
 }
 </script>

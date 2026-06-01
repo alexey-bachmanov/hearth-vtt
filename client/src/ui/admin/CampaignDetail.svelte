@@ -11,7 +11,7 @@
  * Navigation is handled via adminTree.navigateTo() — no prop callbacks needed.
  */
 
-import { adminTree, type MockCampaign, type MockSeat } from '../../state/admin.svelte.js';
+import { adminTree, type AdminCampaign, type AdminSeat } from '../../state/admin.svelte.js';
 
 interface Props {
   campaignId: string;
@@ -20,8 +20,8 @@ interface Props {
 let { campaignId }: Props = $props();
 
 // Derive from the shared store so edits in the store reflect here
-let campaign = $derived<MockCampaign | undefined>(adminTree.getCampaign(campaignId));
-let seats = $derived<MockSeat[]>(adminTree.getSeatsForCampaign(campaignId));
+let campaign = $derived<AdminCampaign | undefined>(adminTree.getCampaign(campaignId));
+let seats = $derived<AdminSeat[]>(adminTree.getSeatsForCampaign(campaignId));
 
 // Ruleset is still mock; no API endpoint for this yet.
 const ruleset = {

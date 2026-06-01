@@ -14,7 +14,7 @@
  *   (account removal and seat-disconnect endpoints are not yet defined)
  */
 
-import { adminTree, type MockAccount, type MockSeat } from '../../state/admin.svelte.js';
+import { adminTree, type AdminAccountSummary, type AdminSeat } from '../../state/admin.svelte.js';
 import '../../styles/components-admin.css';
 
 interface Props {
@@ -23,8 +23,8 @@ interface Props {
 
 let { accountId }: Props = $props();
 
-let account = $derived<MockAccount | undefined>(adminTree.getAccount(accountId));
-let seats = $derived<MockSeat[]>(adminTree.getSeatsForAccount(accountId));
+let account = $derived<AdminAccountSummary | undefined>(adminTree.getAccount(accountId));
+let seats = $derived<AdminSeat[]>(adminTree.getSeatsForAccount(accountId));
 
 // Reset-password form state
 let showPasswordForm = $state(false);
@@ -91,16 +91,10 @@ function handleDisconnectSeat(seatId: string) {
   if (!confirm(`Disconnect account "${account?.username}" from seat "${seat?.displayName}"? The seat will become unclaimed.`)) {
     return;
   }
-  // TODO (Phase 5+): call dedicated disconnect endpoint once it exists
-  console.log('[AccountDetail] Disconnect account', accountId, 'from seat', seatId, '(mock)');
-  const a = adminTree.accounts.find((x) => x.id === accountId);
-  if (a) {
-    a.seatIds = a.seatIds.filter((id) => id !== seatId);
-  }
-  const s = adminTree.seats.find((x) => x.id === seatId);
-  if (s) {
-    delete s.claimedByAccountId;
-  }
+  // 501 stub — will propagate ApiError(NOT_IMPLEMENTED); surface it in 5.2D.
+  adminTree.disconnectSeat(accountId, seatId).catch((err) => {
+    console.error('[AccountDetail] disconnectSeat:', err);
+  });
 }
 
 function handleRemoveAccount() {
@@ -108,9 +102,10 @@ function handleRemoveAccount() {
     confirmRemove = true;
     return;
   }
-  // TODO (Phase 5+): call DELETE /api/admin/accounts/:id once endpoint exists
-  console.log('[AccountDetail] Remove account:', accountId, '(mock)');
-  adminTree.accounts = adminTree.accounts.filter((a) => a.id !== accountId);
+  // 501 stub — will propagate ApiError(NOT_IMPLEMENTED); surface it in 5.2D.
+  adminTree.deleteAccount(accountId).catch((err) => {
+    console.error('[AccountDetail] deleteAccount:', err);
+  });
   adminTree.navigateTo('accounts');
 }
 

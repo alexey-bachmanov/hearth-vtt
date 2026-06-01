@@ -14,7 +14,7 @@
  *   GET /api/admin/campaigns — campaign list
  */
 
-import { adminTree, adminAuth, adminFetch, type MockCampaign } from '../../state/admin.svelte.js';
+import { adminTree, adminAuth, adminFetch, type AdminCampaign } from '../../state/admin.svelte.js';
 import { navigate } from '../../app/routes.js';
 
 // Mock server info
@@ -45,10 +45,10 @@ function handleCreateCampaign() {
   }
 }
 
-function handleDeleteCampaign(campaign: MockCampaign) {
+function handleDeleteCampaign(campaign: AdminCampaign) {
   if (confirm(`Delete campaign "${campaign.name}"? This cannot be undone.`)) {
     console.log('Deleting campaign:', campaign.id);
-    // TODO: Call API to delete campaign
+    // TODO: Call adminTree.deleteCampaign(campaign.id) in 5.2D
   }
 }
 
@@ -57,7 +57,7 @@ function handleImportCampaign() {
   // TODO: Show file picker and import
 }
 
-function handleExportCampaign(campaign: MockCampaign) {
+function handleExportCampaign(campaign: AdminCampaign) {
   console.log('Exporting campaign:', campaign.id);
   // TODO: Trigger campaign export download
 }

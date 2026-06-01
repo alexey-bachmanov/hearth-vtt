@@ -653,7 +653,10 @@ export class AdminAccountApi {
    * Marks mustChangePassword=true and revokes all active sessions.
    * Returns 204 on success.
    */
-  async resetPassword(id: string, body: AdminResetPasswordRequest): Promise<void> {
+  async resetPassword(
+    id: string,
+    body: AdminResetPasswordRequest,
+  ): Promise<void> {
     return this.http.post(`/admin/accounts/${id}/reset-password`, body);
   }
 
@@ -718,10 +721,7 @@ export class AdminCampaignApi {
    * Requires admin session + CSRF.
    * Returns 200 with the updated campaign.
    */
-  async rename(
-    id: string,
-    name: string,
-  ): Promise<{ campaign: AdminCampaign }> {
+  async rename(id: string, name: string): Promise<{ campaign: AdminCampaign }> {
     return this.http.patch(`/campaigns/${id}`, { name });
   }
 
@@ -821,7 +821,12 @@ export class AdminInviteApi {
       maxUses?: number;
     },
   ): Promise<{
-    invite: { id: string; inviteToken: string; inviteUrl: string; expiresAt: string };
+    invite: {
+      id: string;
+      inviteToken: string;
+      inviteUrl: string;
+      expiresAt: string;
+    };
   }> {
     return this.http.post(`/campaigns/${campaignId}/invites`, body);
   }
