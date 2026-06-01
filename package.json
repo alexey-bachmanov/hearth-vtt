@@ -30,7 +30,7 @@
     "e2e": "playwright test",
     "lint": "npm run lint --workspaces --if-present",
     "clean": "node scripts/clean.js",
-    "seed-dev-db": "tsx scripts/seed-dev-db.ts",
+    "dev:seed-dev-db": "tsx scripts/seed-dev-db.ts",
     "dev:reset-setup": "tsx scripts/reset-admin-setup.ts"
   },
   "devDependencies": {

@@ -82,7 +82,7 @@ The HearthVTT name, logo, and visual identity are **not** covered by the AGPL â€
 ### First-time setup
 
 1. Install dependencies: `npm install`
-2. Seed the dev database: `npm run seed-dev-db`
+2. Seed the dev database: `npm run dev:seed-dev-db`
    - Creates `campaign-mock-001` with a `dev` player account bound to the GM seat.
    - Set `HEARTH_DEV_ADMIN_PASSWORD` in your environment for a fixed password, or copy the randomly generated one from the terminal output.
 3. Start all services: `npm run dev:all`
