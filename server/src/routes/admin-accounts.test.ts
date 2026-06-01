@@ -147,12 +147,13 @@ describe('GET /api/admin/accounts', () => {
     expect(found).toBeTruthy();
     expect(found.username).toBe('listme');
     expect(found.seatCount).toBe(0);
+    expect(found.seatIds).toEqual([]);
     expect(found.mustChangePassword).toBe(false);
     expect(typeof found.createdAt).toBe('string');
     expect(found.lastLoginAt).toBeNull();
   });
 
-  it('returns correct seatCount for an account with a bound seat', async () => {
+  it('returns correct seatCount and seatIds for an account with a bound seat', async () => {
     const account = await createAccount('seatcount', USER_PASSWORD, storage);
     const campaign = await storage.createCampaign('SC Campaign');
     const seat = await storage.createSeat({
@@ -175,6 +176,7 @@ describe('GET /api/admin/accounts', () => {
       (a: { id: string }) => a.id === account.id,
     );
     expect(found.seatCount).toBe(1);
+    expect(found.seatIds).toEqual([seat.id]);
   });
 });
 
@@ -407,5 +409,124 @@ describe('POST /api/admin/accounts/:id/revoke-sessions', () => {
       headers: { cookie, 'X-CSRF-Token': csrfToken },
     });
     expect(res.statusCode).toBe(204);
+  });
+});
+
+// ============================================================================
+// DELETE /api/admin/accounts/:id  (501 stub)
+// ============================================================================
+
+describe('DELETE /api/admin/accounts/:id', () => {
+  let server: FastifyInstance;
+  let storage: Storage;
+  let cookie: string;
+  let csrfToken: string;
+  const IP = '10.10.4.1';
+
+  beforeAll(async () => {
+    ({ server, storage } = await createTestServer());
+    await seedAdmin(storage);
+    ({ cookie, csrfToken } = await setupAdmin(server, IP));
+  });
+
+  afterAll(async () => {
+    await server.close();
+    storage.close();
+  });
+
+  it('returns 401 without admin session', async () => {
+    const account = await createAccount('deleteme401', USER_PASSWORD, storage);
+    const res = await server.inject({
+      method: 'DELETE',
+      url: `/api/admin/accounts/${account.id}`,
+      remoteAddress: IP,
+      headers: { 'X-CSRF-Token': csrfToken },
+    });
+    expect(res.statusCode).toBe(401);
+  });
+
+  it('returns 403 without CSRF token', async () => {
+    const account = await createAccount('deleteme403', USER_PASSWORD, storage);
+    const res = await server.inject({
+      method: 'DELETE',
+      url: `/api/admin/accounts/${account.id}`,
+      remoteAddress: IP,
+      headers: { cookie },
+    });
+    expect(res.statusCode).toBe(403);
+    expect(res.json().error.code).toBe('CSRF_TOKEN_MISSING');
+  });
+
+  it('returns 501 NOT_IMPLEMENTED when authenticated', async () => {
+    const account = await createAccount('deleteme501', USER_PASSWORD, storage);
+    const res = await server.inject({
+      method: 'DELETE',
+      url: `/api/admin/accounts/${account.id}`,
+      remoteAddress: IP,
+      headers: { cookie, 'X-CSRF-Token': csrfToken },
+    });
+    expect(res.statusCode).toBe(501);
+    expect(res.json().error.code).toBe('NOT_IMPLEMENTED');
+  });
+});
+
+// ============================================================================
+// POST /api/admin/accounts/:id/disconnect-seat  (501 stub)
+// ============================================================================
+
+describe('POST /api/admin/accounts/:id/disconnect-seat', () => {
+  let server: FastifyInstance;
+  let storage: Storage;
+  let cookie: string;
+  let csrfToken: string;
+  const IP = '10.10.5.1';
+
+  beforeAll(async () => {
+    ({ server, storage } = await createTestServer());
+    await seedAdmin(storage);
+    ({ cookie, csrfToken } = await setupAdmin(server, IP));
+  });
+
+  afterAll(async () => {
+    await server.close();
+    storage.close();
+  });
+
+  it('returns 401 without admin session', async () => {
+    const account = await createAccount('disconnect401', USER_PASSWORD, storage);
+    const res = await server.inject({
+      method: 'POST',
+      url: `/api/admin/accounts/${account.id}/disconnect-seat`,
+      remoteAddress: IP,
+      headers: { 'X-CSRF-Token': csrfToken },
+      payload: { seatId: 'seat-id' },
+    });
+    expect(res.statusCode).toBe(401);
+  });
+
+  it('returns 403 without CSRF token', async () => {
+    const account = await createAccount('disconnect403', USER_PASSWORD, storage);
+    const res = await server.inject({
+      method: 'POST',
+      url: `/api/admin/accounts/${account.id}/disconnect-seat`,
+      remoteAddress: IP,
+      headers: { cookie },
+      payload: { seatId: 'seat-id' },
+    });
+    expect(res.statusCode).toBe(403);
+    expect(res.json().error.code).toBe('CSRF_TOKEN_MISSING');
+  });
+
+  it('returns 501 NOT_IMPLEMENTED when authenticated', async () => {
+    const account = await createAccount('disconnect501', USER_PASSWORD, storage);
+    const res = await server.inject({
+      method: 'POST',
+      url: `/api/admin/accounts/${account.id}/disconnect-seat`,
+      remoteAddress: IP,
+      headers: { cookie, 'X-CSRF-Token': csrfToken },
+      payload: { seatId: 'seat-id' },
+    });
+    expect(res.statusCode).toBe(501);
+    expect(res.json().error.code).toBe('NOT_IMPLEMENTED');
   });
 });

@@ -2,9 +2,11 @@
  * Server admin — player accounts management endpoints.
  *
  * Routes:
- * - GET  /api/admin/accounts                      - List all player accounts
- * - POST /api/admin/accounts/:id/reset-password   - Set a temporary password and revoke all sessions
- * - POST /api/admin/accounts/:id/revoke-sessions  - Revoke all active sessions
+ * - GET  /api/admin/accounts                           - List all player accounts
+ * - POST /api/admin/accounts/:id/reset-password        - Set a temporary password and revoke all sessions
+ * - POST /api/admin/accounts/:id/revoke-sessions       - Revoke all active sessions
+ * - DELETE /api/admin/accounts/:id                     - Delete an account (501 stub — not yet implemented)
+ * - POST /api/admin/accounts/:id/disconnect-seat       - Disconnect a seat from an account (501 stub — not yet implemented)
  *
  * All routes require admin authentication (hearth_admin_session cookie).
  * Mutating routes additionally require a valid CSRF token (X-CSRF-Token header).
@@ -169,6 +171,59 @@ export async function adminAccountsRoutes(
       await storage.revokeAllAuthSessionsForAccount(id);
 
       return reply.code(204).send();
+    },
+  );
+
+  // ==========================================================================
+  // DELETE /api/admin/accounts/:id  (501 stub)
+  // ==========================================================================
+
+  /**
+   * Delete a player account.
+   *
+   * TODO (Tech Debt — Phase 5.2 follow-up): Implement full deletion.
+   * Intended behavior:
+   *   1. Revoke all active auth sessions for the account.
+   *   2. Null the account_id column on any seats claimed by this account
+   *      (the seats themselves are not deleted — they remain available).
+   *   3. Hard-delete the player_accounts row.
+   *   Design question: should orphaned seats auto-generate a new invite or
+   *   require the admin to send one manually?
+   *
+   * Returns 501 Not Implemented until fully designed and built.
+   */
+  server.delete(
+    '/api/admin/accounts/:id',
+    { preHandler: [requireAdminAuth(storage), requireCsrfToken(storage)] },
+    async (_request, reply) => {
+      reply.code(501);
+      return { error: { code: 'NOT_IMPLEMENTED', message: 'Account deletion is not yet implemented' } };
+    },
+  );
+
+  // ==========================================================================
+  // POST /api/admin/accounts/:id/disconnect-seat  (501 stub)
+  // ==========================================================================
+
+  /**
+   * Disconnect a specific seat from a player account.
+   *
+   * TODO (Tech Debt — Phase 5.2 follow-up): Implement full disconnect.
+   * Intended behavior:
+   *   1. Null `account_id` on the target seat row.
+   *   2. Revoke any active auth sessions for the account that are scoped
+   *      to that seat (if sessions carry a seatId; otherwise revoke all
+   *      sessions for the account and force re-login).
+   * Body: { seatId: string }
+   *
+   * Returns 501 Not Implemented until fully designed and built.
+   */
+  server.post(
+    '/api/admin/accounts/:id/disconnect-seat',
+    { preHandler: [requireAdminAuth(storage), requireCsrfToken(storage)] },
+    async (_request, reply) => {
+      reply.code(501);
+      return { error: { code: 'NOT_IMPLEMENTED', message: 'Seat disconnect is not yet implemented' } };
     },
   );
 }

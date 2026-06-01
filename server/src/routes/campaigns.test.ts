@@ -339,3 +339,107 @@ describe('DELETE /api/campaigns/:id', () => {
     });
   });
 });
+
+// ============================================================================
+// PATCH /api/campaigns/:id
+// ============================================================================
+
+describe('PATCH /api/campaigns/:id', () => {
+  let server: FastifyInstance;
+  let storage: Storage;
+  let cookie: string;
+  let csrfToken: string;
+
+  beforeAll(async () => {
+    ({ server, storage } = await createTestServer());
+    await seedAdmin(storage);
+    ({ cookie, csrfToken } = await setupViaApi(server, '10.24.0.1'));
+  });
+
+  afterAll(async () => {
+    await server.close();
+    storage.close();
+  });
+
+  it('returns 401 when no session cookie is provided', async () => {
+    const campaign = await storage.createCampaign('Original Name');
+    const res = await server.inject({
+      method: 'PATCH',
+      url: `/api/campaigns/${campaign.id}`,
+      payload: { name: 'New Name' },
+      remoteAddress: '10.24.0.2',
+    });
+    expect(res.statusCode).toBe(401);
+  });
+
+  it('returns 403 CSRF_TOKEN_MISSING when CSRF header is absent', async () => {
+    const campaign = await storage.createCampaign('No CSRF');
+    const res = await server.inject({
+      method: 'PATCH',
+      url: `/api/campaigns/${campaign.id}`,
+      payload: { name: 'New Name' },
+      headers: { Cookie: cookie },
+      remoteAddress: '10.24.0.3',
+    });
+    expect(res.statusCode).toBe(403);
+    expect(res.json()).toMatchObject({ error: { code: 'CSRF_TOKEN_MISSING' } });
+  });
+
+  it('returns 200 with updated campaign object on success', async () => {
+    const campaign = await storage.createCampaign('Old Name');
+    const res = await server.inject({
+      method: 'PATCH',
+      url: `/api/campaigns/${campaign.id}`,
+      payload: { name: 'Renamed Campaign' },
+      headers: { Cookie: cookie, 'X-CSRF-Token': csrfToken },
+      remoteAddress: '10.24.0.4',
+    });
+    expect(res.statusCode).toBe(200);
+    const body = res.json<{ campaign: { id: string; name: string } }>();
+    expect(body.campaign.id).toBe(campaign.id);
+    expect(body.campaign.name).toBe('Renamed Campaign');
+  });
+
+  it('persists the rename — GET returns new name', async () => {
+    const campaign = await storage.createCampaign('Before Rename');
+    await server.inject({
+      method: 'PATCH',
+      url: `/api/campaigns/${campaign.id}`,
+      payload: { name: 'After Rename' },
+      headers: { Cookie: cookie, 'X-CSRF-Token': csrfToken },
+      remoteAddress: '10.24.0.5',
+    });
+    const getRes = await server.inject({
+      method: 'GET',
+      url: `/api/campaigns/${campaign.id}`,
+      remoteAddress: '10.24.0.6',
+    });
+    expect(getRes.statusCode).toBe(200);
+    expect(getRes.json()).toMatchObject({ name: 'After Rename' });
+  });
+
+  it('returns 400 INVALID_NAME when name is empty', async () => {
+    const campaign = await storage.createCampaign('Empty Name Test');
+    const res = await server.inject({
+      method: 'PATCH',
+      url: `/api/campaigns/${campaign.id}`,
+      payload: { name: '' },
+      headers: { Cookie: cookie, 'X-CSRF-Token': csrfToken },
+      remoteAddress: '10.24.0.7',
+    });
+    expect(res.statusCode).toBe(400);
+    expect(res.json()).toMatchObject({ error: { code: 'INVALID_NAME' } });
+  });
+
+  it('returns 404 CAMPAIGN_NOT_FOUND for an unknown ID', async () => {
+    const res = await server.inject({
+      method: 'PATCH',
+      url: '/api/campaigns/nonexistent-id',
+      payload: { name: 'Ghost' },
+      headers: { Cookie: cookie, 'X-CSRF-Token': csrfToken },
+      remoteAddress: '10.24.0.8',
+    });
+    expect(res.statusCode).toBe(404);
+    expect(res.json()).toMatchObject({ error: { code: 'CAMPAIGN_NOT_FOUND' } });
+  });
+});

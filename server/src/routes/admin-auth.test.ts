@@ -375,6 +375,40 @@ describe('GET /api/admin/check-auth', () => {
 
     expect(res.json<{ authenticated: boolean }>().authenticated).toBe(true);
   });
+
+  it('returns csrfToken in the body when authenticated', async () => {
+    const res = await server.inject({
+      method: 'GET',
+      url: '/api/admin/check-auth',
+      headers: { Cookie: validSessionCookie },
+      remoteAddress: '10.3.0.4',
+    });
+
+    const body = res.json<{ authenticated: boolean; csrfToken?: string }>();
+    expect(body.authenticated).toBe(true);
+    expect(typeof body.csrfToken).toBe('string');
+    expect(body.csrfToken!.length).toBeGreaterThan(0);
+  });
+
+  it('csrfToken from check-auth is accepted by a mutating endpoint', async () => {
+    const checkRes = await server.inject({
+      method: 'GET',
+      url: '/api/admin/check-auth',
+      headers: { Cookie: validSessionCookie },
+      remoteAddress: '10.3.0.5',
+    });
+    const { csrfToken } = checkRes.json<{ csrfToken: string }>();
+
+    // Use the re-hydrated CSRF token to call a mutating endpoint
+    const res = await server.inject({
+      method: 'POST',
+      url: '/api/admin/logout',
+      headers: { Cookie: validSessionCookie, 'X-CSRF-Token': csrfToken },
+      remoteAddress: '10.3.0.6',
+    });
+    // 204 = logout accepted; confirms the token was valid
+    expect(res.statusCode).toBe(204);
+  });
 });
 
 // ============================================================================
