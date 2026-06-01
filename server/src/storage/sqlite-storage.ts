@@ -361,6 +361,20 @@ export class SqliteStorage implements StorageBackend {
     return stmt.all() as Campaign[];
   }
 
+  async updateCampaign(id: string, data: { name: string }): Promise<Campaign> {
+    const db = this.ensureDb();
+    const now = Date.now();
+
+    const stmt = db.prepare(`
+      UPDATE campaigns SET name = ?, updated_at = ? WHERE id = ?
+    `);
+    stmt.run(data.name, now, id);
+
+    const campaign = await this.getCampaign(id);
+    if (!campaign) throw new Error(`Campaign ${id} not found after update`);
+    return campaign;
+  }
+
   async deleteCampaign(id: string): Promise<void> {
     const db = this.ensureDb();
 

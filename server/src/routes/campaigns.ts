@@ -74,6 +74,47 @@ export async function campaignRoutes(
   );
 
   /**
+   * PATCH /api/campaigns/:id - Rename a campaign
+   * Protected: Requires admin authentication and CSRF token
+   */
+  server.patch<{ Params: { id: string }; Body: { name: string } }>(
+    '/api/campaigns/:id',
+    {
+      preHandler: [
+        requireAdminAuth(options.storage),
+        requireCsrfToken(options.storage),
+      ],
+    },
+    async (request, reply) => {
+      const { name } = request.body;
+      if (!name || typeof name !== 'string' || name.trim().length === 0) {
+        reply.code(400);
+        return {
+          error: {
+            code: 'INVALID_NAME',
+            message: 'Campaign name is required',
+          },
+        };
+      }
+      const existing = await options.storage.getCampaign(request.params.id);
+      if (!existing) {
+        reply.code(404);
+        return {
+          error: {
+            code: 'CAMPAIGN_NOT_FOUND',
+            message: 'Campaign not found',
+          },
+        };
+      }
+      const campaign = await options.storage.updateCampaign(
+        request.params.id,
+        { name: name.trim() },
+      );
+      return { campaign };
+    },
+  );
+
+  /**
    * DELETE /api/campaigns/:id - Delete a campaign
    * Protected: Requires admin authentication and CSRF token
    */

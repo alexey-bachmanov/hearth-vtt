@@ -147,6 +147,7 @@ export interface StorageBackend {
   createCampaign(name: string): Promise<Campaign>;
   getCampaign(id: string): Promise<Campaign | null>;
   listCampaigns(): Promise<Campaign[]>;
+  updateCampaign(id: string, data: { name: string }): Promise<Campaign>;
   deleteCampaign(id: string): Promise<void>;
 
   /**
@@ -393,6 +394,10 @@ export class Storage {
 
   async listCampaigns(): Promise<Campaign[]> {
     return this.backend.listCampaigns();
+  }
+
+  async updateCampaign(id: string, data: { name: string }): Promise<Campaign> {
+    return this.backend.updateCampaign(id, data);
   }
 
   async deleteCampaign(id: string): Promise<void> {

@@ -69,6 +69,14 @@ export class InMemoryBackend implements StorageBackend {
     return [...this.campaigns.values()].map((c) => ({ ...c }));
   }
 
+  async updateCampaign(id: string, data: { name: string }): Promise<Campaign> {
+    const campaign = this.campaigns.get(id);
+    if (!campaign) throw new Error(`Campaign ${id} not found`);
+    campaign.name = data.name;
+    campaign.updatedAt = Date.now();
+    return { ...campaign };
+  }
+
   async deleteCampaign(id: string): Promise<void> {
     // Capture seat IDs before deleting so invite cleanup can reference them.
     const seatIds = new Set(this.seats.get(id)?.keys() ?? []);
