@@ -267,6 +267,7 @@ export async function adminAuthRoutes(
     return {
       authenticated: true,
       needsSetup: false,
+      csrfToken: session.csrfToken,
     };
   });
 
