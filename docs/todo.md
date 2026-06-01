@@ -10,56 +10,60 @@ As work completes, check off tasks.
 
 > ⚠️ **CSP BLOCKER:** Any feature rendering user-supplied text — chat, journals, handouts, character bios, or ruleset custom UI — **must** land after strict Content-Security-Policy enforcement and input sanitization. Before building any such feature, ask: "Does this render user text?"
 
-## Phase 5.1 — Auth Cleanup
+## Phase 5.2 — Admin UI: Wire to Real Endpoints
 
-**Goal:** Close the remaining auth gaps from Phase 5: ship a production admin-password recovery path; delete the dead access token (single-token cookie+CSRF only); document hard ruleset security constraints; fix a confirmed logout CSRF bug that silently leaves server sessions open; normalize admin change-password response shape.
+**Goal:** Replace the mock-data backing in the admin panel with real HTTP calls. Wire all action handlers (create/rename/delete campaign, create/update/delete seat, create/revoke invite, reset password, revoke sessions, delete account). Close the CSRF-token-on-reload gap via `check-auth` re-issue. Stub the three server endpoints that don't exist yet, with TODO comments and Tech Debt entries below.
 
-**Verification:** Player logout correctly revokes the server session (subsequent `GET /api/auth/me` → 401). Admin change-password returns 204 and forces re-login. `POST /api/admin/reset` with flag file → new setup PIN, flag deleted. Without flag → 404. `grep -r accessToken client/ server/ shared/` returns zero active-code matches. Full test suite green.
-
----
-
-### Phase 5.1A — Documentation
-
-- [x] **5.1A-1.** Add "Hard Ruleset Security Constraints" section to [`ruleset-engine.md`](components/ruleset-engine.md): no innerHTML, closed declarative UI grammar, no DOM/fetch/Promise/setTimeout/postMessage in QuickJS, engine-mediated state mutation only. Include threat model (untrusted ruleset, supply-chain attack, targeted GM ruleset). Defer enforcement mechanism.
-- [x] **5.1A-2.** Update [`auth-join-flow.md`](components/auth-join-flow.md): `RefreshResponse` is `csrfToken` only (no `accessToken`); add "Admin password recovery" section documenting the filesystem-flag flow; document admin change-password returns 204.
+**Verification:** Log in as admin → create campaign → create seat → create invite → copy invite URL → revoke invite → delete seat → delete campaign. Reset password / revoke sessions on a player account. Reload the page mid-session and confirm mutations still work (check-auth re-hydration path). Confirm 501 stub actions surface a visible inline error without crashing the panel. `npm run test` green in both client and server packages. `npm run lint` clean.
 
 ---
 
-### Phase 5.1B — Single-token migration
+### Phase 5.2A — Server prep
 
-- [x] **5.1B-1.** Remove `accessToken` field from `RefreshResponse` in [`shared/src/protocol/http.ts`](../shared/src/protocol/http.ts).
-- [x] **5.1B-2.** Remove access-token generation from the `/api/auth/refresh` handler in [`server/src/routes/auth.ts`](../server/src/routes/auth.ts). Update the CSRF-rotation comment to reflect single-token model.
-- [x] **5.1B-3.** Grep `client/` for reads of `data.accessToken` or `response.accessToken`; remove all remaining references including in `auth.svelte.ts` and the WS silent-refresh path.
-- [x] **5.1B-4.** Update server and client tests that assert on `accessToken` field presence.
-
----
-
-### Phase 5.1C — Logout bug + change-password normalization
-
-- [x] **5.1C-1.** Fix `logout()` in [`client/src/state/auth.svelte.ts`](../client/src/state/auth.svelte.ts): replace bare `fetch('/api/auth/logout', ...)` with `api.auth.logout()` (auto-injects `X-CSRF-Token`). Preserve the "navigate to `/` regardless of success" finally-block. Audit rest of `auth.svelte.ts` for other bare mutating fetches; route through `api`.
-- [x] **5.1C-2.** Change admin `change-password` handler in [`server/src/routes/admin-auth.ts`](../server/src/routes/admin-auth.ts) to return `reply.code(204).send()`. Confirm all admin sessions are revoked before responding.
-- [x] **5.1C-3.** Handle 204 from `change-password` in admin client state: clear local session and navigate to `/admin/login`.
-- [x] **5.1C-4.** Update tests: server logout returns 200 (not silently-ignored 403); change-password response is 204 with no body.
+- [ ] **5.2A-1.** Add `seatIds: string[]` to `AdminAccountSummary` in [`server/src/routes/admin-accounts.ts`](../server/src/routes/admin-accounts.ts). Update the storage query backing `GET /api/admin/accounts` to join claimed seats and return the array. If a join is expensive, do two queries in the route handler and stitch.
+- [ ] **5.2A-2.** Extend `GET /api/admin/check-auth` in [`server/src/routes/admin-auth.ts`](../server/src/routes/admin-auth.ts): when `authenticated === true`, re-issue a CSRF token (using the same helper used at login/setup) and include it as `csrfToken` in the response body. Confirm this does not invalidate the token issued at login — both are valid until session expiry.
+- [ ] **5.2A-3.** Add `PATCH /api/campaigns/:id` to [`server/src/routes/campaigns.ts`](../server/src/routes/campaigns.ts): body `{ name: string }`. Requires admin session + CSRF. Persist the rename via storage (trivial single-field update). Return 200 with the updated campaign object.
+- [ ] **5.2A-4.** Add `DELETE /api/admin/accounts/:id` stub to [`server/src/routes/admin-accounts.ts`](../server/src/routes/admin-accounts.ts): requires admin session + CSRF. Return 501 `{ error: 'not_implemented' }`. Add a TODO comment describing intended behavior (revoke all sessions, null seat claims, soft-delete or hard-delete account row).
+- [ ] **5.2A-5.** Add `POST /api/admin/accounts/:id/disconnect-seat` stub to [`server/src/routes/admin-accounts.ts`](../server/src/routes/admin-accounts.ts): body `{ seatId: string }`. Requires admin session + CSRF. Return 501 `{ error: 'not_implemented' }`. Add a TODO comment describing intended behavior (null `claimed_by_account_id` on the seat row, revoke any session tokens tied to that seat+account pair).
+- [ ] **5.2A-6.** Server tests: `GET /api/admin/accounts` response includes `seatIds`; `GET /api/admin/check-auth` when authenticated returns `csrfToken`; `PATCH /api/campaigns/:id` renames and returns the campaign; stub endpoints return 501.
 
 ---
 
-### Phase 5.1D — Filesystem-flag recovery endpoint
+### Phase 5.2B — Client API layer
 
-- [x] **5.1D-1.** Create [`server/src/routes/admin-recovery.ts`](../server/src/routes/admin-recovery.ts): `POST /api/admin/reset` — public, no auth, no CSRF, subject to existing `ADMIN_ALLOW_REMOTE`/localhost rules, in-memory rate limit 5 req/hour per IP. Handler: check `${DATA_DIR}/admin-reset.flag` (404 if absent) → delete flag first (500 + no DB touch if delete fails) → null `server_admin` row + revoke all admin sessions → regenerate setup PIN + write `admin-setup-pin.txt` + log to console → return `{ setupPin }`.
-- [x] **5.1D-2.** Register admin-recovery routes in [`server/src/server.ts`](../server/src/server.ts).
-- [x] **5.1D-3.** Add `api.adminAuth.requestReset()` to [`client/src/api/http.ts`](../client/src/api/http.ts).
-- [x] **5.1D-4.** Add "Forgot password?" link to `/admin/login` page navigating to `/admin/recovery`.
-- [x] **5.1D-5.** Create `client/src/ui/admin/Recovery.svelte`: generic instructions ("create empty file `admin-reset.flag` in your data directory; see [docs] for path") + "Check again" button. On 200 → navigate to `/admin/setup`. On 404 → toast "Flag not found". On 500 → error message.
-- [x] **5.1D-6.** Document data-directory paths per deployment (installer, Docker `/data`, SEA, raw `npm start`) in [`server.md`](components/server.md).
-- [x] **5.1D-7.** Server integration tests: no flag → 404; with flag → 200 + PIN, flag deleted, admin row nulled; flag exists but unreadable → 500, admin row untouched.
+- [ ] **5.2B-1.** Add `AdminAccountApi` class to [`client/src/api/http.ts`](../client/src/api/http.ts): `list()` (GET, returns `AdminAccountSummary[]`), `resetPassword(id)` (POST via `adminFetch`), `revokeSessions(id)` (POST via `adminFetch`), `delete(id)` (DELETE via `adminFetch`, hits 501 stub), `disconnectSeat(accountId, seatId)` (POST via `adminFetch`, hits 501 stub). Expose as `api.adminAccounts`.
+- [ ] **5.2B-2.** Add `AdminCampaignApi` class: `list()` (GET `/api/campaigns`), `create(body: { name })` (POST via `adminFetch`), `rename(id, name)` (PATCH via `adminFetch`), `delete(id)` (DELETE via `adminFetch`). Expose as `api.adminCampaigns`.
+- [ ] **5.2B-3.** Add `AdminSeatApi` class: `listForCampaign(campaignId)` (GET), `create(campaignId, body)` (POST via `adminFetch`), `update(campaignId, seatId, patch)` (PATCH via `adminFetch`), `delete(campaignId, seatId)` (DELETE via `adminFetch`). Expose as `api.adminSeats`.
+- [ ] **5.2B-4.** Add `AdminInviteApi` class: `listForCampaign(campaignId)` (GET), `create(campaignId, body)` (POST via `adminFetch`), `revoke(campaignId, inviteToken)` (DELETE via `adminFetch`). Expose as `api.adminInvites`.
+- [ ] **5.2B-5.** Add `hydrateFromCheckAuth()` to `AdminAuthApi`: calls `GET /api/admin/check-auth`, stores returned `csrfToken` via `adminAuth.setCsrfToken()` if present.
+- [ ] **5.2B-6.** Type tests: each new method shapes its request correctly (mock fetch); TypeScript compiles clean.
 
 ---
 
-### Phase 5.1E — Session cap
+### Phase 5.2C — Store rewrite
 
-- [x] **5.1E-1.** Add `countActiveAuthSessionsForAccount(accountId)` and `revokeOldestAuthSessionForAccount(accountId)` to the Storage interface in [`server/src/storage/index.ts`](../server/src/storage/index.ts). Implement in SQLite and in-memory backends. "Active" = not revoked and not expired.
-- [x] **5.1E-2.** In `/api/auth/login` and `/api/auth/claim-invite` in [`server/src/routes/auth.ts`](../server/src/routes/auth.ts): before creating a new session, if active session count is already 64, revoke the oldest (by `createdAt`) to make room.
-- [x] **5.1E-3.** Unit tests: at 64 active sessions the oldest is evicted before the new one is created; at 63 no eviction occurs; the newly created session counts toward the limit.
+- [ ] **5.2C-1.** In [`client/src/state/admin.svelte.ts`](../client/src/state/admin.svelte.ts): remove `MOCK_*` constants. Rename `Mock*` interfaces to `Admin*` (e.g. `MockCampaign` → `AdminCampaign`). These will now be populated from API responses.
+- [ ] **5.2C-2.** Replace `buildInitialTree()` with `rebuildTree()` that derives the node map from the current `campaigns`, `seats`, `accounts` arrays already on the store. After a rebuild, prune stale IDs from `expandedIds` and reset `selectedId` to `'settings'` if the selected node no longer exists.
+- [ ] **5.2C-3.** Add `load()` method: parallel-fetch campaigns + accounts; then parallel-fetch seats + invites per campaign; populate state; call `rebuildTree()`. Expose top-level `loading: boolean` and `error: string | null` reactive fields for the shell.
+- [ ] **5.2C-4.** Add `hydrateFromCheckAuth()` to `AdminAuthState`: delegates to `api.adminAuth.hydrateFromCheckAuth()`.
+- [ ] **5.2C-5.** Add mutation methods to `AdminTreeState` — each calls the matching API method, refetches the affected slice, and calls `rebuildTree()`:
+  - `createCampaign(name)`, `renameCampaign(id, name)`, `deleteCampaign(id)`
+  - `createSeat(campaignId, body)`, `updateSeat(campaignId, seatId, patch)`, `deleteSeat(campaignId, seatId)`
+  - `createInvite(campaignId, body)`, `revokeInvite(campaignId, inviteToken)`
+  - `resetPassword(accountId)`, `revokeSessions(accountId)`
+  - `deleteAccount(accountId)` _(calls 501 stub; surfaces error to caller)_
+  - `disconnectSeat(accountId, seatId)` _(calls 501 stub; surfaces error to caller)_
+
+---
+
+### Phase 5.2D — UI wiring
+
+- [ ] **5.2D-1.** Admin shell (whichever component mounts the admin routes): on mount, call `adminAuth.hydrateFromCheckAuth()` then `adminTree.load()`; render a loading indicator until both complete; surface `adminTree.error` if either fails.
+- [ ] **5.2D-2.** [`ServerSettings.svelte`](../client/src/ui/admin/ServerSettings.svelte): wire "Create campaign" button to `adminTree.createCampaign()`. Add local `loading` / `error` `$state`. Remove mock-only deletion logic; `deleteCampaign` now calls the real endpoint.
+- [ ] **5.2D-3.** [`CampaignDetail.svelte`](../client/src/ui/admin/CampaignDetail.svelte): wire "Create seat" to `adminTree.createSeat()`; wire campaign name edit/save to `adminTree.renameCampaign()`. Add local `loading` / `error` `$state`.
+- [ ] **5.2D-4.** [`SeatSettings.svelte`](../client/src/ui/admin/SeatSettings.svelte): wire "Update seat" to `adminTree.updateSeat()`; "Create invite" to `adminTree.createInvite()`; "Revoke invite" to `adminTree.revokeInvite()`; "Delete seat" to `adminTree.deleteSeat()`. Add local `loading` / `error` `$state`.
+- [ ] **5.2D-5.** [`AccountDetail.svelte`](../client/src/ui/admin/AccountDetail.svelte): wire "Reset password" to `adminTree.resetPassword()`; "Revoke sessions" to `adminTree.revokeSessions()`; "Disconnect seat" and "Remove account" to the corresponding 501-backed methods — show a visible inline error (not a crash) when a 501 is returned. Add local `loading` / `error` `$state`.
+- [ ] **5.2D-6.** Add an Accounts list panel rendered when `selectedId === 'accounts'` (the Accounts root node), following the same pattern as the Campaigns list in `ServerSettings`. Lists all accounts with links to `adminTree.navigateTo(account.id)`.
 
 ---
 
@@ -141,9 +145,10 @@ Read path (load snapshot + replay events) shipped in Phase 3. Write path (auto-t
 - [ ] Admin components bypass API layer with raw `fetch()`:
   - [ ] AdminLogin [AdminLogin.svelte](../client/src/ui/admin/AdminLogin.svelte#L36)
   - [ ] AdminSetup [AdminSetup.svelte](../client/src/ui/admin/AdminSetup.svelte#L40)
-- [ ] **Admin panel Campaigns/Accounts tabs use mock data** — wire `AccountDetail`, `CampaignDetail`, `SeatSettings` to real API endpoints once the admin API layer is built [admin.svelte.ts](../client/src/state/admin.svelte.ts)
 - [ ] WebSocket message handlers were stubs (console.log only) — now wired: `welcome` → sends `view.request`; `view` → `campaignState.applyView()`; `event` → `campaignState.applyEvent()`. Remaining: reconnect gap-detection path not yet exercised in client tests [ws.ts](../client/src/api/ws.ts)
 - [ ] `adminFetch` in state layer should arguably be in API layer [admin.svelte.ts](../client/src/state/admin.svelte.ts#L55)
+- [ ] **Admin panel: delete account** — `DELETE /api/admin/accounts/:id` currently returns 501. Intended behavior: revoke all active sessions for the account, null any `claimed_by_account_id` seat references, then hard-delete the account row. Design whether orphaned seats should auto-post a "seat available" invite or require manual re-invite. [admin-accounts.ts](../server/src/routes/admin-accounts.ts)
+- [ ] **Admin panel: disconnect seat from account** — `POST /api/admin/accounts/:id/disconnect-seat` currently returns 501. Intended behavior: null `claimed_by_account_id` on the target seat row; revoke any active sessions scoped to that (account, seat) pair so the player is immediately bounced. [admin-accounts.ts](../server/src/routes/admin-accounts.ts)
 
 ### Error Handling
 
