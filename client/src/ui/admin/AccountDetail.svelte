@@ -32,9 +32,13 @@ let newPassword = $state('');
 let passwordConfirm = $state('');
 let passwordError = $state<string | null>(null);
 let passwordSuccess = $state(false);
+let passwordLoading = $state(false);
 
 // Confirm-remove state
 let confirmRemove = $state(false);
+
+// Inline error for account-level actions (revoke sessions, disconnect, remove)
+let actionError = $state<string | null>(null);
 
 $effect(() => {
   // Reset local form state when the viewed account changes
@@ -44,7 +48,9 @@ $effect(() => {
   passwordConfirm = '';
   passwordError = null;
   passwordSuccess = false;
+  passwordLoading = false;
   confirmRemove = false;
+  actionError = null;
 });
 
 function formatDate(iso: string | null): string {
@@ -60,7 +66,7 @@ function timeSince(iso: string): string {
   return `${days} days ago`;
 }
 
-function handleResetPassword() {
+async function handleResetPassword() {
   if (!newPassword || newPassword.length < 8) {
     passwordError = 'Password must be at least 8 characters.';
     return;
@@ -69,31 +75,38 @@ function handleResetPassword() {
     passwordError = 'Passwords do not match.';
     return;
   }
-  // TODO (Phase 5+): call POST /api/admin/accounts/:id/reset-password
-  console.log('[AccountDetail] Reset password for account:', accountId, '(mock)');
   passwordError = null;
-  passwordSuccess = true;
-  showPasswordForm = false;
-  newPassword = '';
-  passwordConfirm = '';
+  passwordLoading = true;
+  try {
+    await adminTree.resetPassword(accountId, newPassword);
+    passwordSuccess = true;
+    showPasswordForm = false;
+    newPassword = '';
+    passwordConfirm = '';
+  } catch (err) {
+    passwordError = err instanceof Error ? err.message : 'Failed to reset password';
+  } finally {
+    passwordLoading = false;
+  }
 }
 
-function handleRevokeSessions() {
-  if (!confirm(`Revoke all active sessions for "${account?.username}"? They will be logged out immediately.`)) {
-    return;
+async function handleRevokeSessions() {
+  if (!confirm(`Revoke all active sessions for "${account?.username}"? They will be logged out immediately.`)) return;
+  actionError = null;
+  try {
+    await adminTree.revokeSessions(accountId);
+  } catch (err) {
+    actionError = err instanceof Error ? err.message : 'Failed to revoke sessions';
   }
-  // TODO (Phase 5+): call POST /api/admin/accounts/:id/revoke-sessions
-  console.log('[AccountDetail] Revoke sessions for account:', accountId, '(mock)');
 }
 
 function handleDisconnectSeat(seatId: string) {
   const seat = adminTree.getSeat(seatId);
-  if (!confirm(`Disconnect account "${account?.username}" from seat "${seat?.displayName}"? The seat will become unclaimed.`)) {
-    return;
-  }
-  // 501 stub — will propagate ApiError(NOT_IMPLEMENTED); surface it in 5.2D.
+  if (!confirm(`Disconnect account "${account?.username}" from seat "${seat?.displayName}"? The seat will become unclaimed.`)) return;
+  actionError = null;
+  // 501 stub — propagates ApiError(NOT_IMPLEMENTED); surface inline.
   adminTree.disconnectSeat(accountId, seatId).catch((err) => {
-    console.error('[AccountDetail] disconnectSeat:', err);
+    actionError = err instanceof Error ? err.message : 'Failed to disconnect seat (not yet implemented)';
   });
 }
 
@@ -102,9 +115,11 @@ function handleRemoveAccount() {
     confirmRemove = true;
     return;
   }
-  // 501 stub — will propagate ApiError(NOT_IMPLEMENTED); surface it in 5.2D.
+  actionError = null;
+  // 501 stub — propagates ApiError(NOT_IMPLEMENTED); surface inline.
   adminTree.deleteAccount(accountId).catch((err) => {
-    console.error('[AccountDetail] deleteAccount:', err);
+    actionError = err instanceof Error ? err.message : 'Failed to remove account (not yet implemented)';
+    confirmRemove = false;
   });
   adminTree.navigateTo('accounts');
 }
@@ -209,6 +224,9 @@ function handleGoToSeat(seatId: string) {
     <!-- Controls -->
     <section class="detail-section detail-section--controls">
       <h2>Account Controls</h2>
+      {#if actionError}
+        <p class="error-message" role="alert">{actionError}</p>
+      {/if}
 
       <!-- Reset password -->
       <div class="control-group">
@@ -253,7 +271,7 @@ function handleGoToSeat(seatId: string) {
               />
             </div>
             <div class="form-actions">
-              <button type="submit" class="btn btn--primary">Save</button>
+              <button type="submit" class="btn btn--primary" disabled={passwordLoading}>Save</button>
               <button
                 type="button"
                 class="btn btn--secondary"
@@ -268,7 +286,7 @@ function handleGoToSeat(seatId: string) {
 
       <!-- Revoke sessions -->
       <div class="control-group">
-        <button class="btn btn--secondary" onclick={handleRevokeSessions}>
+        <button class="btn btn--secondary" onclick={handleRevokeSessions} disabled={passwordLoading}>
           🔌 Revoke All Sessions
         </button>
         <p class="control-description">

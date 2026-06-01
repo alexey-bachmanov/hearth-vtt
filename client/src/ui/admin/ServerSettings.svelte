@@ -27,6 +27,10 @@ let serverInfo = $state({
 // Use campaigns from the shared store so they stay in sync with the tree
 let campaigns = $derived(adminTree.campaigns);
 
+// Per-panel mutation state
+let loading = $state(false);
+let error = $state<string | null>(null);
+
 // Password change form
 let passwordForm = $state({
   currentPassword: '',
@@ -37,18 +41,30 @@ let passwordForm = $state({
   submitting: false,
 });
 
-function handleCreateCampaign() {
+async function handleCreateCampaign() {
   const name = prompt('Enter campaign name:');
-  if (name) {
-    console.log('Creating campaign:', name);
-    // TODO (Phase 6+): POST /api/admin/campaigns
+  if (!name?.trim()) return;
+  loading = true;
+  error = null;
+  try {
+    await adminTree.createCampaign(name.trim());
+  } catch (err) {
+    error = err instanceof Error ? err.message : 'Failed to create campaign';
+  } finally {
+    loading = false;
   }
 }
 
-function handleDeleteCampaign(campaign: AdminCampaign) {
-  if (confirm(`Delete campaign "${campaign.name}"? This cannot be undone.`)) {
-    console.log('Deleting campaign:', campaign.id);
-    // TODO: Call adminTree.deleteCampaign(campaign.id) in 5.2D
+async function handleDeleteCampaign(campaign: AdminCampaign) {
+  if (!confirm(`Delete campaign "${campaign.name}"? This cannot be undone.`)) return;
+  loading = true;
+  error = null;
+  try {
+    await adminTree.deleteCampaign(campaign.id);
+  } catch (err) {
+    error = err instanceof Error ? err.message : 'Failed to delete campaign';
+  } finally {
+    loading = false;
   }
 }
 
@@ -135,14 +151,17 @@ async function handleChangePassword() {
     <div class="section-header">
       <h2>Campaigns</h2>
       <div class="section-actions">
-        <button class="btn btn--secondary" onclick={handleImportCampaign}>
+        <button class="btn btn--secondary" onclick={handleImportCampaign} disabled={loading}>
           📥 Import
         </button>
-        <button class="btn btn--primary" onclick={handleCreateCampaign}>
+        <button class="btn btn--primary" onclick={handleCreateCampaign} disabled={loading}>
           ➕ Create Campaign
         </button>
       </div>
     </div>
+    {#if error}
+      <p class="error-message" role="alert">{error}</p>
+    {/if}
     
     <div class="campaign-list">
       {#if campaigns.length === 0}
@@ -172,6 +191,7 @@ async function handleChangePassword() {
               <button 
                 class="btn btn--sm btn--danger"
                 onclick={() => handleDeleteCampaign(campaign)}
+                disabled={loading}
               >
                 🗑️ Delete
               </button>

@@ -58,12 +58,12 @@ As work completes, check off tasks.
 
 ### Phase 5.2D — UI wiring
 
-- [ ] **5.2D-1.** Admin shell (whichever component mounts the admin routes): on mount, call `adminAuth.hydrateFromCheckAuth()` then `adminTree.load()`; render a loading indicator until both complete; surface `adminTree.error` if either fails.
-- [ ] **5.2D-2.** [`ServerSettings.svelte`](../client/src/ui/admin/ServerSettings.svelte): wire "Create campaign" button to `adminTree.createCampaign()`. Add local `loading` / `error` `$state`. Remove mock-only deletion logic; `deleteCampaign` now calls the real endpoint.
-- [ ] **5.2D-3.** [`CampaignDetail.svelte`](../client/src/ui/admin/CampaignDetail.svelte): wire "Create seat" to `adminTree.createSeat()`; wire campaign name edit/save to `adminTree.renameCampaign()`. Add local `loading` / `error` `$state`.
-- [ ] **5.2D-4.** [`SeatSettings.svelte`](../client/src/ui/admin/SeatSettings.svelte): wire "Update seat" to `adminTree.updateSeat()`; "Create invite" to `adminTree.createInvite()`; "Revoke invite" to `adminTree.revokeInvite()`; "Delete seat" to `adminTree.deleteSeat()`. Add local `loading` / `error` `$state`.
-- [ ] **5.2D-5.** [`AccountDetail.svelte`](../client/src/ui/admin/AccountDetail.svelte): wire "Reset password" to `adminTree.resetPassword()`; "Revoke sessions" to `adminTree.revokeSessions()`; "Disconnect seat" and "Remove account" to the corresponding 501-backed methods — show a visible inline error (not a crash) when a 501 is returned. Add local `loading` / `error` `$state`.
-- [ ] **5.2D-6.** Add an Accounts list panel rendered when `selectedId === 'accounts'` (the Accounts root node), following the same pattern as the Campaigns list in `ServerSettings`. Lists all accounts with links to `adminTree.navigateTo(account.id)`.
+- [x] **5.2D-1.** Admin shell (whichever component mounts the admin routes): on mount, call `adminAuth.hydrateFromCheckAuth()` then `adminTree.load()`; render a loading indicator until both complete; surface `adminTree.error` if either fails.
+- [x] **5.2D-2.** [`ServerSettings.svelte`](../client/src/ui/admin/ServerSettings.svelte): wire "Create campaign" button to `adminTree.createCampaign()`. Add local `loading` / `error` `$state`. Remove mock-only deletion logic; `deleteCampaign` now calls the real endpoint.
+- [x] **5.2D-3.** [`CampaignDetail.svelte`](../client/src/ui/admin/CampaignDetail.svelte): wire "Create seat" to `adminTree.createSeat()`; wire campaign name edit/save to `adminTree.renameCampaign()`. Add local `loading` / `error` `$state`.
+- [x] **5.2D-4.** [`SeatSettings.svelte`](../client/src/ui/admin/SeatSettings.svelte): wire "Update seat" to `adminTree.updateSeat()`; "Create invite" to `adminTree.createInvite()`; "Revoke invite" to `adminTree.revokeInvite()`; "Delete seat" to `adminTree.deleteSeat()`. Add local `loading` / `error` `$state`.
+- [x] **5.2D-5.** [`AccountDetail.svelte`](../client/src/ui/admin/AccountDetail.svelte): wire "Reset password" to `adminTree.resetPassword()`; "Revoke sessions" to `adminTree.revokeSessions()`; "Disconnect seat" and "Remove account" to the corresponding 501-backed methods — show a visible inline error (not a crash) when a 501 is returned. Add local `loading` / `error` `$state`.
+- [x] **5.2D-6.** Add an Accounts list panel rendered when `selectedId === 'accounts'` (the Accounts root node), following the same pattern as the Campaigns list in `ServerSettings`. Lists all accounts with links to `adminTree.navigateTo(account.id)`.
 
 ---
 

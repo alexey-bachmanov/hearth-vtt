@@ -31,6 +31,8 @@ let isEditingName = $state(false);
 let editedName = $state('');
 let isEditingRole = $state(false);
 let editedRole = $state<'gm' | 'player' | 'spectator'>('player');
+let loading = $state(false);
+let error = $state<string | null>(null);
 
 $effect(() => {
   // Reset editing state when seat changes
@@ -40,42 +42,81 @@ $effect(() => {
   isEditingRole = false;
 });
 
-function handleSaveName() {
-  if (!editedName.trim()) return;
-  const s = adminTree.seats.find((x) => x.id === seatId);
-  if (s) s.displayName = editedName.trim();
-  // TODO (Phase 5+): PATCH /api/admin/campaigns/:id/seats/:seatId
-  console.log('[SeatSettings] Rename seat (mock):', editedName.trim());
-  isEditingName = false;
-}
-
-function handleSaveRole() {
-  const s = adminTree.seats.find((x) => x.id === seatId);
-  if (s) s.role = editedRole;
-  // TODO (Phase 5+): PATCH /api/admin/campaigns/:id/seats/:seatId
-  console.log('[SeatSettings] Change role (mock):', editedRole);
-  isEditingRole = false;
-}
-
-function handleToggleActive() {
-  const s = adminTree.seats.find((x) => x.id === seatId);
-  if (s) s.isActive = !s.isActive;
-  // TODO (Phase 5+): PATCH /api/admin/campaigns/:id/seats/:seatId
-  console.log('[SeatSettings] Toggle active (mock):', !seat?.isActive);
-}
-
-function handleCreateInvite() {
-  const pin = prompt('Enter PIN for this invite (4-8 digits):');
-  if (pin && pin.length >= 4) {
-    // TODO (Phase 5+): POST /api/admin/invites
-    console.log('[SeatSettings] Create invite (mock) for seat:', seatId);
+async function handleSaveName() {
+  if (!editedName.trim() || !seat) return;
+  loading = true;
+  error = null;
+  try {
+    await adminTree.updateSeat(seat.campaignId, seatId, { displayName: editedName.trim() });
+    isEditingName = false;
+  } catch (err) {
+    error = err instanceof Error ? err.message : 'Failed to update seat';
+  } finally {
+    loading = false;
   }
 }
 
-function handleRevokeInvite(invite: AdminInviteWithUrl) {
-  if (confirm('Revoke this invite? Anyone with the link will no longer be able to use it.')) {
-    // TODO (Phase 5+): DELETE /api/admin/invites/:token
-    console.log('[SeatSettings] Revoke invite (mock):', invite.id);
+async function handleSaveRole() {
+  if (!seat) return;
+  loading = true;
+  error = null;
+  try {
+    await adminTree.updateSeat(seat.campaignId, seatId, { role: editedRole });
+    isEditingRole = false;
+  } catch (err) {
+    error = err instanceof Error ? err.message : 'Failed to update seat';
+  } finally {
+    loading = false;
+  }
+}
+
+async function handleToggleActive() {
+  if (!seat) return;
+  loading = true;
+  error = null;
+  try {
+    await adminTree.updateSeat(seat.campaignId, seatId, { isActive: !seat.isActive });
+  } catch (err) {
+    error = err instanceof Error ? err.message : 'Failed to update seat';
+  } finally {
+    loading = false;
+  }
+}
+
+async function handleCreateInvite() {
+  if (!seat) return;
+  const pin = prompt('Enter a PIN for this invite (4–8 digits):');
+  if (!pin?.trim() || !/^\d{4,8}$/.test(pin.trim())) {
+    if (pin !== null) alert('PIN must be 4–8 digits.');
+    return;
+  }
+  loading = true;
+  error = null;
+  try {
+    await adminTree.createInvite(seat.campaignId, {
+      seatId,
+      pin: pin.trim(),
+      expiresIn: 7 * 24 * 60 * 60, // 7 days in seconds
+      maxUses: 1,
+    });
+  } catch (err) {
+    error = err instanceof Error ? err.message : 'Failed to create invite';
+  } finally {
+    loading = false;
+  }
+}
+
+async function handleRevokeInvite(invite: AdminInviteWithUrl) {
+  if (!seat) return;
+  if (!confirm('Revoke this invite? Anyone with the link will no longer be able to use it.')) return;
+  loading = true;
+  error = null;
+  try {
+    await adminTree.revokeInvite(seat.campaignId, invite.inviteToken);
+  } catch (err) {
+    error = err instanceof Error ? err.message : 'Failed to revoke invite';
+  } finally {
+    loading = false;
   }
 }
 
@@ -85,14 +126,19 @@ function handleCopyInviteUrl(url: string) {
   });
 }
 
-function handleDeleteSeat() {
+async function handleDeleteSeat() {
   if (!seat) return;
-  if (!confirm(`Delete seat "${seat.displayName}"? This will also revoke all invites and remove any active sessions. This cannot be undone.`)) {
-    return;
+  if (!confirm(`Delete seat "${seat.displayName}"? This will also revoke all invites and remove any active sessions. This cannot be undone.`)) return;
+  loading = true;
+  error = null;
+  const campaignId = seat.campaignId; // capture before seat becomes undefined
+  try {
+    await adminTree.deleteSeat(campaignId, seatId);
+    adminTree.navigateTo(campaignId);
+  } catch (err) {
+    error = err instanceof Error ? err.message : 'Failed to delete seat';
+    loading = false;
   }
-  // TODO (Phase 5+): DELETE /api/admin/campaigns/:id/seats/:seatId
-  console.log('[SeatSettings] Delete seat (mock):', seatId);
-  adminTree.navigateTo(seat.campaignId);
 }
 
 function isInviteExpired(invite: AdminInviteWithUrl): boolean {
@@ -112,10 +158,13 @@ function isInviteActive(invite: AdminInviteWithUrl): boolean {
     <button class="back-button" onclick={() => adminTree.navigateTo(seat!.campaignId)}>
       ← Campaign
     </button>
-    <button class="btn btn--danger" onclick={handleDeleteSeat}>
+    <button class="btn btn--danger" onclick={handleDeleteSeat} disabled={loading}>
       🗑️ Delete Seat
     </button>
   </div>
+  {#if error}
+    <p class="error-message" role="alert">{error}</p>
+  {/if}
 
   <!-- Seat Details -->
   <section class="settings-section">
@@ -131,7 +180,7 @@ function isInviteActive(invite: AdminInviteWithUrl): boolean {
               bind:value={editedName}
               onkeydown={(e) => e.key === 'Enter' && handleSaveName()}
             />
-            <button class="btn btn--sm btn--primary" onclick={handleSaveName}>Save</button>
+            <button class="btn btn--sm btn--primary" onclick={handleSaveName} disabled={loading}>Save</button>
             <button class="btn btn--sm btn--secondary" onclick={() => { isEditingName = false; editedName = seat?.displayName ?? ''; }}>
               Cancel
             </button>
@@ -155,7 +204,7 @@ function isInviteActive(invite: AdminInviteWithUrl): boolean {
               <option value="player">Player</option>
               <option value="spectator">Spectator</option>
             </select>
-            <button class="btn btn--sm btn--primary" onclick={handleSaveRole}>Save</button>
+            <button class="btn btn--sm btn--primary" onclick={handleSaveRole} disabled={loading}>Save</button>
             <button class="btn btn--sm btn--secondary" onclick={() => { isEditingRole = false; }}>
               Cancel
             </button>
@@ -178,7 +227,7 @@ function isInviteActive(invite: AdminInviteWithUrl): boolean {
           <span class="status-badge" class:status-badge--active={seat.isActive}>
             {seat.isActive ? '● Active' : '○ Inactive'}
           </span>
-          <button class="btn btn--sm btn--secondary" onclick={handleToggleActive}>
+          <button class="btn btn--sm btn--secondary" onclick={handleToggleActive} disabled={loading}>
             {seat.isActive ? 'Deactivate' : 'Activate'}
           </button>
         </div>
@@ -215,7 +264,7 @@ function isInviteActive(invite: AdminInviteWithUrl): boolean {
   <section class="settings-section">
     <div class="section-header">
       <h2>Invites</h2>
-      <button class="btn btn--primary" onclick={handleCreateInvite}>
+      <button class="btn btn--primary" onclick={handleCreateInvite} disabled={loading}>
         ➕ Create Invite
       </button>
     </div>
@@ -256,6 +305,7 @@ function isInviteActive(invite: AdminInviteWithUrl): boolean {
                   <button 
                     class="btn btn--sm btn--danger"
                     onclick={() => handleRevokeInvite(invite)}
+                    disabled={loading}
                   >
                     Revoke
                   </button>

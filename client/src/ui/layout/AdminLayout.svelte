@@ -19,6 +19,7 @@
 import { onMount } from 'svelte';
 import { navigate } from '../../app/routes';
 import { adminAuth, adminTree, adminFetch } from '../../state/admin.svelte';
+import { api } from '../../api/http.js';
 import AdminTree from '../admin/AdminTree.svelte';
 import ServerSettings from '../admin/ServerSettings.svelte';
 import CampaignDetail from '../admin/CampaignDetail.svelte';
@@ -33,37 +34,6 @@ let isAuthenticated = $state(false);
 let selectedId = $derived(adminTree.selectedId);
 let selectedType = $derived(adminTree.selectedNodeType);
 
-async function checkAuth() {
-  try {
-    const response = await fetch('/api/admin/check-auth', {
-      method: 'GET',
-      credentials: 'include',
-    });
-
-    if (!response.ok) {
-      throw new Error(`Server responded with status ${response.status}`);
-    }
-
-    const data = await response.json();
-
-    if (data.needsSetup) {
-      navigate('/admin/setup');
-      return;
-    }
-
-    if (!data.authenticated) {
-      navigate('/admin/login');
-      return;
-    }
-
-    isAuthenticated = true;
-  } catch {
-    navigate('/admin/error');
-  } finally {
-    isCheckingAuth = false;
-  }
-}
-
 async function handleLogout() {
   try {
     await adminFetch('/api/admin/logout', { method: 'POST' });
@@ -75,8 +45,19 @@ async function handleLogout() {
   }
 }
 
-onMount(() => {
-  checkAuth();
+onMount(async () => {
+  try {
+    const data = await api.adminAuth.checkAuth();
+    if (data.needsSetup) { navigate('/admin/setup'); return; }
+    if (!data.authenticated) { navigate('/admin/login'); return; }
+    if (data.csrfToken) adminAuth.setCsrfToken(data.csrfToken);
+    isAuthenticated = true;
+    await adminTree.load();
+  } catch {
+    navigate('/admin/error');
+  } finally {
+    isCheckingAuth = false;
+  }
 });
 </script>
 
@@ -99,7 +80,17 @@ onMount(() => {
     </aside>
 
     <main class="admin-content">
-      {#if selectedType === 'settings' || selectedId === 'settings'}
+      {#if adminTree.loading}
+        <div class="content-loading">
+          <div class="spinner"></div>
+          <p>Loading admin data…</p>
+        </div>
+      {:else if adminTree.error}
+        <div class="content-error" role="alert">
+          <p>⚠️ {adminTree.error}</p>
+          <button class="btn btn--secondary" onclick={() => adminTree.load()}>Retry</button>
+        </div>
+      {:else if selectedType === 'settings' || selectedId === 'settings'}
         <ServerSettings />
       {:else if selectedType === 'campaign' && selectedId !== 'campaigns'}
         <CampaignDetail campaignId={selectedId} />
@@ -107,8 +98,31 @@ onMount(() => {
         <SeatSettings seatId={selectedId} />
       {:else if selectedType === 'account' && selectedId !== 'accounts'}
         <AccountDetail accountId={selectedId} />
+      {:else if selectedId === 'accounts'}
+        <div class="accounts-list-panel">
+          <header class="settings-header">
+            <h1>Player Accounts</h1>
+          </header>
+          {#if adminTree.accounts.length === 0}
+            <p class="branch-hint-text">No player accounts yet.</p>
+          {:else}
+            <ul class="account-list">
+              {#each adminTree.accounts as account (account.id)}
+                <li>
+                  <button
+                    class="account-list-btn"
+                    onclick={() => adminTree.navigateTo(account.id)}
+                  >
+                    <span>👤 {account.username}</span>
+                    <span class="text-muted">{account.seatCount} seat{account.seatCount !== 1 ? 's' : ''}</span>
+                  </button>
+                </li>
+              {/each}
+            </ul>
+          {/if}
+        </div>
       {:else}
-        <!-- Branch node selected (Campaigns / Accounts root) — show a hint -->
+        <!-- Other branch nodes (Campaigns root) -->
         <div class="branch-hint">
           <p>Select an item in the tree to view details.</p>
         </div>
@@ -203,5 +217,79 @@ onMount(() => {
   height: 100%;
   color: var(--color-text-tertiary);
   font-size: var(--font-size-md);
+}
+
+.content-loading {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  height: 100%;
+  gap: var(--space-md);
+  color: var(--color-text-secondary);
+}
+
+.content-loading p {
+  margin: 0;
+}
+
+.content-error {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  height: 100%;
+  gap: var(--space-md);
+  color: var(--color-text-secondary);
+}
+
+.content-error p {
+  margin: 0;
+}
+
+.accounts-list-panel {
+  max-width: var(--admin-content-max-width);
+}
+
+.settings-header h1 {
+  margin: 0 0 var(--space-xl) 0;
+  font-size: var(--font-size-2xl);
+  font-weight: var(--font-weight-semibold);
+  color: var(--color-text-primary);
+}
+
+.account-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-sm);
+}
+
+.account-list-btn {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  width: 100%;
+  padding: var(--space-md) var(--space-lg);
+  background-color: var(--color-bg-secondary);
+  border: 1px solid var(--color-border-default);
+  border-radius: var(--radius-md);
+  color: var(--color-text-primary);
+  font-size: var(--font-size-md);
+  cursor: pointer;
+  text-align: left;
+  transition: var(--transition-fast);
+}
+
+.account-list-btn:hover {
+  background-color: var(--color-bg-hover);
+  border-color: var(--color-border-hover);
+}
+
+.branch-hint-text {
+  color: var(--color-text-tertiary);
+  margin: 0;
 }
 </style>

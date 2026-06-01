@@ -32,21 +32,35 @@ const ruleset = {
 
 let isEditingName = $state(false);
 let editedName = $state('');
+let loading = $state(false);
+let error = $state<string | null>(null);
 
-function handleSaveName() {
+async function handleSaveName() {
   if (!editedName.trim() || !campaign) return;
-  // TODO (Phase 6+): call PATCH /api/admin/campaigns/:id
-  console.log('[CampaignDetail] Rename campaign (mock):', editedName.trim());
-  const c = adminTree.campaigns.find((x) => x.id === campaignId);
-  if (c) c.name = editedName.trim();
-  isEditingName = false;
+  loading = true;
+  error = null;
+  try {
+    await adminTree.renameCampaign(campaignId, editedName.trim());
+    isEditingName = false;
+  } catch (err) {
+    error = err instanceof Error ? err.message : 'Failed to rename campaign';
+  } finally {
+    loading = false;
+  }
 }
 
-function handleCreateSeat() {
-  const name = prompt('Enter seat name:');
-  if (!name) return;
-  // TODO (Phase 6+): call POST /api/admin/campaigns/:id/seats
-  console.log('[CampaignDetail] Create seat (mock):', name);
+async function handleCreateSeat() {
+  const name = prompt('Enter seat display name:');
+  if (!name?.trim()) return;
+  loading = true;
+  error = null;
+  try {
+    await adminTree.createSeat(campaignId, { displayName: name.trim(), role: 'player' });
+  } catch (err) {
+    error = err instanceof Error ? err.message : 'Failed to create seat';
+  } finally {
+    loading = false;
+  }
 }
 
 function handleExportCampaign() {
@@ -73,14 +87,17 @@ function handleImportData() {
       <div class="section-header">
         <h2>Campaign Details</h2>
         <div class="section-actions">
-          <button class="btn btn--secondary" onclick={handleImportData}>
+          <button class="btn btn--secondary" onclick={handleImportData} disabled={loading}>
             📥 Import Data
           </button>
-          <button class="btn btn--secondary" onclick={handleExportCampaign}>
+          <button class="btn btn--secondary" onclick={handleExportCampaign} disabled={loading}>
             📤 Export Campaign
           </button>
         </div>
       </div>
+      {#if error}
+        <p class="error-message" role="alert">{error}</p>
+      {/if}
     
     <div class="metadata-grid">
       <div class="metadata-item">
@@ -92,7 +109,7 @@ function handleImportData() {
               bind:value={editedName}
               onkeydown={(e) => e.key === 'Enter' && handleSaveName()}
             />
-            <button class="btn btn--sm btn--primary" onclick={handleSaveName}>Save</button>
+            <button class="btn btn--sm btn--primary" onclick={handleSaveName} disabled={loading}>Save</button>
             <button class="btn btn--sm btn--secondary" onclick={() => { isEditingName = false; editedName = campaign?.name ?? ''; }}>
               Cancel
             </button>
@@ -144,7 +161,7 @@ function handleImportData() {
   <section class="detail-section">
     <div class="section-header">
       <h2>Seats</h2>
-      <button class="btn btn--primary" onclick={handleCreateSeat}>
+      <button class="btn btn--primary" onclick={handleCreateSeat} disabled={loading}>
         ➕ Create Seat
       </button>
     </div>

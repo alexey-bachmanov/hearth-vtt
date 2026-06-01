@@ -25,9 +25,17 @@
  */
 
 import { SvelteMap, SvelteSet } from 'svelte/reactivity';
-import type { AdminAccountSummary, AdminResetPasswordRequest } from '@hearth-vtt/shared';
+import type {
+  AdminAccountSummary,
+  AdminResetPasswordRequest,
+} from '@hearth-vtt/shared';
 import type { SeatRole } from '@hearth-vtt/shared';
-import { api, type AdminCampaign, type AdminSeat, type AdminInvite } from '../api/http.js';
+import {
+  api,
+  type AdminCampaign,
+  type AdminSeat,
+  type AdminInvite,
+} from '../api/http.js';
 
 // ============================================================================
 // Types
@@ -274,8 +282,12 @@ class AdminTreeState {
       this.accounts = accountsRes.accounts;
 
       const [seatResults, inviteResults] = await Promise.all([
-        Promise.all(this.campaigns.map((c) => api.adminSeats.listForCampaign(c.id))),
-        Promise.all(this.campaigns.map((c) => api.adminInvites.listForCampaign(c.id))),
+        Promise.all(
+          this.campaigns.map((c) => api.adminSeats.listForCampaign(c.id)),
+        ),
+        Promise.all(
+          this.campaigns.map((c) => api.adminInvites.listForCampaign(c.id)),
+        ),
       ]);
 
       this.seats = seatResults.flatMap((r) => r.seats);
@@ -288,7 +300,8 @@ class AdminTreeState {
 
       this._rebuildTree();
     } catch (err) {
-      this.error = err instanceof Error ? err.message : 'Failed to load admin data';
+      this.error =
+        err instanceof Error ? err.message : 'Failed to load admin data';
     } finally {
       this.loading = false;
     }
@@ -320,7 +333,9 @@ class AdminTreeState {
     );
     this.campaigns = this.campaigns.filter((c) => c.id !== id);
     this.seats = this.seats.filter((s) => s.campaignId !== id);
-    this.invites = this.invites.filter((inv) => !deletedSeatIds.has(inv.seatId));
+    this.invites = this.invites.filter(
+      (inv) => !deletedSeatIds.has(inv.seatId),
+    );
     this._rebuildTree();
   }
 
@@ -361,7 +376,12 @@ class AdminTreeState {
     campaignId: string,
     body: { seatId: string; pin: string; expiresIn: number; maxUses?: number },
   ): Promise<{
-    invite: { id: string; inviteToken: string; inviteUrl: string; expiresAt: string };
+    invite: {
+      id: string;
+      inviteToken: string;
+      inviteUrl: string;
+      expiresAt: string;
+    };
   }> {
     const res = await api.adminInvites.create(campaignId, body);
     await this._refreshCampaignSlice(campaignId);
@@ -377,7 +397,10 @@ class AdminTreeState {
   // Mutations — accounts
   // --------------------------------------------------------------------------
 
-  async resetPassword(accountId: string, temporaryPassword: string): Promise<void> {
+  async resetPassword(
+    accountId: string,
+    temporaryPassword: string,
+  ): Promise<void> {
     const body: AdminResetPasswordRequest = { temporaryPassword };
     await api.adminAccounts.resetPassword(accountId, body);
   }
