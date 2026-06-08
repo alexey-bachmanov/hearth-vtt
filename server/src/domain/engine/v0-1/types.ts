@@ -68,7 +68,16 @@ export type ResolverIntent =
       actorId: string;
       seatId: SeatId;
       permission: 'control' | 'read';
-    };
+    }
+  // ── Scene CRUD (Phase 6D) ──────────────────────────────────────────────
+  | {
+      kind: 'scene.create';
+      sceneId: string;
+      name: string;
+      data?: Record<string, unknown>;
+    }
+  | { kind: 'scene.delete'; sceneId: string }
+  | { kind: 'scene.setActive'; sceneId: string };
 
 /** Minimal persisted workflow shape for v0.1. */
 export interface Workflow {

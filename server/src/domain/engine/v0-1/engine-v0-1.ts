@@ -119,12 +119,14 @@ export class EngineV01 implements GameEngine {
       getToken: (tokenId: TokenId) => this.state.tokens.get(tokenId),
       getScene: (sceneId: SceneId) => this.state.scenes.get(sceneId),
       tokensInRadius: (
-        _sceneId: SceneId,
+        sceneId: SceneId,
         _x: number,
         _y: number,
         _radius: number,
       ) => {
-        throw new Error('not implemented');
+        return Array.from(this.state.tokens.values()).filter(
+          (t) => t.sceneId === sceneId,
+        );
       },
       rollDice: (formula: string, actionId: ActionId): RollDiceResult =>
         evaluate(formula, actionId),

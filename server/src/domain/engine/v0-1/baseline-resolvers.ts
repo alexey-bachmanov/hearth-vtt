@@ -376,6 +376,100 @@ const actorLinkSeatResolver: ActionBinding = {
   },
 };
 
+// ─── scene.create ────────────────────────────────────────────────────────────
+
+const sceneCreateResolver: ActionBinding = {
+  resolver(args: unknown, helpers): ResolverResult {
+    if (!args || typeof args !== 'object') {
+      throw new Error('scene.create requires an object payload');
+    }
+
+    const { isGm, sceneId, name, data } = args as Record<string, unknown> &
+      SeatContext;
+
+    if (!isGm) {
+      throw new Error('Only GMs can create scenes');
+    }
+    if (typeof sceneId !== 'string') {
+      throw new Error('scene.create requires { sceneId: string }');
+    }
+    if (helpers.getScene(sceneId)) {
+      throw new Error(`Scene already exists: ${sceneId}`);
+    }
+    if (typeof name !== 'string' || name.trim().length === 0) {
+      throw new Error('scene.create requires { name: string }');
+    }
+
+    const intent: ResolverIntent = {
+      kind: 'scene.create',
+      sceneId,
+      name: name.trim(),
+      ...(typeof data === 'object' && data !== null
+        ? { data: data as Record<string, unknown> }
+        : {}),
+    };
+
+    return { intents: [intent] };
+  },
+};
+
+// ─── scene.delete (cascade) ──────────────────────────────────────────────────
+
+const sceneDeleteResolver: ActionBinding = {
+  resolver(args: unknown, helpers): ResolverResult {
+    if (!args || typeof args !== 'object') {
+      throw new Error('scene.delete requires an object payload');
+    }
+
+    const { isGm, sceneId } = args as Record<string, unknown> & SeatContext;
+
+    if (!isGm) {
+      throw new Error('Only GMs can delete scenes');
+    }
+    if (typeof sceneId !== 'string') {
+      throw new Error('scene.delete requires { sceneId: string }');
+    }
+    if (!helpers.getScene(sceneId)) {
+      throw new Error(`Scene not found: ${sceneId}`);
+    }
+
+    // Cascade: produce token.delete intents for every token in this scene,
+    // then the scene.delete intent itself.
+    const tokensInScene = helpers.tokensInRadius(sceneId, 0, 0, 0);
+    const intents: ResolverIntent[] = tokensInScene.map((token) => ({
+      kind: 'token.delete' as const,
+      tokenId: token.id,
+    }));
+    intents.push({ kind: 'scene.delete', sceneId });
+
+    return { intents };
+  },
+};
+
+// ─── scene.setActive ─────────────────────────────────────────────────────────
+
+const sceneSetActiveResolver: ActionBinding = {
+  resolver(args: unknown, helpers): ResolverResult {
+    if (!args || typeof args !== 'object') {
+      throw new Error('scene.setActive requires an object payload');
+    }
+
+    const { isGm, sceneId } = args as Record<string, unknown> & SeatContext;
+
+    if (!isGm) {
+      throw new Error('Only GMs can set the active scene');
+    }
+    if (typeof sceneId !== 'string') {
+      throw new Error('scene.setActive requires { sceneId: string }');
+    }
+    if (!helpers.getScene(sceneId)) {
+      throw new Error(`Scene not found: ${sceneId}`);
+    }
+
+    return { intents: [{ kind: 'scene.setActive', sceneId }] };
+  },
+};
+
 // ─── Export ──────────────────────────────────────────────────────────────────
 
 /**
@@ -393,4 +487,7 @@ export const baselineActions: Record<string, ActionBinding> = {
   'actor.delete': actorDeleteResolver,
   'token.linkToActor': tokenLinkToActorResolver,
   'actor.linkSeat': actorLinkSeatResolver,
+  'scene.create': sceneCreateResolver,
+  'scene.delete': sceneDeleteResolver,
+  'scene.setActive': sceneSetActiveResolver,
 };

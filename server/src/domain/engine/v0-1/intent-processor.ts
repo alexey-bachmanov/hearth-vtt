@@ -7,7 +7,7 @@
  * @see plan.md — Phase 2: Create intent-processor.ts
  */
 
-import type { Token, Actor } from '@hearth-vtt/shared';
+import type { Token, Actor, Scene } from '@hearth-vtt/shared';
 import type { Event as StorageEvent } from '../../../storage/index.js';
 import type { ResolverIntent, Workflow } from './types.js';
 import type { CampaignState } from '../types-internal.js';
@@ -266,6 +266,89 @@ export function processIntent(
         wireEventData: { actorId, seatId, permission },
       };
     }
+
+    // ── Scene CRUD ────────────────────────────────────────────────────────
+
+    case 'scene.create': {
+      const { sceneId, name, data } = intent;
+      const newScene: Scene = {
+        id: sceneId,
+        name,
+        gridType: 'square',
+        gridSize: 50,
+        gridScale: '5ft',
+        width: 1000,
+        height: 1000,
+        ...(data ? (data as Partial<Scene>) : {}),
+      };
+      return {
+        stateMutation: () => {
+          state.scenes.set(sceneId, newScene);
+        },
+        storedEvent: {
+          campaignId,
+          entityId: sceneId,
+          type: 'scene.created',
+          data: {
+            sceneId,
+            name,
+            gridType: newScene.gridType,
+            gridSize: newScene.gridSize,
+            gridScale: newScene.gridScale,
+            width: newScene.width,
+            height: newScene.height,
+          } as unknown as Record<string, unknown>,
+        },
+        wireEventType: 'scene.created',
+        wireEventData: {
+          sceneId,
+          name,
+          gridType: newScene.gridType,
+          gridSize: newScene.gridSize,
+          gridScale: newScene.gridScale,
+          width: newScene.width,
+          height: newScene.height,
+        },
+      };
+    }
+
+    case 'scene.delete': {
+      const { sceneId } = intent;
+      return {
+        stateMutation: () => {
+          state.scenes.delete(sceneId);
+          // Clear active scene reference if it was the active one
+          if (state.activeSceneId === sceneId) {
+            state.activeSceneId = null;
+          }
+        },
+        storedEvent: {
+          campaignId,
+          entityId: sceneId,
+          type: 'scene.deleted',
+          data: { sceneId },
+        },
+        wireEventType: 'scene.deleted',
+        wireEventData: { sceneId },
+      };
+    }
+
+    case 'scene.setActive': {
+      const { sceneId } = intent;
+      return {
+        stateMutation: () => {
+          state.activeSceneId = sceneId;
+        },
+        storedEvent: {
+          campaignId,
+          entityId: sceneId,
+          type: 'scene.activated',
+          data: { sceneId },
+        },
+        wireEventType: 'scene.activated',
+        wireEventData: { sceneId },
+      };
+    }
   }
 }
 
@@ -323,5 +406,11 @@ function collisionKey(intent: ResolverIntent): string | null {
       return `token.linkToActor:${intent.tokenId}`;
     case 'actor.linkSeat':
       return `actor.linkSeat:${intent.actorId}:${intent.seatId}`;
+    case 'scene.create':
+      return `scene.create:${intent.sceneId}`;
+    case 'scene.delete':
+      return `scene.delete:${intent.sceneId}`;
+    case 'scene.setActive':
+      return `scene.setActive`;
   }
 }
