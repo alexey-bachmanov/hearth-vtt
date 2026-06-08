@@ -1,11 +1,12 @@
-/**
- * HearthVTT Client Entry Point
- *
- * Bootstraps the Svelte 5 application.
- */
-
 import { mount } from 'svelte';
 import App from './App.svelte';
+
+// Dev-mode console API for testing engine actions without building UI.
+// See client/src/app/devtools.ts for the full `window.__hearth` surface.
+// Tree-shaken entirely in production builds.
+if (import.meta.env.DEV) {
+  import('./app/devtools.ts');
+}
 
 /**
  * Mount the root App component to the DOM.
