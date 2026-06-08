@@ -10,60 +10,129 @@ As work completes, check off tasks.
 
 > ⚠️ **CSP BLOCKER:** Any feature rendering user-supplied text — chat, journals, handouts, character bios, or ruleset custom UI — **must** land after strict Content-Security-Policy enforcement and input sanitization. Before building any such feature, ask: "Does this render user text?"
 
-## Phase 5.2 — Admin UI: Wire to Real Endpoints
+## Engine v0.1 — Internal Types + Token/Actor CRUD
 
-**Goal:** Replace the mock-data backing in the admin panel with real HTTP calls. Wire all action handlers (create/rename/delete campaign, create/update/delete seat, create/revoke invite, reset password, revoke sessions, delete account). Close the CSRF-token-on-reload gap via `check-auth` re-issue. Stub the three server endpoints that don't exist yet, with TODO comments and Tech Debt entries below.
+Two sequential mini-phases on top of the completed ResolverIntent refactor:
 
-**Verification:** Log in as admin → create campaign → create seat → create invite → copy invite URL → revoke invite → delete seat → delete campaign. Reset password / revoke sessions on a player account. Reload the page mid-session and confirm mutations still work (check-auth re-hydration path). Confirm 501 stub actions surface a visible inline error without crashing the panel. `npm run test` green in both client and server packages. `npm run lint` clean.
+**Phase 0:** Extract `CampaignState` and `BaseEventData` into `types-internal.ts`, eliminating `ProcessableState` and the dishonest cast. Both engines import from a single source.
 
----
+**Phase 1:** Add six token/actor CRUD intents to the resolver pipeline — `token.create`, `token.delete`, `actor.create`, `actor.delete`, `token.linkToActor`, `actor.linkSeat`. GM-gated via `isGM` check in each resolver. No separate admin pipeline.
 
-### Phase 5.2A — Server prep
+**This is throwaway code per the v0.x commitment.** Placeholder engine is modified only to import from `types-internal.ts` (no behavioral change). No production wiring is touched.
 
-- [x] **5.2A-1.** Add `seatIds: string[]` to `AdminAccountSummary` in [`server/src/routes/admin-accounts.ts`](../server/src/routes/admin-accounts.ts). Update the storage query backing `GET /api/admin/accounts` to join claimed seats and return the array. If a join is expensive, do two queries in the route handler and stitch.
-- [x] **5.2A-2.** Extend `GET /api/admin/check-auth` in [`server/src/routes/admin-auth.ts`](../server/src/routes/admin-auth.ts): when `authenticated === true`, re-issue a CSRF token (using the same helper used at login/setup) and include it as `csrfToken` in the response body. Confirm this does not invalidate the token issued at login — both are valid until session expiry.
-- [x] **5.2A-3.** Add `PATCH /api/campaigns/:id` to [`server/src/routes/campaigns.ts`](../server/src/routes/campaigns.ts): body `{ name: string }`. Requires admin session + CSRF. Persist the rename via storage (trivial single-field update). Return 200 with the updated campaign object.
-- [x] **5.2A-4.** Add `DELETE /api/admin/accounts/:id` stub to [`server/src/routes/admin-accounts.ts`](../server/src/routes/admin-accounts.ts): requires admin session + CSRF. Return 501 `{ error: 'not_implemented' }`. Add a TODO comment describing intended behavior (revoke all sessions, null seat claims, soft-delete or hard-delete account row).
-- [x] **5.2A-5.** Add `POST /api/admin/accounts/:id/disconnect-seat` stub to [`server/src/routes/admin-accounts.ts`](../server/src/routes/admin-accounts.ts): body `{ seatId: string }`. Requires admin session + CSRF. Return 501 `{ error: 'not_implemented' }`. Add a TODO comment describing intended behavior (null `claimed_by_account_id` on the seat row, revoke any session tokens tied to that seat+account pair).
-- [x] **5.2A-6.** Server tests: `GET /api/admin/accounts` response includes `seatIds`; `GET /api/admin/check-auth` when authenticated returns `csrfToken`; `PATCH /api/campaigns/:id` renames and returns the campaign; stub endpoints return 501.
+### Phase 0: Extract internal types
 
----
+**Step 1:** Create `server/src/domain/engine/types-internal.ts`:
 
-### Phase 5.2B — Client API layer
+- [x] `CampaignState` — canonical shape with 11 fields: `campaignId`, `seq`, `activeSceneId`, `scenes`, `tokens`, `actors`, `workflows`, `customData`, `seats`, `recentEvents`, `closed`. Import `Workflow` from `v0-1/types.ts`; import `Token`, `Actor`, `Scene`, `Seat`, `GameEvent`, `WorkflowId` from shared.
+- [x] `BaseEventData` — `{ originSeatId?: string }`.
+- [x] Never re-exported from `engine/index.ts`. Engine-internal only.
 
-- [x] **5.2B-1.** Add `AdminAccountApi` class to [`client/src/api/http.ts`](../client/src/api/http.ts): `list()` (GET, returns `AdminAccountSummary[]`), `resetPassword(id)` (POST via `adminFetch`), `revokeSessions(id)` (POST via `adminFetch`), `delete(id)` (DELETE via `adminFetch`, hits 501 stub), `disconnectSeat(accountId, seatId)` (POST via `adminFetch`, hits 501 stub). Expose as `api.adminAccounts`.
-- [x] **5.2B-2.** Add `AdminCampaignApi` class: `list()` (GET `/api/campaigns`), `create(body: { name })` (POST via `adminFetch`), `rename(id, name)` (PATCH via `adminFetch`), `delete(id)` (DELETE via `adminFetch`). Expose as `api.adminCampaigns`.
-- [x] **5.2B-3.** Add `AdminSeatApi` class: `listForCampaign(campaignId)` (GET), `create(campaignId, body)` (POST via `adminFetch`), `update(campaignId, seatId, patch)` (PATCH via `adminFetch`), `delete(campaignId, seatId)` (DELETE via `adminFetch`). Expose as `api.adminSeats`.
-- [x] **5.2B-4.** Add `AdminInviteApi` class: `listForCampaign(campaignId)` (GET), `create(campaignId, body)` (POST via `adminFetch`), `revoke(campaignId, inviteToken)` (DELETE via `adminFetch`). Expose as `api.adminInvites`.
-- [x] **5.2B-5.** Add `hydrateFromCheckAuth()` to `AdminAuthApi`: calls `GET /api/admin/check-auth`, stores returned `csrfToken` via `adminAuth.setCsrfToken()` if present.
-- [x] **5.2B-6.** Type tests: each new method shapes its request correctly (mock fetch); TypeScript compiles clean.
+**Step 2:** Update `placeholder.ts`:
 
----
+- [x] Delete inline `interface CampaignState { ... }` and `interface BaseEventData { ... }`.
+- [x] Add `import type { CampaignState, BaseEventData } from './types-internal.js'`.
+- [x] In `open()` factory, add `workflows: new Map()` and `customData: new Map()` to the state initializer before the `new PlaceholderEngine` call. These maps sit empty and unused — no behavioral change.
 
-### Phase 5.2C — Store rewrite
+**Step 3:** Update `engine-v0-1.ts`:
 
-- [x] **5.2C-1.** In [`client/src/state/admin.svelte.ts`](../client/src/state/admin.svelte.ts): remove `MOCK_*` constants. Rename `Mock*` interfaces to `Admin*` (e.g. `MockCampaign` → `AdminCampaign`). These will now be populated from API responses.
-- [x] **5.2C-2.** Replace `buildInitialTree()` with `rebuildTree()` that derives the node map from the current `campaigns`, `seats`, `accounts` arrays already on the store. After a rebuild, prune stale IDs from `expandedIds` and reset `selectedId` to `'settings'` if the selected node no longer exists.
-- [x] **5.2C-3.** Add `load()` method: parallel-fetch campaigns + accounts; then parallel-fetch seats + invites per campaign; populate state; call `rebuildTree()`. Expose top-level `loading: boolean` and `error: string | null` reactive fields for the shell.
-- [x] **5.2C-4.** Add `hydrateFromCheckAuth()` to `AdminAuthState`: delegates to `api.adminAuth.hydrateFromCheckAuth()`.
-- [x] **5.2C-5.** Add mutation methods to `AdminTreeState` — each calls the matching API method, refetches the affected slice, and calls `rebuildTree()`:
-  - `createCampaign(name)`, `renameCampaign(id, name)`, `deleteCampaign(id)`
-  - `createSeat(campaignId, body)`, `updateSeat(campaignId, seatId, patch)`, `deleteSeat(campaignId, seatId)`
-  - `createInvite(campaignId, body)`, `revokeInvite(campaignId, inviteToken)`
-  - `resetPassword(accountId)`, `revokeSessions(accountId)`
-  - `deleteAccount(accountId)` _(calls 501 stub; surfaces error to caller)_
-  - `disconnectSeat(accountId, seatId)` _(calls 501 stub; surfaces error to caller)_
+- [x] Delete inline `interface CampaignState { ... }` and `interface BaseEventData { ... }`.
+- [x] Add `import type { CampaignState, BaseEventData } from '../types-internal.js'`.
+- [x] Delete `import { type ProcessableState } from './intent-processor.js'`.
+- [x] Delete `as unknown as ProcessableState` cast on dispatch line — pass `this.state` directly.
 
----
+**Step 4:** Update `intent-processor.ts`:
 
-### Phase 5.2D — UI wiring
+- [x] Delete `ProcessableState` interface.
+- [x] Add `import type { CampaignState } from '../types-internal.js'`.
+- [x] Change `processIntent` second param from `state: ProcessableState` to `state: CampaignState`.
+- [x] Verify: all `state.tokens` and `state.workflows` accesses still compile — `CampaignState` has both.
 
-- [x] **5.2D-1.** Admin shell (whichever component mounts the admin routes): on mount, call `adminAuth.hydrateFromCheckAuth()` then `adminTree.load()`; render a loading indicator until both complete; surface `adminTree.error` if either fails.
-- [x] **5.2D-2.** [`ServerSettings.svelte`](../client/src/ui/admin/ServerSettings.svelte): wire "Create campaign" button to `adminTree.createCampaign()`. Add local `loading` / `error` `$state`. Remove mock-only deletion logic; `deleteCampaign` now calls the real endpoint.
-- [x] **5.2D-3.** [`CampaignDetail.svelte`](../client/src/ui/admin/CampaignDetail.svelte): wire "Create seat" to `adminTree.createSeat()`; wire campaign name edit/save to `adminTree.renameCampaign()`. Add local `loading` / `error` `$state`.
-- [x] **5.2D-4.** [`SeatSettings.svelte`](../client/src/ui/admin/SeatSettings.svelte): wire "Update seat" to `adminTree.updateSeat()`; "Create invite" to `adminTree.createInvite()`; "Revoke invite" to `adminTree.revokeInvite()`; "Delete seat" to `adminTree.deleteSeat()`. Add local `loading` / `error` `$state`.
-- [x] **5.2D-5.** [`AccountDetail.svelte`](../client/src/ui/admin/AccountDetail.svelte): wire "Reset password" to `adminTree.resetPassword()`; "Revoke sessions" to `adminTree.revokeSessions()`; "Disconnect seat" and "Remove account" to the corresponding 501-backed methods — show a visible inline error (not a crash) when a 501 is returned. Add local `loading` / `error` `$state`.
-- [x] **5.2D-6.** Add an Accounts list panel rendered when `selectedId === 'accounts'` (the Accounts root node), following the same pattern as the Campaigns list in `ServerSettings`. Lists all accounts with links to `adminTree.navigateTo(account.id)`.
+**Step 5:** Verify Phase 0:
+
+- [x] `cd server && npm run typecheck` — no new errors.
+- [x] `cd server && npm test -- placeholder` — all existing tests pass.
+- [x] `cd server && npm test -- engine-v0-1` — all existing tests pass.
+- [x] Grep for `ProcessableState` across repo returns zero results.
+- [x] Grep for `as unknown as` in `engine-v0-1.ts` returns zero results.
+
+### Phase 1: Token/Actor CRUD intents
+
+**Step 6:** Extend `ResolverIntent` union in `v0-1/types.ts` with six new kinds. Add `SeatId` to existing shared imports if not already present.
+
+- [x] `{ kind: 'token.create'; tokenId: TokenId; actorId: ActorId; sceneId: SceneId; position: Position; name?: string; imageUrl?: string; hidden?: boolean }`
+- [x] `{ kind: 'token.delete'; tokenId: TokenId }`
+- [x] `{ kind: 'actor.create'; actorId: ActorId; name: string; data?: Record<string, unknown> }`
+- [x] `{ kind: 'actor.delete'; actorId: ActorId }`
+- [x] `{ kind: 'token.linkToActor'; tokenId: TokenId; actorId: ActorId }`
+- [x] `{ kind: 'actor.linkSeat'; actorId: ActorId; seatId: SeatId; permission: 'control' | 'view' }`
+
+**Step 7:** Add six new cases to `processIntent` in `intent-processor.ts`. Each case returns `{ stateMutation, storedEvent, wireEventType, wireEventData }`:
+
+- [x] `token.create`: state mutation creates token object and calls `state.tokens.set(tokenId, newToken)`. Stored event type `token.created`, wire type `token.created`.
+- [x] `token.delete`: state mutation calls `state.tokens.delete(tokenId)`. Stored type `token.deleted`, wire type `token.deleted`. Note: does NOT cascade-delete actor — actor deletion is a separate intent.
+- [x] `actor.create`: state mutation creates actor with `seatPermissions: {}` and `data: data ?? {}`. Calls `state.actors.set(actorId, newActor)`. Stored type `actor.created`, wire type `actor.created`.
+- [x] `actor.delete`: state mutation calls `state.actors.delete(actorId)`. Stored type `actor.deleted`, wire type `actor.deleted`.
+- [x] `token.linkToActor`: state mutation gets existing token, spreads with new `actorId`, calls `state.tokens.set(tokenId, updatedToken)`. Stored type `token.linked`, wire type `token.linked`.
+- [x] `actor.linkSeat`: state mutation gets existing actor, spreads seatPermissions with new entry, calls `state.actors.set(actorId, updatedActor)`. Stored type `actor.seatLinked`, wire type `actor.seatLinked`.
+- [x] Update `collisionKey` function: `token.create` and `token.delete` collide on `tokenId`; `actor.create` and `actor.delete` collide on `actorId`; `token.linkToActor` collides on `tokenId`; `actor.linkSeat` collides on `${actorId}:${seatId}`.
+
+**Step 8:** Add six new baseline resolver entries in `baseline-resolvers.ts`, all exported in `baselineActions` record. Each validates args shape, checks isGM from injected `SeatContext`, and validates referenced entities exist:
+
+- [x] `token.create`: validate tokenId is string and not already in state (helpers.getToken returns undefined — throw if found). Validate actorId exists, sceneId exists, position has numeric x/y. Return one intent.
+- [x] `token.delete`: validate tokenId exists. Return one intent.
+- [x] `actor.create`: validate actorId string not already in state, name is non-empty string. Return one intent.
+- [x] `actor.delete`: validate actorId exists. Return one intent.
+- [x] `token.linkToActor`: validate tokenId exists, actorId exists. Return one intent.
+- [x] `actor.linkSeat`: validate actorId exists, seatId is string, permission is 'control' or 'view'. Return one intent.
+
+**Step 9:** Add CRUD test cases to `engine-v0-1.test.ts`:
+
+- [x] `token.create` as GM → token appears in state, `token.created` event emitted.
+- [x] `token.create` as non-GM → `{ accepted: false }`.
+- [x] `token.create` with duplicate tokenId → throw from resolver.
+- [x] `actor.create` as GM → actor appears, `actor.created` event.
+- [x] `token.delete` as GM → token removed, `token.deleted` event.
+- [x] `token.linkToActor` as GM → token's actorId updated, `token.linked` event.
+- [x] `actor.linkSeat` as GM → actor's seatPermissions updated.
+- [x] `mergeIntents` with same-kind collision: two `token.move` for same tokenId → last wins.
+
+### Verification
+
+- [x] `cd server && npm test -- engine-v0-1` — all tests pass (existing + new CRUD tests).
+- [x] `cd server && npm test -- placeholder` — no regression.
+- [x] `cd server && npm run typecheck` — no errors, ResolverIntent union exhaustiveness-checked.
+- [x] `cd server && npm run lint` — no new violations.
+- [x] Grep for `ProcessableState` across repo — zero results.
+- [x] Grep for `as unknown as` in `engine-v0-1.ts` — zero results.
+- [x] Manual: confirm `types-internal.ts` is not re-exported from `engine/index.ts`.
+
+### Relevant files
+
+- `server/src/domain/engine/types-internal.ts` — **new**. `CampaignState` (11 fields), `BaseEventData`. Engine-internal, never re-exported.
+- `server/src/domain/engine/placeholder.ts` — delete inline CampaignState/BaseEventData, import from `types-internal.ts`, add empty `workflows`/`customData` maps.
+- `server/src/domain/engine/v0-1/types.ts` — add six CRUD intent kinds to `ResolverIntent` union.
+- `server/src/domain/engine/v0-1/intent-processor.ts` — delete `ProcessableState`, accept `CampaignState`, add six new switch cases, update `collisionKey`.
+- `server/src/domain/engine/v0-1/engine-v0-1.ts` — delete inline CampaignState/BaseEventData, import from `types-internal.ts`, delete ProcessableState cast.
+- `server/src/domain/engine/v0-1/baseline-resolvers.ts` — add six CRUD resolvers; export in `baselineActions`.
+- `server/src/domain/engine/v0-1/engine-v0-1.test.ts` — add CRUD test cases.
+- `server/src/domain/engine/index.ts` — **untouched**. No re-export of `types-internal.ts`.
+
+### Decisions
+
+- `CampaignState` lives in `types-internal.ts` as a single source of truth. Both engines import it. Previously duplicated inline in two files.
+- `ProcessableState` is deleted — the subset interface existed only to avoid a circular dependency that never materialized.
+- CRUD operations are baseline resolvers, not a separate admin pipeline. `isGM` check inside each resolver. Ruleset resolvers can override (e.g., conjuration rules allowing non-GM token creation).
+- CRUD dispatch uses the same `EngineInput → resolver → intent → processIntent` pipeline as existing actions. No new code paths.
+- ResolverIntent union grows from 4 to 10 kinds. Switch statement in `intent-processor.ts` grows from 4 to 10 cases (~50 additional lines). Still readable. Registry-pattern refactor deferred until 30+ kinds.
+- No function dedup (`isInAudience`, `audienceForType`, `deriveActionId`) in this pass.
+- Token deletion does NOT cascade-delete the linked actor. Actor deletion does NOT cascade-delete linked tokens. Each is a separate intent. Cleaner semantics, no surprise deletions. Future engine can add a `token.deleteWithActor` compound intent if needed.
+
+### Alternatives Rejected
+
+- **Separate admin pipeline for CRUD:** creation is gameplay (GM spawns enemies mid-combat). Single dispatch surface is simpler. `isGM` check in resolver is the same pattern as existing authorization.
+- **CRUD via `helpers.createToken()` instead of intents:** would mean resolvers mutate state directly via helper side-effects, breaking the "resolver returns intents, engine applies them" contract. Intent model is the single path for state mutation.
+- **Add CRUD intents to the D&D ruleset:** creation is engine-level, not ruleset-level. Every VTT needs it. Baseline resolvers. Ruleset can override if needed.
 
 ---
 

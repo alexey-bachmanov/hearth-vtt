@@ -40,6 +40,7 @@ import type {
 } from './index.js';
 import type { Token, Actor, Scene, Position } from '@hearth-vtt/shared';
 import type { SnapshotBlobV1 } from './snapshot-blob.js';
+import type { CampaignState, BaseEventData } from './types-internal.js';
 import { evaluate } from './dice/index.js';
 
 // ============================================================================
@@ -48,63 +49,6 @@ import { evaluate } from './dice/index.js';
 
 /** Maximum number of recent GameEvents retained in memory for SeatView. */
 const RECENT_EVENTS_LIMIT = 50;
-
-// ============================================================================
-// Module-local campaign state — never exported
-// ============================================================================
-
-/**
- * Engine-internal campaign state.
- *
- * This shape is private to this module. The engine facade never exposes it.
- * All access to campaign state goes through the `GameEngine` interface.
- */
-interface CampaignState {
-  campaignId: string;
-  /**
-   * Per-campaign monotonic sequence counter.
-   *
-   * Tracks the `seq` of the last event applied via `applyEvent()`. Set from
-   * `storage.getMaxEventSeq()` after replay in `open()`, and updated on each
-   * `applyEvent()` call from `stored.seq`.
-   */
-  seq: number;
-  /** ID of the currently active scene, or null if no scene is set. */
-  activeSceneId: string | null;
-  /**
-   * Scene entities keyed by entity/domain ID.
-   *
-   * Invariant: entity ID equals the domain object `id` field. The engine is
-   * the sole writer of scene entities.
-   */
-  scenes: Map<string, Scene>;
-  /** Token entities keyed by entity/domain ID. */
-  tokens: Map<string, Token>;
-  /** Actor entities keyed by entity/domain ID. */
-  actors: Map<string, Actor>;
-  /**
-   * Seat rows cached from storage.
-   *
-   * Used for audience resolution and for building `SeatView`. Loaded on
-   * `open()`; does not auto-refresh. Phase 3 will introduce a refresh path.
-   */
-  seats: Map<string, Seat>;
-  /**
-   * Rolling window of recent `GameEvent`s (up to `RECENT_EVENTS_LIMIT`).
-   *
-   * Used to populate `SeatView.recentEvents` on connect / resync. Oldest
-   * entries are evicted when the window fills.
-   */
-  recentEvents: GameEvent[];
-  /**
-   * Set to `true` by `close()` and by the close-on-apply-throw guard.
-   *
-   * Once closed, `dispatch()` returns `{accepted: false}` immediately and
-   * `subscribe()` is a no-op. `CampaignManager.acquire()` will rebuild the
-   * engine from snapshot + replay on the next connection.
-   */
-  closed: boolean;
-}
 
 // ============================================================================
 // Validation result
@@ -119,34 +63,6 @@ interface CampaignState {
 type ValidationResult =
   | { ok: true; storable: Omit<StorageEvent, 'id' | 'seq' | 'timestamp'> }
   | { ok: false; reason: string };
-
-// ============================================================================
-// Internal event data shapes
-// ============================================================================
-
-/** Fields present on the `data` blob of every engine-emitted event. */
-interface BaseEventData {
-  /** Seat that triggered the action producing this event. */
-  originSeatId: string;
-}
-
-interface _TokenMovedData extends BaseEventData {
-  tokenId: string;
-  from: Position;
-  to: Position;
-}
-
-interface _ChatMessageData extends BaseEventData {
-  text: string;
-  displayName: string;
-}
-
-interface _DiceRolledData extends BaseEventData {
-  formula: string;
-  rolls: number[];
-  total: number;
-  displayName: string;
-}
 
 // ============================================================================
 // Audience helpers
@@ -308,6 +224,8 @@ export class PlaceholderEngine implements GameEngine {
       scenes,
       tokens,
       actors,
+      workflows: new Map(),
+      customData: new Map(),
       seats,
       recentEvents: [],
       closed: false,

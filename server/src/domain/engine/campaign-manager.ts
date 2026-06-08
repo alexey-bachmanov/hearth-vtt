@@ -13,7 +13,8 @@
  * @see docs/todo.md — Engine Boundary Refactor, step 8
  */
 
-import { PlaceholderEngine } from './placeholder.js';
+// import { PlaceholderEngine as Engine } from './placeholder.js';
+import { EngineV01 as Engine } from './v0-1/engine-v0-1.js';
 import type { GameEngine } from './index.js';
 import type { Storage } from '../../storage/index.js';
 
@@ -164,7 +165,7 @@ export class CampaignManager {
   private async openEntry(campaignId: string): Promise<ManagedEntry> {
     try {
       this.log.info('CampaignManager: opening engine campaign=%s', campaignId);
-      const engine = await PlaceholderEngine.open(campaignId, this.storage);
+      const engine = await Engine.open(campaignId, this.storage);
       const entry: ManagedEntry = { engine, refCount: 0, idleTimer: null };
       this.entries.set(campaignId, entry);
       return entry;
