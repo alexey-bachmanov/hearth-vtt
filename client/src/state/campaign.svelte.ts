@@ -245,9 +245,12 @@ export class CampaignState {
     view.actors.forEach((a) => this.actors.set(a.id, a));
 
     // Rebuild event log from recent events in the view
+    // Only chat-displayable events (chat.message, dice.rolled) are included;
+    // CRUD and system events update state via applyEvent() instead.
     this.events = view.recentEvents
       .slice(-this.maxEvents)
-      .map((e) => this.#toUIEvent(e));
+      .map((e) => this.#toUIEvent(e))
+      .filter((e): e is GameEvent => e !== null);
 
     console.debug(
       '[CampaignState] View applied',
@@ -277,12 +280,12 @@ export class CampaignState {
       }
 
       case 'chat.message': {
-        this.appendEvent(this.#toUIEvent(event));
+        this.appendEvent(this.#toUIEvent(event)!);
         break;
       }
 
       case 'dice.rolled': {
-        this.appendEvent(this.#toUIEvent(event));
+        this.appendEvent(this.#toUIEvent(event)!);
         break;
       }
 
@@ -481,7 +484,7 @@ export class CampaignState {
    * Transform a shared `GameEvent` from the server protocol into the
    * client-side UI event format used by the chat log and notification area.
    */
-  #toUIEvent(e: SharedGameEvent): GameEvent {
+  #toUIEvent(e: SharedGameEvent): GameEvent | null {
     const base = { id: e.id, timestamp: Date.parse(e.time) };
 
     switch (e.type) {
@@ -511,7 +514,9 @@ export class CampaignState {
         };
       }
       default:
-        return { ...base, type: 'system', message: `[${e.type}]` };
+        // Non-chat events (token.moved, CRUD, fog, etc.) are not displayed
+        // in the chat log. They update state via applyEvent() instead.
+        return null;
     }
   }
 
