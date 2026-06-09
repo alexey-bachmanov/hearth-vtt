@@ -293,6 +293,122 @@ export class CampaignState {
         break;
       }
 
+      // ── Token CRUD ────────────────────────────────────────────────────────
+
+      case 'token.created': {
+        const d = event.data as {
+          tokenId: string;
+          actorId: string;
+          sceneId: string;
+          position: { x: number; y: number };
+        };
+        this.tokens.set(d.tokenId, {
+          id: d.tokenId,
+          actorId: d.actorId,
+          sceneId: d.sceneId,
+          position: d.position,
+          size: 1,
+          hidden: false,
+        });
+        break;
+      }
+
+      case 'token.deleted': {
+        const d = event.data as { tokenId: string };
+        this.tokens.delete(d.tokenId);
+        this.pendingMoveOriginals.delete(d.tokenId);
+        break;
+      }
+
+      case 'token.linked': {
+        const d = event.data as { tokenId: string; actorId: string };
+        const token = this.tokens.get(d.tokenId);
+        if (token) {
+          this.tokens.set(d.tokenId, { ...token, actorId: d.actorId });
+        }
+        break;
+      }
+
+      // ── Actor CRUD ───────────────────────────────────────────────────────
+
+      case 'actor.created': {
+        const d = event.data as { actorId: string; name: string };
+        this.actors.set(d.actorId, {
+          id: d.actorId,
+          name: d.name,
+          type: 'npc',
+          seatPermissions: {},
+          hp: { current: 1, max: 1 },
+          ac: 10,
+          conditions: [],
+        });
+        break;
+      }
+
+      case 'actor.deleted': {
+        const d = event.data as { actorId: string };
+        this.actors.delete(d.actorId);
+        break;
+      }
+
+      case 'actor.seatLinked': {
+        const d = event.data as {
+          actorId: string;
+          seatId: string;
+          permission: 'control' | 'read';
+        };
+        const actor = this.actors.get(d.actorId);
+        if (actor) {
+          this.actors.set(d.actorId, {
+            ...actor,
+            seatPermissions: {
+              ...actor.seatPermissions,
+              [d.seatId]: d.permission,
+            },
+          });
+        }
+        break;
+      }
+
+      // ── Scene CRUD ───────────────────────────────────────────────────────
+
+      case 'scene.created': {
+        const d = event.data as {
+          sceneId: string;
+          name: string;
+          gridType: 'square' | 'hex' | 'none';
+          gridSize: number;
+          gridScale: string;
+          width: number;
+          height: number;
+        };
+        this.scenes.set(d.sceneId, {
+          id: d.sceneId,
+          name: d.name,
+          gridType: d.gridType,
+          gridSize: d.gridSize,
+          gridScale: d.gridScale,
+          width: d.width,
+          height: d.height,
+        });
+        break;
+      }
+
+      case 'scene.deleted': {
+        const d = event.data as { sceneId: string };
+        this.scenes.delete(d.sceneId);
+        if (this.activeSceneId === d.sceneId) {
+          this.activeSceneId = null;
+        }
+        break;
+      }
+
+      case 'scene.activated': {
+        const d = event.data as { sceneId: string };
+        this.activeSceneId = d.sceneId;
+        break;
+      }
+
       default:
         // Unknown event types are logged but do not cause errors.
         console.warn(
