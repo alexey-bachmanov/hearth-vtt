@@ -28,7 +28,7 @@ Rulesets define schemas and additional action types layered over the engine's ba
 
 ### Manual play is ruleset responsibility
 
-GameEngine does not define built-in actions. All actions (dice rolls, HP adjustments, effect applications) are defined by the loaded Ruleset. Common manual actions should be included in ruleset templates, but deterministic or dice-free games are valid use cases—rulesets are not forced to include dice mechanics.
+The engine provides a baseline set of VTT-universal resolvers: token movement, chat messages, dice rolling, and actor/token/scene CRUD. Rulesets define additional action types layered over this baseline (initiative, HP adjustments, spellcasting, saves, etc.). The engine routes every action through registered resolvers; rulesets may also override baseline resolvers via the composition model.
 
 > This is the canonical statement of this principle. Other documents reference this section.
 
@@ -263,15 +263,9 @@ Multi-step ruleset behavior across user input is modeled as an **explicit workfl
 
 ### Baseline engine (no ruleset loaded)
 
-The baseline engine implements only VTT-universal features: scenes, tokens, minimal actors, dice, chat, drawings, measurements, labels, and fog (one shared player-fog mask per scene). TTRPG-mechanical concepts (initiative, HP, attacks, saves, advantage, encounters, sanity, momentum, etc.) are **ruleset** concerns. Rulesets contribute action types, UI panels, and capability rules; they may also hide built-in tool UI without removing the underlying functionality.
+The baseline engine implements only VTT-universal features: scenes, tokens, minimal actors, dice, chat, drawings, measurements, labels, and fog (per-user visibility masks). TTRPG-mechanical concepts (initiative, HP, attacks, saves, advantage, encounters, sanity, momentum, etc.) are **ruleset** concerns. Rulesets contribute action types, UI panels, and capability rules; they may also hide built-in tool UI without removing the underlying functionality.
 
 See: [`docs/components/ruleset-engine.md`](components/ruleset-engine.md)
-
----
-
-## Effects system
-
-Effects (modifiers and timed conditions) are **ruleset-level concepts**, not part of the engine's baseline surface. Stacking rules, duration tracking, and modifier composition are deferred until at least one ruleset is being built. The baseline engine provides no effects.
 
 ---
 
@@ -287,7 +281,7 @@ Effects (modifiers and timed conditions) are **ruleset-level concepts**, not par
 - The pure geometry function `computeVisibility(...)` lives in `shared/visibility/`, callable from both server (engine) and client (renderer).
 - The **engine** owns the authoritative exploration mask and emits `fog.revealed` events.
 - The **client renderer** uses the same geometry function for an optimistic lit-area overlay that follows token-drag in real time. The exploration mask is _never_ updated optimistically.
-- The baseline uses one shared player-fog mask per scene. Per-seat / multi-source visibility (familiars, parties, hidden-from-allies) is a ruleset concern and deferred.
+- The baseline uses per-user visibility masks. Per-seat / multi-source visibility (familiars, parties, hidden-from-allies) is a ruleset concern and deferred.
 
 See: [`docs/components/client.md`](components/client.md)
 

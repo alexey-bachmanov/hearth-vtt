@@ -160,9 +160,9 @@ The baseline engine knows about:
 - **Drawings** — `drawing.create` / `drawing.delete`; persistent or ephemeral; visible to all or to a chosen audience.
 - **Measurements** — `measurement.start` / `measurement.update` / `measurement.end`; private or shared.
 - **Labels** — `label.create` / `label.delete`.
-- **Fog / exploration mask** — one shared player-fog mask per scene at baseline. GMs see no fog. The engine updates the mask when player-owned tokens move and emits `fog.revealed`.
+- **Fog / exploration mask** — per-user visibility masks at baseline. GMs see no fog. The engine updates the mask when player-owned tokens move and emits `fog.revealed`.
 
-The baseline engine **does not** know about: initiative, turn order, HP, AC, abilities, attacks, spells, slots, saves, advantage, encounters, sanity, momentum, spotlight, factions, conditions, modifiers, stacking, durations.
+The baseline engine **does not** know about: initiative, turn order, HP, AC, abilities, attacks, spells, slots, saves, advantage, encounters, sanity, momentum, spotlight, factions.
 
 Those are _ruleset_ concerns. Rulesets that want them implement them and contribute UI for them.
 
@@ -267,7 +267,7 @@ The engine calls it when authoritative visibility changes (token moves, walls ch
 
 On optimistic token move: the client moves the token, recomputes the lit polygon from the new position, and renders both. On server accept (`token.moved` event), state matches and there's nothing visible to do. On server reject (`token.move.rejected`), the client snaps the token back and the lit polygon updates automatically because it's derived from position.
 
-The baseline uses **one shared player-fog mask per scene**. Multi-source visibility (per-token, per-party, hidden-from-allies) is a ruleset concern and is deferred.
+The baseline uses **per-user visibility masks**. Multi-source visibility (per-token, per-party, hidden-from-allies) is a ruleset concern and is deferred.
 
 ---
 
@@ -277,10 +277,8 @@ These are real problems that will need design work. They are _not_ part of the e
 
 - **Scripting runtime for rulesets** (QuickJS vs. Lua vs. direct TS imports). Final choice waits until the engine interior is being designed. The constraint that rules it: pause-and-resume must be modeled as durable workflow state, not as coroutines/promises in the host language.
 - **Ruleset / Tome / Engine / Campaign relationship.** Currently tightly coupled and vaguely specified. Detangling is a separate design pass.
-- **Effects and modifier stacking.** One of the harder problems in TTRPG automation. Deferred until at least one ruleset is being built so the design has a concrete user.
-- **Multi-prompt groups.** A "respond to all six saves" workflow needs an internal grouping concept. The wire format (one event per seat) is decided; the internal grouping shape is deferred.
 - **Triggers and chain reactions.** The previous design had reentrancy with a recursion limit; the new design defers triggers entirely until the engine interior is designed.
-- **Per-seat / multi-source visibility masks.** Baseline has one shared mask; ruleset-driven multi-source visibility comes later.
+- **Per-seat / multi-source visibility masks.** Baseline has per-user masks; ruleset-driven multi-source visibility comes later.
 - **`PanelContent` shape for ruleset-contributed UI.** Reserved in `SeatView` as an opaque field; concrete shape comes with the ruleset interior design.
 - **Hot-reload of rulesets during play.** Useful for authoring; out of scope for now.
 

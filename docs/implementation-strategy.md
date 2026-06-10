@@ -20,9 +20,9 @@
   - [Phase 4 — Wire Chat + Dice; Complete M2](#phase-4--wire-chat--dice-complete-m2)
   - [Phase 5 — Player Auth](#phase-5--player-auth)
   - [Phase 6 — Campaign Creation & Lifecycle](#phase-6--campaign-creation--lifecycle)
-  - [Phase 7 — DSL & RulesetRuntime](#phase-7--dsl--rulesetruntime)
+  - [Phase 7 — Ruleset Runtime (deferred design)](#phase-7--ruleset-runtime-deferred-design)
   - [Phase 8 — Example Ruleset & Tome](#phase-8--example-ruleset--tome)
-  - [Phase 9 — Effects & Workflows](#phase-9--effects--workflows)
+  - [Phase 9 — Workflows](#phase-9--workflows)
   - [Phase 10 — Advanced Rendering](#phase-10--advanced-rendering)
   - [Phase 11 — File Formats & Portability](#phase-11--file-formats--portability)
   - [Phase 12 — Production Hardening](#phase-12--production-hardening)
@@ -200,7 +200,7 @@ Replaces the stub `render/index.ts` with a real PixiJS-backed renderer. Builds t
 > **Dependencies:** Phase 0; Phase 2 complete  
 > **Authority:** [ADR 011](decisions/011-engine-facade-and-dsl-reversal.md)
 
-Locks down the engine boundary before Phase 3 builds against it. Replaces the previously-planned patches-on-wire model with events + SeatView. Inserts a minimal placeholder engine that exposes the boundary shape; the engine _interior_ (RulesetRuntime, ruleset scripting runtime, effects, workflows) remains deferred.
+Locks down the engine boundary before Phase 3 builds against it. Replaces the previously-planned patches-on-wire model with events + SeatView. Inserts a minimal placeholder engine that exposes the boundary shape; the engine _interior_ (RulesetRuntime, ruleset scripting runtime, workflows) remains deferred.
 
 #### Tasks
 
@@ -472,8 +472,7 @@ The previous plan in this slot was "DSL & RulesetRuntime" — a custom JSON DSL 
 
 1. **Choose the ruleset runtime form.** Options under consideration: direct TypeScript modules (first-party only); sandboxed QuickJS for untrusted distribution; Lua. The constraint that rules it: pause-and-resume across user input must be modeled as durable workflow state, **not** host-language coroutines or promises.
 2. **Design the Engine ↔ Ruleset interior contract.** How rulesets register action types, capabilities, schemas, and UI panels with the engine; how the engine invokes resolver code; how rulesets read campaign state without violating the boundary.
-3. **Design effects and modifier stacking.** Deferred until at least one ruleset is being built so the design has a concrete user.
-4. **Untangle Engine / Ruleset / Campaign / Tome.** This relationship is currently underspecified; the design pass produces an ADR or replacement for parts of ADR 004.
+3. **Untangle Engine / Ruleset / Campaign / Tome.** This relationship is currently underspecified; the design pass produces an ADR or replacement for parts of ADR 004.
 
 #### Implementation pass (after design)
 
@@ -498,7 +497,7 @@ Concrete content to prove the system works end-to-end.
 
 #### Tasks
 
-1. **Minimal ruleset** (e.g. "HearthCore"). Define schemas for Actor (HP, AC, stats, proficiency), Token, Scene. Define actions: `attack.melee`, `attack.ranged`, `cast.spell`, `roll.ability`, `roll.save`, `roll.initiative`. Write DSL resolvers for each.
+1. **Minimal ruleset** (e.g. "HearthCore"). Define schemas for Actor (HP, AC, stats, proficiency), Token, Scene. Define actions: `attack.melee`, `attack.ranged`, `cast.spell`, `roll.ability`, `roll.save`, `roll.initiative`. Write resolvers for each.
 
 2. **Example tome** (e.g. "SRD Basics"). Weapons (longsword, shortbow), Spells (fire bolt, cure wounds, fireball with AoE), Monsters (goblin, dragon), Features (rage, sneak attack).
 
@@ -516,25 +515,23 @@ Concrete content to prove the system works end-to-end.
 
 ### Phase 9 — Effects & Workflows
 
-> **Estimated effort:** ~3–4 weeks  
-> **Track:** C  
+Workflows
+
+> **Estimated effort:** ~2–3 weeks
+> **Track:** C
 > **Dependencies:** Phase 7, Phase 8
 
 #### Tasks
 
-1. **Effects system.** `applyEffect` / `removeEffect` operations. Duration tracking (rounds, turn start/end, save ends). Modifier aggregation (`getStatModifiers`, `getRollModifiers`). Derived stat recomputation when effects change.
+1. **Multi-step workflows.** Full `WorkflowState` lifecycle: create → prompt for input → receive response → continue → resolve. Expiration/cancellation. Test with concentration save example.
 
-2. **Multi-step workflows.** Full `WorkflowState` lifecycle: create → prompt for input → receive response → continue → resolve. Expiration/cancellation. Test with concentration save example.
+2. **Encounter system.** `encounter.create` → `encounter.collectInitiative` → `encounter.advanceTurn`. Turn order tracking in `CampaignState`. UI turn indicator.
 
-3. **Encounter system.** `encounter.create` → `encounter.collectInitiative` → `encounter.advanceTurn`. Turn order tracking in `CampaignState`. UI turn indicator.
-
-4. **Triggered actions.** `resolveTriggered(event, ctx)` for on-hit effects, reactions, aura triggers. Recursion limit (20). Test with "fire shield deals damage when hit" scenario.
+3. **Triggered actions.** `resolveTriggered(event, ctx)` for on-hit effects, reactions, aura triggers. Recursion limit (20). Test with "fire shield deals damage when hit" scenario.
 
 #### Verification
 
-Run a simulated combat encounter: initiative → turns → attacks with advantage from effects → concentration checks → triggered reactions. All state changes visible in both clients.
-
----
+## Run a simulated combat encounter: initiative → turns → attacks with advantage from triggered condition
 
 ### Phase 10 — Advanced Rendering
 
@@ -614,7 +611,7 @@ Phase 1   Phase 2        Phase 3
                           │
               ┌───────────┤
               ▼           ▼
-         Phase 6     Phase 7 (DSL + RulesetRuntime)
+         Phase 6     Phase 7 (Ruleset Runtime)
          (Campaign        │
           Creation)       ▼
               │      Phase 8 (Example Content)

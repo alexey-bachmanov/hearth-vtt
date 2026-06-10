@@ -88,7 +88,7 @@ These are _campaign state_ — they need to be persisted, shared across seats, a
 
 Visibility _geometry_ (the pure function `computeVisibility(tokenPos, visionParams, walls, sceneBounds) → polygon | cellset`) lives in `shared/visibility/` because both the renderer (for optimistic lit-area overlay) and the engine (for authoritative exploration updates) call it. The renderer never updates the exploration mask optimistically; only the lit overlay (which is derived from token position) is optimistic, so token snap-back on rejection produces correct visual rollback automatically.
 
-The previous baseline of "per-user visibility masks" simplifies to **one shared player-fog mask per scene** for the engine's baseline. GMs see no fog. Multiple-vision-source rulesets (per-token party fog, hidden-from-allies, etc.) are a ruleset concern and will be layered later when the inside-the-boundary design happens.
+The previous baseline of "per-user visibility masks" was simplified to "one shared player-fog mask per scene" in an earlier draft of this ADR. That simplification has since been reversed: the engine baseline uses **per-user visibility masks**. GMs see no fog. Multiple-vision-source rulesets (per-token party fog, hidden-from-allies, etc.) are a ruleset concern and will be layered later when the inside-the-boundary design happens.
 
 ### 5. The baseline engine implements only the VTT-universal feature set
 
@@ -155,7 +155,7 @@ The relationship between Engine, RulesetRuntime, Campaign, Ruleset, and Tome rem
 - **Patch the previous DSL design.** Rejected: every patch surfaced another problem (workflow / prompt / trigger overlap, RNG durability, effects-stacking handwave). The cost of fixing them was higher than the cost of replacing the design with a smaller one and deferring the rest.
 - **Adopt an existing scripting runtime now (QuickJS, Lua, Wasm).** Rejected for _now_: choosing the runtime before the engine interior is designed locks us into the runtime's pause/resume model before we know what we need. Deferred to the engine-interior design phase.
 - **Keep patches as the wire protocol.** Rejected: the client doesn't need to know about state shape granularly enough to consume patches. Events are higher-level, easier to render, and don't leak engine internals.
-- **Per-seat visibility masks at baseline.** Rejected as overcomplicated for baseline. Single shared player-fog mask is the smallest thing that satisfies the universal VTT need. Per-seat masks return as a ruleset feature.
+- **Per-seat visibility masks at baseline.** Rejected in the original ADR as overcomplicated in favor of one shared mask. This sub-decision has since been reversed: the engine baseline uses **per-user visibility masks**. Per-seat masks are the smallest correct primitive; a shared mask can be built on top as a ruleset feature, but the reverse (deriving per-seat from shared) is not possible without losing information.
 - **Engine emits Resolutions; transport layer converts to events.** Rejected: the engine already knows what's an event; making the transport layer redo that classification is duplication.
 
 ## Consequences

@@ -367,16 +367,7 @@ export type Prompt = {
 
 ## Tags (TBD)
 
-Tags are string identifiers used for effect/modifier matching. They appear in `EffectDef`, roll modifier queries, and target filtering.
-
-```ts
-// Example usage (structure TBD):
-// - Effect tags: ["condition:prone", "source:spell"]
-// - Roll modifier query: getRollModifiers(actorId, ["attack", "melee"])
-// - Target filter: { tokenTagsAny: ["hostile", "undead"] }
-```
-
-> **⚠️ TBD:** Full tag taxonomy and structure will be defined during effects system implementation.
+Tags are string identifiers for entity classification and ruleset-specific filtering. The full tag taxonomy is deferred until a concrete ruleset demands it.
 
 ---
 

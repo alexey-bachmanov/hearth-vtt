@@ -552,7 +552,7 @@ Tome entries can reference resolver templates from the Ruleset:
   "description": "A bright streak flashes...",
 
   "automation": {
-    "templateId": "spell.aoe-save-damage",
+    "actionType": "spell.cast",
     "params": {
       "aoeShape": "sphere",
       "aoeRadius": 20,
@@ -566,7 +566,7 @@ Tome entries can reference resolver templates from the Ruleset:
 }
 ```
 
-The Ruleset provides `spell.aoe-save-damage` as a parameterized resolver template. The Tome provides the specific parameters.
+> **Note:** The automation shape is deferred. The `fireball` example above shows a plausible shape for ruleset-defined spell data, but the actual field structure and resolver binding mechanism have not been finalized. See [ADR 011](../decisions/011-engine-facade-and-dsl-reversal.md).
 
 ---
 
