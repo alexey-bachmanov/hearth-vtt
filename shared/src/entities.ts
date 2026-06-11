@@ -73,20 +73,8 @@ export const sceneSchema = z.object({
   name: z.string(),
   /**
    * Background media for this scene.
-   *
-   * Replaces the legacy `mapImageUrl` field. When both are present, `background`
-   * takes precedence. When only `mapImageUrl` is present, the renderer falls back
-   * to treating it as `{ kind: 'image', url: mapImageUrl }`.
    */
   background: sceneBackgroundSchema.optional(),
-  /**
-   * @deprecated Use `background` instead.
-   *
-   * Legacy static image URL. Kept for backward compatibility during the
-   * transition to the discriminated `background` field. Will be removed once
-   * all scene data uses `background`.
-   */
-  mapImageUrl: z.string().optional(),
   /** Grid type for this scene. */
   gridType: gridTypeSchema,
   /** Pixels per grid cell (e.g. 50 means one 50×50 px square = one grid unit). */
@@ -97,6 +85,13 @@ export const sceneSchema = z.object({
   width: z.number(),
   /** Total scene height in pixels (background image / video native height). */
   height: z.number(),
+  /**
+   * Opaque gameplay data blob.
+   *
+   * Rulesets store scene-specific state here. The core engine never inspects
+   * the contents.
+   */
+  data: z.record(z.string(), z.unknown()),
 });
 
 /**
@@ -118,6 +113,10 @@ export const tokenSchema = z.object({
   actorId: z.string(),
   /** The scene this token is placed in. */
   sceneId: z.string(),
+  /** Display name shown above the token on the map. */
+  name: z.string(),
+  /** URL of the token image/icon displayed on the map. */
+  imageUrl: z.string(),
   /** World-space position (top-left of bounding box), in pixels. */
   position: positionSchema,
   /** Size in grid squares (1 = medium / 1×1, 2 = large / 2×2, etc.). */
@@ -126,15 +125,20 @@ export const tokenSchema = z.object({
   rotation: z.number().optional(),
   /** If true, the token is hidden from players and visible only to the GM. */
   hidden: z.boolean().optional(),
+  /**
+   * Opaque gameplay data blob.
+   *
+   * Rulesets store token-specific state here. The core engine never inspects
+   * the contents.
+   */
+  data: z.record(z.string(), z.unknown()),
 });
 
 /**
  * A token placed on a scene.
  *
  * A token is the visual representation of an actor on the map. Multiple tokens
- * can reference the same actor (e.g. summoned duplicates, familiars). Token
- * state (position, visibility) is scene-specific; actor state (HP, inventory)
- * is shared across all tokens for that actor.
+ * can reference the same actor (e.g. summoned duplicates, familiars).
  */
 export type Token = z.infer<typeof tokenSchema>;
 
@@ -153,41 +157,26 @@ export const actorSchema = z.object({
   /** Display name. */
   name: z.string(),
   /**
-   * Actor category.
-   *
-   * - `pc`      — player character (controlled by a seat)
-   * - `npc`     — non-player character (controlled by the GM)
-   * - `monster` — creature from a tome/compendium (controlled by the GM)
-   */
-  type: z.enum(['pc', 'npc', 'monster']),
-  /**
    * Per-seat permission map.
    *
    * Keys are seat IDs; values are `'control'` (full edit access) or `'read'`
    * (view-only). GM-role seats have implicit full access and are not listed here.
    */
   seatPermissions: z.record(actorSeatPermissionSchema),
-  /** Hit points. */
-  hp: z.object({
-    current: z.number(),
-    max: z.number(),
-  }),
-  /** Armor class. */
-  ac: z.number(),
-  /** Class level (optional — only for levelled PCs). */
-  level: z.number().optional(),
-  /** Character class name (optional). */
-  class: z.string().optional(),
-  /** True when the actor is concentrating on a spell or effect. */
-  isConcentrating: z.boolean().optional(),
-  /** Active condition names (e.g. "Poisoned", "Prone"). */
-  conditions: z.array(z.string()).optional(),
+  /**
+   * Opaque gameplay data blob.
+   *
+   * Rulesets store game-mechanics state here (HP, stats, inventory, etc.).
+   * The core engine never inspects the contents — it is passed through to
+   * ruleset resolvers and client UI components.
+   */
+  data: z.record(z.string(), z.unknown()),
 });
 
 /**
  * An actor (character, creature, or NPC) in a campaign.
  *
- * Actors hold game-mechanics state (HP, conditions, inventory). Their visual
+ * Actors hold game-mechanics state in the opaque `data` blob. Their visual
  * presence on a scene is represented by one or more Token objects.
  */
 export type Actor = z.infer<typeof actorSchema>;

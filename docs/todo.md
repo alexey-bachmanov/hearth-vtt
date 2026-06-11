@@ -10,129 +10,206 @@ As work completes, check off tasks.
 
 > ⚠️ **CSP BLOCKER:** Any feature rendering user-supplied text — chat, journals, handouts, character bios, or ruleset custom UI — **must** land after strict Content-Security-Policy enforcement and input sanitization. Before building any such feature, ask: "Does this render user text?"
 
-## Engine v0.1 — Internal Types + Token/Actor CRUD
+## Engine v0.2 — Schema De-D&D-ification
 
-Two sequential mini-phases on top of the completed ResolverIntent refactor:
+Strip all D&D-specific and premature type assumptions from `shared/`, `server/src/domain/engine/`, and `server/src/storage/` tests. Replace engine-opaque gameplay data with `data: Record<string, unknown>` blobs on Actor, Token, Scene. Remove unused types (EntityRef, SourceRef, Items, Effects from enums, deprecated `mapImageUrl`). Add `actor.replaceData`, `token.replaceData`, `scene.replaceData` intents. Break the client intentionally — rebuild in a separate pass.
 
-**Phase 0:** Extract `CampaignState` and `BaseEventData` into `types-internal.ts`, eliminating `ProcessableState` and the dishonest cast. Both engines import from a single source.
+### Phase 1: Shared Types Cleanup
 
-**Phase 1:** Add six token/actor CRUD intents to the resolver pipeline — `token.create`, `token.delete`, `actor.create`, `actor.delete`, `token.linkToActor`, `actor.linkSeat`. GM-gated via `isGM` check in each resolver. No separate admin pipeline.
+**Step 1:** Update `shared/src/entities.ts` — Actor schema and type:
 
-**This is throwaway code per the v0.x commitment.** Placeholder engine is modified only to import from `types-internal.ts` (no behavioral change). No production wiring is touched.
+- [ ] Remove fields: `type`, `hp`, `ac`, `level`, `class`, `isConcentrating`, `conditions`
+- [ ] Add field: `data: z.record(z.string(), z.unknown())` (Zod) / `data: Record<string, unknown>` (TS)
+- [ ] Update JSDoc to remove D&D-specific references
 
-### Phase 0: Extract internal types
+**Step 2:** Update `shared/src/entities.ts` — Token schema and type:
 
-**Step 1:** Create `server/src/domain/engine/types-internal.ts`:
+- [ ] Add `name: z.string()` (required)
+- [ ] Add `imageUrl: z.string()` (required)
+- [ ] Add `data: z.record(z.string(), z.unknown())`
 
-- [x] `CampaignState` — canonical shape with 11 fields: `campaignId`, `seq`, `activeSceneId`, `scenes`, `tokens`, `actors`, `workflows`, `customData`, `seats`, `recentEvents`, `closed`. Import `Workflow` from `v0-1/types.ts`; import `Token`, `Actor`, `Scene`, `Seat`, `GameEvent`, `WorkflowId` from shared.
-- [x] `BaseEventData` — `{ originSeatId?: string }`.
-- [x] Never re-exported from `engine/index.ts`. Engine-internal only.
+**Step 3:** Update `shared/src/entities.ts` — Scene schema and type:
 
-**Step 2:** Update `placeholder.ts`:
+- [ ] Remove `mapImageUrl: z.string().optional()`
+- [ ] Add `data: z.record(z.string(), z.unknown())`
 
-- [x] Delete inline `interface CampaignState { ... }` and `interface BaseEventData { ... }`.
-- [x] Add `import type { CampaignState, BaseEventData } from './types-internal.js'`.
-- [x] In `open()` factory, add `workflows: new Map()` and `customData: new Map()` to the state initializer before the `new PlaceholderEngine` call. These maps sit empty and unused — no behavioral change.
+**Step 4:** Update `shared/src/enums.ts`:
 
-**Step 3:** Update `engine-v0-1.ts`:
+- [ ] Remove `'item'` and `'effect'` from `entityTypeSchema` — result: `['actor', 'token', 'workflow', 'scene']`
 
-- [x] Delete inline `interface CampaignState { ... }` and `interface BaseEventData { ... }`.
-- [x] Add `import type { CampaignState, BaseEventData } from '../types-internal.js'`.
-- [x] Delete `import { type ProcessableState } from './intent-processor.js'`.
-- [x] Delete `as unknown as ProcessableState` cast on dispatch line — pass `this.state` directly.
+**Step 5:** Delete `shared/src/refs.ts`:
 
-**Step 4:** Update `intent-processor.ts`:
+- [ ] Remove `EntityRef`, `SourceRef`, `entityRefSchema`, `sourceRefSchema` — file has zero consumers
 
-- [x] Delete `ProcessableState` interface.
-- [x] Add `import type { CampaignState } from '../types-internal.js'`.
-- [x] Change `processIntent` second param from `state: ProcessableState` to `state: CampaignState`.
-- [x] Verify: all `state.tokens` and `state.workflows` accesses still compile — `CampaignState` has both.
+**Step 6:** Update `shared/src/index.ts`:
 
-**Step 5:** Verify Phase 0:
+- [ ] Remove `entityRefSchema`, `EntityRef`, `sourceRefSchema`, `SourceRef` exports
+- [ ] Verify updated `actorSchema`, `tokenSchema`, `sceneSchema`, `entityTypeSchema` are re-exported
 
-- [x] `cd server && npm run typecheck` — no new errors.
-- [x] `cd server && npm test -- placeholder` — all existing tests pass.
-- [x] `cd server && npm test -- engine-v0-1` — all existing tests pass.
-- [x] Grep for `ProcessableState` across repo returns zero results.
-- [x] Grep for `as unknown as` in `engine-v0-1.ts` returns zero results.
+**Step 7:** Update `shared/src/engine.ts` — comments only:
 
-### Phase 1: Token/Actor CRUD intents
+- [ ] Lines 72, 80: change "hidden HP" example to generic "per-seat actor data visibility" text
 
-**Step 6:** Extend `ResolverIntent` union in `v0-1/types.ts` with six new kinds. Add `SeatId` to existing shared imports if not already present.
+### Phase 2: Engine Types Update
 
-- [x] `{ kind: 'token.create'; tokenId: TokenId; actorId: ActorId; sceneId: SceneId; position: Position; name?: string; imageUrl?: string; hidden?: boolean }`
-- [x] `{ kind: 'token.delete'; tokenId: TokenId }`
-- [x] `{ kind: 'actor.create'; actorId: ActorId; name: string; data?: Record<string, unknown> }`
-- [x] `{ kind: 'actor.delete'; actorId: ActorId }`
-- [x] `{ kind: 'token.linkToActor'; tokenId: TokenId; actorId: ActorId }`
-- [x] `{ kind: 'actor.linkSeat'; actorId: ActorId; seatId: SeatId; permission: 'control' | 'view' }`
+**Step 8:** Update `server/src/domain/engine/v0-2/types.ts` — `ResolverIntent` union:
 
-**Step 7:** Add six new cases to `processIntent` in `intent-processor.ts`. Each case returns `{ stateMutation, storedEvent, wireEventType, wireEventData }`:
+- [ ] `actor.create`: add `data: Record<string, unknown>` (required), add `seatPermissions?: Record<string, 'control' | 'read'>`
+- [ ] `token.create`: add `data: Record<string, unknown>` (required)
+- [ ] `scene.create`: add `data: Record<string, unknown>` (required)
+- [ ] Add `{ kind: 'actor.replaceData'; actorId: string; data: Record<string, unknown> }`
+- [ ] Add `{ kind: 'token.replaceData'; tokenId: string; data: Record<string, unknown> }`
+- [ ] Add `{ kind: 'scene.replaceData'; sceneId: string; data: Record<string, unknown> }`
 
-- [x] `token.create`: state mutation creates token object and calls `state.tokens.set(tokenId, newToken)`. Stored event type `token.created`, wire type `token.created`.
-- [x] `token.delete`: state mutation calls `state.tokens.delete(tokenId)`. Stored type `token.deleted`, wire type `token.deleted`. Note: does NOT cascade-delete actor — actor deletion is a separate intent.
-- [x] `actor.create`: state mutation creates actor with `seatPermissions: {}` and `data: data ?? {}`. Calls `state.actors.set(actorId, newActor)`. Stored type `actor.created`, wire type `actor.created`.
-- [x] `actor.delete`: state mutation calls `state.actors.delete(actorId)`. Stored type `actor.deleted`, wire type `actor.deleted`.
-- [x] `token.linkToActor`: state mutation gets existing token, spreads with new `actorId`, calls `state.tokens.set(tokenId, updatedToken)`. Stored type `token.linked`, wire type `token.linked`.
-- [x] `actor.linkSeat`: state mutation gets existing actor, spreads seatPermissions with new entry, calls `state.actors.set(actorId, updatedActor)`. Stored type `actor.seatLinked`, wire type `actor.seatLinked`.
-- [x] Update `collisionKey` function: `token.create` and `token.delete` collide on `tokenId`; `actor.create` and `actor.delete` collide on `actorId`; `token.linkToActor` collides on `tokenId`; `actor.linkSeat` collides on `${actorId}:${seatId}`.
+**Step 9:** Verify `ResolverApi` in `types.ts`:
 
-**Step 8:** Add six new baseline resolver entries in `baseline-resolvers.ts`, all exported in `baselineActions` record. Each validates args shape, checks isGM from injected `SeatContext`, and validates referenced entities exist:
+- [ ] `getActor`, `getToken`, `getScene` return types auto-update from shared — no explicit changes needed
 
-- [x] `token.create`: validate tokenId is string and not already in state (helpers.getToken returns undefined — throw if found). Validate actorId exists, sceneId exists, position has numeric x/y. Return one intent.
-- [x] `token.delete`: validate tokenId exists. Return one intent.
-- [x] `actor.create`: validate actorId string not already in state, name is non-empty string. Return one intent.
-- [x] `actor.delete`: validate actorId exists. Return one intent.
-- [x] `token.linkToActor`: validate tokenId exists, actorId exists. Return one intent.
-- [x] `actor.linkSeat`: validate actorId exists, seatId is string, permission is 'control' or 'view'. Return one intent.
+### Phase 3: Intent Processor Update
 
-**Step 9:** Add CRUD test cases to `engine-v0-1.test.ts`:
+**Step 10:** Update `intent-processor.ts` — `actor.create` case:
 
-- [x] `token.create` as GM → token appears in state, `token.created` event emitted.
-- [x] `token.create` as non-GM → `{ accepted: false }`.
-- [x] `token.create` with duplicate tokenId → throw from resolver.
-- [x] `actor.create` as GM → actor appears, `actor.created` event.
-- [x] `token.delete` as GM → token removed, `token.deleted` event.
-- [x] `token.linkToActor` as GM → token's actorId updated, `token.linked` event.
-- [x] `actor.linkSeat` as GM → actor's seatPermissions updated.
-- [x] `mergeIntents` with same-kind collision: two `token.move` for same tokenId → last wins.
+- [ ] Change `newActor` from `{ id, name, type: 'npc', hp: {...}, ac: 10, conditions: [], ...data as Partial<Actor> }` to `{ id, name, seatPermissions: {}, data: intent.data }`
+- [ ] Update stored/wire event data
 
-### Verification
+**Step 11:** Update `intent-processor.ts` — `token.create` case:
 
-- [x] `cd server && npm test -- engine-v0-1` — all tests pass (existing + new CRUD tests).
-- [x] `cd server && npm test -- placeholder` — no regression.
-- [x] `cd server && npm run typecheck` — no errors, ResolverIntent union exhaustiveness-checked.
-- [x] `cd server && npm run lint` — no new violations.
-- [x] Grep for `ProcessableState` across repo — zero results.
-- [x] Grep for `as unknown as` in `engine-v0-1.ts` — zero results.
-- [x] Manual: confirm `types-internal.ts` is not re-exported from `engine/index.ts`.
+- [ ] Change construction to: `{ id, actorId, sceneId, position, size: 1, name: intent.name ?? '', imageUrl: intent.imageUrl ?? '', hidden: intent.hidden ?? false, data: intent.data }`
+
+**Step 12:** Update `intent-processor.ts` — `scene.create` case:
+
+- [ ] Remove `...(data as Partial<Scene>)` spread — Scene defaults are hard-coded, `data` goes into the new `data` field
+
+**Step 13:** Add three new `processIntent` switch cases:
+
+- [ ] `actor.replaceData`: state mutates `state.actors.get(actorId).data = intent.data`; stored type `actor.dataReplaced`; wire type `actor.dataReplaced`
+- [ ] `token.replaceData`: same pattern for tokens
+- [ ] `scene.replaceData`: same pattern for scenes
+- [ ] Each no-ops on missing entity
+
+### Phase 4: Baseline Resolvers Update
+
+**Step 14:** Update `baseline-resolvers.ts` — `actor.create` resolver:
+
+- [ ] Extract `data` and `seatPermissions` from args; validate `data` is an object
+- [ ] Pass through to intent: `{ kind: 'actor.create', actorId, name, data, ...(seatPermissions ? { seatPermissions } : {}) }`
+
+**Step 15:** Update `baseline-resolvers.ts` — `token.create` resolver:
+
+- [ ] Extract `data` from args; validate `data` is an object
+- [ ] Pass through to intent: `{ kind: 'token.create', tokenId, actorId, sceneId, position, name, imageUrl, hidden, data }`
+
+**Step 16:** Update `baseline-resolvers.ts` — `scene.create` resolver:
+
+- [ ] Extract `data` from args; validate `data` is an object
+- [ ] Pass through to intent
+
+**Step 17:** Add three new resolvers to `baselineActions`:
+
+- [ ] `actor.replaceData`: GM-gated, validates actorId exists, validates data is object, returns replace-data intent
+- [ ] `token.replaceData`: same pattern
+- [ ] `scene.replaceData`: same pattern
+
+### Phase 5: Engine Review
+
+**Step 18:** Review `engine-v0-2.ts` for inline entity construction:
+
+- [ ] `getView`: still filters by `seatId in actor.seatPermissions` — correct
+- [ ] `open()`: snapshot deserialization auto-updates with new types
+- [ ] `ResolverApi` construction: return types auto-update
+
+**Step 19:** Review `snapshot-blob.ts`:
+
+- [ ] Uses `Record<string, Actor>` etc. — auto-updates. No changes needed.
+
+### Phase 6: Ruleset & Storage Test Updates
+
+**Step 20:** Update `ruleset-dnd.ts`:
+
+- [ ] Verify `token.move` resolver doesn't reference removed Actor fields (hp, ac, etc.)
+- [ ] If it does, change to `actor.data.hp` etc.
+
+**Step 21:** Update `sqlite-storage.test.ts`:
+
+- [ ] Remove or update tests using `type: 'item'` EntityType
+
+**Step 22:** Update `shared/src/example.test.ts`:
+
+- [ ] Fix any references to removed Actor fields or removed types
+
+### Phase 7: Client Break (Minimal)
+
+**Step 23:** Update client files:
+
+- [ ] `ActorPill.svelte`: comment out D&D-specific rendering (hp bar, ac, level/class, conditions, concentration), keep name display only
+- [ ] `ActorPill.test.ts`: comment out D&D-specific tests
+- [ ] `window/index.ts`: comment out `InitiativeModal` export
+- [ ] `BackgroundLayer.ts`: remove `scene?.mapImageUrl` fallback, use only `scene?.background?.url`
+- [ ] `campaign.svelte.test.ts`: remove `mapImageUrl: ''` from scene data
+- [ ] `seatPermissions.svelte.test.ts`: remove `mapImageUrl: ''` from scene data
+- [ ] Grep for any other references to removed fields and update
+
+**Step 24:** Client build verification:
+
+- [ ] `cd client && npx tsc --noEmit` — expected failures only in ActorPill and InitiativeModal
+- [ ] No UNINTENTIONAL breaks (map rendering, token display, etc.)
+
+### Phase 8: Build & Test Verification
+
+**Step 25:** Shared package:
+
+- [ ] `cd shared && npm run build && npm test`
+
+**Step 26:** Server package:
+
+- [ ] `cd server && npx tsc --noEmit`
+- [ ] `cd server && npm test`
+
+**Step 27:** Full verification grep:
+
+- [ ] No `\bhp\b`, `\bac\b`, `\blevel\b`, `\bclass\b`, `isConcentrating`, `\bconditions\b` in .ts/.svelte files (except commented-out code and design docs)
+- [ ] No `mapImageUrl` outside design docs
+- [ ] No `EntityRef`/`SourceRef` outside design docs
+- [ ] No `'item'` in EntityType context outside design docs
 
 ### Relevant files
 
-- `server/src/domain/engine/types-internal.ts` — **new**. `CampaignState` (11 fields), `BaseEventData`. Engine-internal, never re-exported.
-- `server/src/domain/engine/placeholder.ts` — delete inline CampaignState/BaseEventData, import from `types-internal.ts`, add empty `workflows`/`customData` maps.
-- `server/src/domain/engine/v0-1/types.ts` — add six CRUD intent kinds to `ResolverIntent` union.
-- `server/src/domain/engine/v0-1/intent-processor.ts` — delete `ProcessableState`, accept `CampaignState`, add six new switch cases, update `collisionKey`.
-- `server/src/domain/engine/v0-1/engine-v0-1.ts` — delete inline CampaignState/BaseEventData, import from `types-internal.ts`, delete ProcessableState cast.
-- `server/src/domain/engine/v0-1/baseline-resolvers.ts` — add six CRUD resolvers; export in `baselineActions`.
-- `server/src/domain/engine/v0-1/engine-v0-1.test.ts` — add CRUD test cases.
-- `server/src/domain/engine/index.ts` — **untouched**. No re-export of `types-internal.ts`.
+- `shared/src/entities.ts` — Actor, Token, Scene schemas
+- `shared/src/enums.ts` — EntityType enum
+- `shared/src/refs.ts` — **DELETE**
+- `shared/src/index.ts` — barrel exports
+- `shared/src/engine.ts` — comment updates
+- `server/src/domain/engine/v0-2/types.ts` — ResolverIntent
+- `server/src/domain/engine/v0-2/intent-processor.ts` — CRUD + replaceData cases
+- `server/src/domain/engine/v0-2/baseline-resolvers.ts` — create + replaceData resolvers
+- `server/src/domain/engine/v0-2/ruleset-dnd.ts` — verify
+- `client/src/ui/canvas/ActorPill.svelte` — comment out D&D rendering
+- `client/src/ui/canvas/ActorPill.test.ts` — comment out D&D tests
+- `client/src/ui/window/index.ts` — comment out InitiativeModal
+- `client/src/render/pixi/layers/BackgroundLayer.ts` — remove mapImageUrl
+- `client/src/state/campaign.svelte.test.ts` — remove mapImageUrl
+- `client/src/state/seatPermissions.svelte.test.ts` — remove mapImageUrl
 
 ### Decisions
 
-- `CampaignState` lives in `types-internal.ts` as a single source of truth. Both engines import it. Previously duplicated inline in two files.
-- `ProcessableState` is deleted — the subset interface existed only to avoid a circular dependency that never materialized.
-- CRUD operations are baseline resolvers, not a separate admin pipeline. `isGM` check inside each resolver. Ruleset resolvers can override (e.g., conjuration rules allowing non-GM token creation).
-- CRUD dispatch uses the same `EngineInput → resolver → intent → processIntent` pipeline as existing actions. No new code paths.
-- ResolverIntent union grows from 4 to 10 kinds. Switch statement in `intent-processor.ts` grows from 4 to 10 cases (~50 additional lines). Still readable. Registry-pattern refactor deferred until 30+ kinds.
-- No function dedup (`isInAudience`, `audienceForType`, `deriveActionId`) in this pass.
-- Token deletion does NOT cascade-delete the linked actor. Actor deletion does NOT cascade-delete linked tokens. Each is a separate intent. Cleaner semantics, no surprise deletions. Future engine can add a `token.deleteWithActor` compound intent if needed.
+- Actor: `{ id, name, seatPermissions, data: Record<string, unknown> }` — no more `type`, `hp`, `ac`, `level`, `class`, `isConcentrating`, `conditions`
+- Token: added `name`, `imageUrl`, `data` — all required. `name`/`imageUrl` default to `""` in intent processor when omitted
+- Scene: removed `mapImageUrl`, added `data`
+- `actor.create` intent: `data` required, `seatPermissions` optional (defaults `{}`)
+- `token.create`/`scene.create` intents: `data` required
+- Three new replace-data intents: whole-blob replacement, no partial update
+- Engine validates JSON.parse on `data` at intent-processing boundary — malformed data crashes loud (ruleset bug)
+- Client intentionally broken — ActorPill shows name only, InitiativeTracker removed
+- No snapshot migration — dev DB throwaway
+- `data: Record<string, unknown>` not `data: string` — avoids serialization tax at every boundary
 
 ### Alternatives Rejected
 
-- **Separate admin pipeline for CRUD:** creation is gameplay (GM spawns enemies mid-combat). Single dispatch surface is simpler. `isGM` check in resolver is the same pattern as existing authorization.
-- **CRUD via `helpers.createToken()` instead of intents:** would mean resolvers mutate state directly via helper side-effects, breaking the "resolver returns intents, engine applies them" contract. Intent model is the single path for state mutation.
-- **Add CRUD intents to the D&D ruleset:** creation is engine-level, not ruleset-level. Every VTT needs it. Baseline resolvers. Ruleset can override if needed.
+- **`data: string` instead of `Record<string, unknown>`** — adds parse/stringify at resolver, engine, and client boundaries with no benefit
+- **Keeping `mapImageUrl` as deprecated** — code burden, zero meaningful consumers
+- **Keeping EntityRef/SourceRef "just in case"** — failure pattern #1 (premature abstraction)
+- **Pill display descriptor DSL as interim** — ADR 011 déjà vu risk; approach C (ruleset client components) is the real solution
+- **Keeping Items/Effects in EntityType** — speculative architecture without concrete consumers
 
 ---
 

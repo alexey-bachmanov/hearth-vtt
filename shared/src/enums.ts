@@ -13,8 +13,6 @@ import { z } from 'zod';
 export const entityTypeSchema = z.enum([
   'actor',
   'token',
-  'item',
-  'effect',
   'workflow',
   'scene',
 ]);

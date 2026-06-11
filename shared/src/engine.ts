@@ -77,7 +77,7 @@ export type TokenView = Token;
  * Audience-filtered projection of an Actor for a specific seat.
  *
  * Currently type-aliases `Actor` directly. May diverge when per-seat actor
- * data visibility (e.g. hidden HP, secret notes) is implemented.
+ * data visibility is implemented.
  */
 export type ActorView = Actor;
 
