@@ -14,7 +14,7 @@
  */
 
 // import { PlaceholderEngine as Engine } from './placeholder.js';
-import { EngineV01 as Engine } from './v0-1/engine-v0-1.js';
+import { EngineV02 as Engine } from './v0-2/engine-v0-2.js';
 import type { GameEngine } from './index.js';
 import type { Storage } from '../../storage/index.js';
 
