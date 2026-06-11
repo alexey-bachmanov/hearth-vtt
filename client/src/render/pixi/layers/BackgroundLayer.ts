@@ -35,7 +35,7 @@ export class BackgroundLayer {
    */
   async setScene(scene: Scene | undefined): Promise<void> {
     const kind = scene?.background?.kind;
-    const url = scene?.background?.url ?? scene?.mapImageUrl ?? '';
+    const url = scene?.background?.url ?? '';
 
     if (!url) {
       this._clear();

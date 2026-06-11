@@ -127,17 +127,26 @@ export function processIntent(
     // ── Token/Actor CRUD ──────────────────────────────────────────────────
 
     case 'token.create': {
-      const { tokenId, actorId, sceneId, position, name, imageUrl, hidden } =
-        intent;
+      const {
+        tokenId,
+        actorId,
+        sceneId,
+        position,
+        name,
+        imageUrl,
+        hidden,
+        data,
+      } = intent;
       const newToken: Token = {
         id: tokenId,
         actorId,
         sceneId,
+        name: name ?? '',
+        imageUrl: imageUrl ?? '',
         position,
         size: 1,
         hidden: hidden ?? false,
-        ...(name ? { name } : {}),
-        ...(imageUrl ? { imageUrl } : {}),
+        data,
       };
       return {
         stateMutation: () => {
@@ -175,16 +184,12 @@ export function processIntent(
     }
 
     case 'actor.create': {
-      const { actorId, name: actorName, data } = intent;
+      const { actorId, name: actorName, data, seatPermissions } = intent;
       const newActor: Actor = {
         id: actorId,
         name: actorName,
-        type: 'npc',
-        seatPermissions: {},
-        hp: { current: 1, max: 1 },
-        ac: 10,
-        conditions: [],
-        ...(data ? (data as Partial<Actor>) : {}),
+        seatPermissions: seatPermissions ?? {},
+        data,
       };
       return {
         stateMutation: () => {
@@ -279,7 +284,7 @@ export function processIntent(
         gridScale: '5ft',
         width: 1000,
         height: 1000,
-        ...(data ? (data as Partial<Scene>) : {}),
+        data,
       };
       return {
         stateMutation: () => {
@@ -349,6 +354,68 @@ export function processIntent(
         wireEventData: { sceneId },
       };
     }
+
+    // ── Replace data (v0.2) ──────────────────────────────────────────────
+
+    case 'actor.replaceData': {
+      const { actorId, data } = intent;
+      return {
+        stateMutation: () => {
+          const actor = state.actors.get(actorId);
+          if (actor) {
+            state.actors.set(actorId, { ...actor, data });
+          }
+        },
+        storedEvent: {
+          campaignId,
+          entityId: actorId,
+          type: 'actor.dataReplaced',
+          data: { actorId, data },
+        },
+        wireEventType: 'actor.dataReplaced',
+        wireEventData: { actorId, data },
+      };
+    }
+
+    case 'token.replaceData': {
+      const { tokenId, data } = intent;
+      return {
+        stateMutation: () => {
+          const token = state.tokens.get(tokenId);
+          if (token) {
+            state.tokens.set(tokenId, { ...token, data });
+          }
+        },
+        storedEvent: {
+          campaignId,
+          entityId: tokenId,
+          type: 'token.dataReplaced',
+          data: { tokenId, data },
+        },
+        wireEventType: 'token.dataReplaced',
+        wireEventData: { tokenId, data },
+      };
+    }
+
+    case 'scene.replaceData': {
+      const { sceneId, data } = intent;
+      return {
+        stateMutation: () => {
+          const scene = state.scenes.get(sceneId);
+          if (scene) {
+            state.scenes.set(sceneId, { ...scene, data });
+          }
+        },
+        storedEvent: {
+          campaignId,
+          entityId: sceneId,
+          type: 'scene.dataReplaced',
+          data: { sceneId, data },
+        },
+        wireEventType: 'scene.dataReplaced',
+        wireEventData: { sceneId, data },
+      };
+    }
   }
 }
 
@@ -412,5 +479,11 @@ function collisionKey(intent: ResolverIntent): string | null {
       return `scene.delete:${intent.sceneId}`;
     case 'scene.setActive':
       return `scene.setActive`;
+    case 'actor.replaceData':
+      return `actor.replaceData:${intent.actorId}`;
+    case 'token.replaceData':
+      return `token.replaceData:${intent.tokenId}`;
+    case 'scene.replaceData':
+      return `scene.replaceData:${intent.sceneId}`;
   }
 }

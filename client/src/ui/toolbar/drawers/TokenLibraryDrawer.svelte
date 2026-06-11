@@ -3,14 +3,16 @@
  * TokenLibraryDrawer component (GM only).
  *
  * Actor browser for dragging tokens to the map.
+ *
+ * NOTE: D&D-specific filtering (type == 'pc'/'npc'/'monster') and stat
+ * displays (HP, class/level) were removed in Engine v0.2 Schema
+ * De-D&D-ification. All actors are now shown in a flat list with name only.
+ * Ruleset-defined category logic will replace this when designed.
  */
 
 import { campaignState } from '../../../state';
 
 const actors = $derived(Array.from(campaignState.actors.values()));
-const playerActors = $derived(actors.filter((a) => a.type === 'pc'));
-const npcActors = $derived(actors.filter((a) => a.type === 'npc'));
-const monsterActors = $derived(actors.filter((a) => a.type === 'monster'));
 </script>
 
 <div class="drawer__section-list">
@@ -24,44 +26,13 @@ const monsterActors = $derived(actors.filter((a) => a.type === 'monster'));
   </div>
 
   <div class="drawer__section">
-    <h3 class="drawer__section-title">Player Characters ({playerActors.length})</h3>
+    <h3 class="drawer__section-title">All Actors ({actors.length})</h3>
     <div class="actor-list">
-      {#each playerActors as actor (actor.id)}
+      {#each actors as actor (actor.id)}
         <button class="actor-item" draggable="true">
           <span class="actor-item__icon">🧙</span>
           <div class="actor-item__info">
             <span class="actor-item__name">{actor.name}</span>
-            <span class="actor-item__meta">{actor.class} {actor.level}</span>
-          </div>
-        </button>
-      {/each}
-    </div>
-  </div>
-
-  <div class="drawer__section">
-    <h3 class="drawer__section-title">NPCs ({npcActors.length})</h3>
-    <div class="actor-list">
-      {#each npcActors as actor (actor.id)}
-        <button class="actor-item" draggable="true">
-          <span class="actor-item__icon">👤</span>
-          <div class="actor-item__info">
-            <span class="actor-item__name">{actor.name}</span>
-            <span class="actor-item__meta">{actor.class || 'NPC'} {actor.level || ''}</span>
-          </div>
-        </button>
-      {/each}
-    </div>
-  </div>
-
-  <div class="drawer__section">
-    <h3 class="drawer__section-title">Monsters ({monsterActors.length})</h3>
-    <div class="actor-list">
-      {#each monsterActors as actor (actor.id)}
-        <button class="actor-item" draggable="true">
-          <span class="actor-item__icon">👹</span>
-          <div class="actor-item__info">
-            <span class="actor-item__name">{actor.name}</span>
-            <span class="actor-item__meta">HP: {actor.hp.current}/{actor.hp.max}</span>
           </div>
         </button>
       {/each}

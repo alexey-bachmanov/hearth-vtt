@@ -144,12 +144,12 @@ describe('SqliteStorage (:memory: mode)', () => {
 
     it('lists entities filtered by type', async () => {
       await storage.createEntity(campaignId, 'actor', { name: 'Aragorn' });
-      await storage.createEntity(campaignId, 'item', { name: 'Sword' });
-      await storage.createEntity(campaignId, 'item', { name: 'Shield' });
+      await storage.createEntity(campaignId, 'actor', { name: 'Frodo' });
+      await storage.createEntity(otherCampaignId, 'actor', { name: 'Sauron' });
 
-      const items = await storage.listEntities(campaignId, 'item');
-      expect(items).toHaveLength(2);
-      expect(items.every((e) => e.type === 'item')).toBe(true);
+      const actors = await storage.listEntities(campaignId, 'actor');
+      expect(actors).toHaveLength(2);
+      expect(actors.every((e) => e.type === 'actor')).toBe(true);
     });
   });
 

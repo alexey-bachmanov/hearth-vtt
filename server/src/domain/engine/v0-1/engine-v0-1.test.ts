@@ -312,6 +312,7 @@ describe('EngineV01', () => {
         actorId: HERO_ACTOR_ID,
         sceneId: SCENE_ID,
         position: { x: 300, y: 300 },
+        data: {},
       },
     });
 
@@ -386,6 +387,7 @@ describe('EngineV01', () => {
       payload: {
         actorId: NEW_ACTOR_ID,
         name: 'Test NPC',
+        data: {},
       },
     });
 
@@ -449,7 +451,7 @@ describe('EngineV01', () => {
       campaignId: world.campaignId,
       seatId: world.gmSeatId,
       actionType: 'actor.create',
-      payload: { actorId: NEW_ACTOR_ID, name: 'Link Target' },
+      payload: { actorId: NEW_ACTOR_ID, name: 'Link Target', data: {} },
     });
     // Clear events from the actor create
     await nextTick();

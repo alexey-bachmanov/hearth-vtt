@@ -127,17 +127,26 @@ export function processIntent(
     // ── Token/Actor CRUD ──────────────────────────────────────────────────
 
     case 'token.create': {
-      const { tokenId, actorId, sceneId, position, name, imageUrl, hidden } =
-        intent;
+      const {
+        tokenId,
+        actorId,
+        sceneId,
+        position,
+        name,
+        imageUrl,
+        hidden,
+        data,
+      } = intent;
       const newToken: Token = {
         id: tokenId,
         actorId,
         sceneId,
+        name: name ?? '',
+        imageUrl: imageUrl ?? '',
         position,
         size: 1,
         hidden: hidden ?? false,
-        ...(name ? { name } : {}),
-        ...(imageUrl ? { imageUrl } : {}),
+        data,
       };
       return {
         stateMutation: () => {
@@ -175,16 +184,12 @@ export function processIntent(
     }
 
     case 'actor.create': {
-      const { actorId, name: actorName, data } = intent;
+      const { actorId, name: actorName, data, seatPermissions } = intent;
       const newActor: Actor = {
         id: actorId,
         name: actorName,
-        type: 'npc',
-        seatPermissions: {},
-        hp: { current: 1, max: 1 },
-        ac: 10,
-        conditions: [],
-        ...(data ? (data as Partial<Actor>) : {}),
+        seatPermissions: seatPermissions ?? {},
+        data,
       };
       return {
         stateMutation: () => {
@@ -279,7 +284,7 @@ export function processIntent(
         gridScale: '5ft',
         width: 1000,
         height: 1000,
-        ...(data ? (data as Partial<Scene>) : {}),
+        data,
       };
       return {
         stateMutation: () => {

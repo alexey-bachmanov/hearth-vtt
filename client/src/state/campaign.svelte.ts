@@ -116,10 +116,17 @@ export class CampaignState {
   }
 
   /**
-   * Get all party-controlled actors (players).
+   * Get all party-controlled actors.
+   *
+   * NOTE: The old `type === 'pc'` filter was removed in Engine v0.2 Schema
+   * De-D&D-ification. Actor types are now opaque (stored in `data`). This
+   * returns actors with any seat permission entries — a rough proxy until
+   * ruleset-defined actor classification is designed.
    */
   getPartyActors(): Actor[] {
-    return Array.from(this.actors.values()).filter((a) => a.type === 'pc');
+    return Array.from(this.actors.values()).filter(
+      (a) => Object.keys(a.seatPermissions).length > 0,
+    );
   }
 
   /**
@@ -309,9 +316,12 @@ export class CampaignState {
           id: d.tokenId,
           actorId: d.actorId,
           sceneId: d.sceneId,
+          name: '',
+          imageUrl: '',
           position: d.position,
           size: 1,
           hidden: false,
+          data: {},
         });
         break;
       }
@@ -339,11 +349,8 @@ export class CampaignState {
         this.actors.set(d.actorId, {
           id: d.actorId,
           name: d.name,
-          type: 'npc',
           seatPermissions: {},
-          hp: { current: 1, max: 1 },
-          ac: 10,
-          conditions: [],
+          data: {},
         });
         break;
       }
@@ -393,6 +400,7 @@ export class CampaignState {
           gridScale: d.gridScale,
           width: d.width,
           height: d.height,
+          data: {},
         });
         break;
       }
@@ -544,6 +552,7 @@ export class CampaignState {
       gridScale: '5ft',
       width: 2000,
       height: 1500,
+      data: {},
     };
 
     const dungeonScene: Scene = {
@@ -555,6 +564,7 @@ export class CampaignState {
       gridScale: '5ft',
       width: 3000,
       height: 2400,
+      data: {},
     };
 
     this.scenes.set(tavernScene.id, tavernScene);
@@ -567,67 +577,45 @@ export class CampaignState {
     //   lyra:    1 seat → 2 actors (lyra + pip her familiar)
     //   thadric: seat-player-3 controls; seat-player-1 has read-only access
     //   zara:    1 seat → 1 actor (simple 1:1 control)
+    //
+    // NOTE: D&D-specific fields (type, hp, ac, level, class, conditions)
+    // were removed in Engine v0.2. Gameplay stats are now stored in the
+    // opaque `data` blob.
     const kael: Actor = {
       id: 'actor-kael',
       name: 'Kael Sunblade',
-      type: 'pc',
       seatPermissions: { 'seat-player-1': 'control' },
-      hp: { current: 45, max: 58 },
-      ac: 18,
-      level: 7,
-      class: 'Paladin',
-      isConcentrating: false,
-      conditions: [],
+      data: {},
     };
 
     const lyra: Actor = {
       id: 'actor-lyra',
       name: 'Lyra Whisperwind',
-      type: 'pc',
       seatPermissions: { 'seat-player-2': 'control' },
-      hp: { current: 38, max: 42 },
-      ac: 15,
-      level: 7,
-      class: 'Wizard',
-      isConcentrating: true,
-      conditions: ['Concentrating: Haste'],
+      data: {},
     };
 
     // Pip is Lyra's pseudodragon familiar — demonstrates 1 seat controlling 2 actors.
     const pip: Actor = {
       id: 'actor-pip',
       name: 'Pip (Familiar)',
-      type: 'pc',
       seatPermissions: { 'seat-player-2': 'control' },
-      hp: { current: 10, max: 10 },
-      ac: 13,
+      data: {},
     };
 
     const thadric: Actor = {
       id: 'actor-thadric',
       name: 'Thadric Ironfoot',
-      type: 'pc',
       // seat-player-1 has read access (can see Thadric's pills but cannot move him).
       seatPermissions: { 'seat-player-3': 'control', 'seat-player-1': 'read' },
-      hp: { current: 62, max: 72 },
-      ac: 16,
-      level: 7,
-      class: 'Fighter',
-      isConcentrating: false,
-      conditions: [],
+      data: {},
     };
 
     const zara: Actor = {
       id: 'actor-zara',
       name: 'Zara Swiftarrow',
-      type: 'pc',
       seatPermissions: { 'seat-player-4': 'control' },
-      hp: { current: 41, max: 48 },
-      ac: 17,
-      level: 7,
-      class: 'Rogue',
-      isConcentrating: false,
-      conditions: ['Hidden'],
+      data: {},
     };
 
     this.actors.set(kael.id, kael);
@@ -640,33 +628,22 @@ export class CampaignState {
     const goblin1: Actor = {
       id: 'actor-goblin-1',
       name: 'Goblin Scout',
-      type: 'monster',
       seatPermissions: {},
-      hp: { current: 7, max: 7 },
-      ac: 13,
+      data: {},
     };
 
     const goblin2: Actor = {
       id: 'actor-goblin-2',
       name: 'Goblin Warrior',
-      type: 'monster',
       seatPermissions: {},
-      hp: { current: 0, max: 7 },
-      ac: 13,
-      conditions: ['Dead'],
+      data: {},
     };
 
     const necromancer: Actor = {
       id: 'actor-necromancer',
       name: 'Malakar the Dark',
-      type: 'npc',
       seatPermissions: {},
-      hp: { current: 52, max: 68 },
-      ac: 14,
-      level: 9,
-      class: 'Necromancer',
-      isConcentrating: true,
-      conditions: ['Concentrating: Animate Dead'],
+      data: {},
     };
 
     this.actors.set(goblin1.id, goblin1);
@@ -678,57 +655,78 @@ export class CampaignState {
       id: 'token-kael',
       actorId: kael.id,
       sceneId: tavernScene.id,
+      name: 'Kael',
+      imageUrl: '',
       position: { x: 300, y: 400 },
       size: 1,
+      data: {},
     });
 
     this.tokens.set('token-lyra', {
       id: 'token-lyra',
       actorId: lyra.id,
       sceneId: tavernScene.id,
+      name: 'Lyra',
+      imageUrl: '',
       position: { x: 350, y: 400 },
       size: 1,
+      data: {},
     });
 
     this.tokens.set('token-pip', {
       id: 'token-pip',
       actorId: pip.id,
       sceneId: tavernScene.id,
+      name: 'Pip',
+      imageUrl: '',
       position: { x: 370, y: 380 },
       size: 1,
+      data: {},
     });
 
     this.tokens.set('token-thadric', {
       id: 'token-thadric',
       actorId: thadric.id,
       sceneId: tavernScene.id,
+      name: 'Thadric',
+      imageUrl: '',
       position: { x: 300, y: 450 },
       size: 1,
+      data: {},
     });
 
     this.tokens.set('token-zara', {
       id: 'token-zara',
       actorId: zara.id,
       sceneId: tavernScene.id,
+      name: 'Zara',
+      imageUrl: '',
       position: { x: 350, y: 450 },
       size: 1,
       hidden: true,
+      data: {},
     });
 
     this.tokens.set('token-goblin-1', {
       id: 'token-goblin-1',
       actorId: goblin1.id,
       sceneId: tavernScene.id,
+      name: 'Goblin Scout',
+      imageUrl: '',
       position: { x: 600, y: 400 },
       size: 1,
+      data: {},
     });
 
     this.tokens.set('token-necromancer', {
       id: 'token-necromancer',
       actorId: necromancer.id,
       sceneId: tavernScene.id,
+      name: 'Malakar',
+      imageUrl: '',
       position: { x: 800, y: 500 },
       size: 1,
+      data: {},
     });
 
     // Create effects

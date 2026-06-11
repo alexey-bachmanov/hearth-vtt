@@ -15,18 +15,14 @@ function loadFixture() {
       {
         id: 'a-1',
         name: 'Hero',
-        type: 'pc',
         seatPermissions: { 'seat-1': 'control' },
-        hp: { current: 10, max: 10 },
-        ac: 15,
+        data: {},
       },
       {
         id: 'a-2',
         name: 'Villain',
-        type: 'npc',
         seatPermissions: {},
-        hp: { current: 20, max: 20 },
-        ac: 12,
+        data: {},
       },
     ],
     tokens: [
@@ -34,20 +30,23 @@ function loadFixture() {
         id: 't-1',
         actorId: 'a-1',
         sceneId: 's-1',
+        name: 'Hero',
+        imageUrl: '',
         position: { x: 0, y: 0 },
         size: 1,
+        data: {},
       },
     ],
     scenes: [
       {
         id: 's-1',
         name: 'Forest',
-        mapImageUrl: '',
         gridType: 'square',
         gridSize: 50,
         gridScale: '5ft',
         width: 1000,
         height: 1000,
+        data: {},
       },
     ],
     effects: [],
@@ -109,11 +108,12 @@ describe('getActiveScene()', () => {
 });
 
 describe('getPartyActors()', () => {
-  it('returns only actors with type === "pc"', () => {
+  it('returns actors with seat permissions (proxy for party actors)', () => {
     loadFixture();
     const party = campaignState.getPartyActors();
+    // a-1 has seatPermissions, a-2 has empty seatPermissions
     expect(party).toHaveLength(1);
-    expect(party[0].type).toBe('pc');
+    expect(party[0].id).toBe('a-1');
   });
 });
 

@@ -343,8 +343,11 @@ describe('token drag', () => {
       id: TOKEN_ID,
       actorId: 'actor-1',
       sceneId: 'scene-1',
+      name: 'Test',
+      imageUrl: '',
       position: { x: 100, y: 100 },
       size: 1,
+      data: {},
     };
     campaignState.setInitialState({
       campaignId: 'c-1',

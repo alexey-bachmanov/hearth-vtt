@@ -53,13 +53,15 @@ export type ResolverIntent =
       name?: string;
       imageUrl?: string;
       hidden?: boolean;
+      data: Record<string, unknown>;
     }
   | { kind: 'token.delete'; tokenId: string }
   | {
       kind: 'actor.create';
       actorId: string;
       name: string;
-      data?: Record<string, unknown>;
+      data: Record<string, unknown>;
+      seatPermissions?: Record<string, 'control' | 'read'>;
     }
   | { kind: 'actor.delete'; actorId: string }
   | { kind: 'token.linkToActor'; tokenId: string; actorId: string }
@@ -74,10 +76,26 @@ export type ResolverIntent =
       kind: 'scene.create';
       sceneId: string;
       name: string;
-      data?: Record<string, unknown>;
+      data: Record<string, unknown>;
     }
   | { kind: 'scene.delete'; sceneId: string }
-  | { kind: 'scene.setActive'; sceneId: string };
+  | { kind: 'scene.setActive'; sceneId: string }
+  // ── Replace data intents (v0.2) ─────────────────────────────────────────
+  | {
+      kind: 'actor.replaceData';
+      actorId: string;
+      data: Record<string, unknown>;
+    }
+  | {
+      kind: 'token.replaceData';
+      tokenId: string;
+      data: Record<string, unknown>;
+    }
+  | {
+      kind: 'scene.replaceData';
+      sceneId: string;
+      data: Record<string, unknown>;
+    };
 
 /** Minimal persisted workflow shape for v0.1. */
 export interface Workflow {

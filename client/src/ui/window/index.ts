@@ -18,4 +18,6 @@ export { default as TabbedWindow } from './TabbedWindow.svelte';
 export { default as CharacterSheet } from './CharacterSheet.svelte';
 export { default as DocumentReader } from './DocumentReader.svelte';
 export { default as ItemInspector } from './ItemInspector.svelte';
-export { default as InitiativeModal } from './InitiativeModal.svelte';
+// NOTE: InitiativeModal removed in Engine v0.2 Schema De-D&D-ification.
+// Initiative is a ruleset-defined concern, not a core UI primitive.
+// export { default as InitiativeModal } from './InitiativeModal.svelte';

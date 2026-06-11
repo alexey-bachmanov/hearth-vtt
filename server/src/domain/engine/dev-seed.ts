@@ -53,6 +53,7 @@ export function buildDevSeed(): SnapshotBlobV1 {
         gridScale: '5ft',
         width: 2000,
         height: 2000,
+        data: {},
       },
     },
     tokens: {
@@ -60,37 +61,37 @@ export function buildDevSeed(): SnapshotBlobV1 {
         id: HERO_TOKEN_ID,
         actorId: HERO_ACTOR_ID,
         sceneId: SCENE_ID,
+        name: 'Hero',
+        imageUrl: '',
         position: { x: 100, y: 100 },
         size: 1,
+        data: {},
       },
       [MONSTER_TOKEN_ID]: {
         id: MONSTER_TOKEN_ID,
         actorId: MONSTER_ACTOR_ID,
         sceneId: SCENE_ID,
+        name: 'Goblin',
+        imageUrl: '',
         position: { x: 700, y: 700 },
         size: 1,
+        data: {},
       },
     },
     actors: {
       [HERO_ACTOR_ID]: {
         id: HERO_ACTOR_ID,
         name: 'Hero',
-        type: 'pc',
         // Player seat has control; GM has implicit control via role.
         seatPermissions: { [PLAYER_SEAT_ID]: 'control' },
-        hp: { current: 10, max: 10 },
-        ac: 14,
-        conditions: [],
+        data: {},
       },
       [MONSTER_ACTOR_ID]: {
         id: MONSTER_ACTOR_ID,
         name: 'Goblin',
-        type: 'monster',
         // No seat permissions — only the GM (by role) can control this actor.
         seatPermissions: {},
-        hp: { current: 7, max: 7 },
-        ac: 13,
-        conditions: [],
+        data: {},
       },
     },
   };

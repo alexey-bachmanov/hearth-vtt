@@ -171,6 +171,7 @@ const tokenCreateResolver: ActionBinding = {
       name,
       imageUrl,
       hidden,
+      data,
     } = args as Record<string, unknown> & SeatContext;
 
     if (!isGm) {
@@ -204,6 +205,9 @@ const tokenCreateResolver: ActionBinding = {
         'token.create requires { position: { x: number, y: number } }',
       );
     }
+    if (typeof data !== 'object' || data === null) {
+      throw new Error('token.create requires { data: Record<string, unknown> }');
+    }
 
     const pos: Position = {
       x: (position as { x: number }).x,
@@ -216,6 +220,7 @@ const tokenCreateResolver: ActionBinding = {
       actorId,
       sceneId,
       position: pos,
+      data: data as Record<string, unknown>,
       ...(typeof name === 'string' ? { name } : {}),
       ...(typeof imageUrl === 'string' ? { imageUrl } : {}),
       ...(hidden === true ? { hidden: true } : {}),
@@ -257,7 +262,10 @@ const actorCreateResolver: ActionBinding = {
       throw new Error('actor.create requires an object payload');
     }
 
-    const { isGm, actorId, name } = args as Record<string, unknown> &
+    const { isGm, actorId, name, data, seatPermissions } = args as Record<
+      string,
+      unknown
+    > &
       SeatContext;
 
     if (!isGm) {
@@ -272,11 +280,18 @@ const actorCreateResolver: ActionBinding = {
     if (typeof name !== 'string' || name.trim().length === 0) {
       throw new Error('actor.create requires { name: string }');
     }
+    if (typeof data !== 'object' || data === null) {
+      throw new Error('actor.create requires { data: Record<string, unknown> }');
+    }
 
     const intent: ResolverIntent = {
       kind: 'actor.create',
       actorId,
       name: name.trim(),
+      data: data as Record<string, unknown>,
+      ...(typeof seatPermissions === 'object' && seatPermissions !== null
+        ? { seatPermissions: seatPermissions as Record<string, 'control' | 'read'> }
+        : {}),
     };
 
     return { intents: [intent] };
@@ -400,13 +415,15 @@ const sceneCreateResolver: ActionBinding = {
       throw new Error('scene.create requires { name: string }');
     }
 
+    if (typeof data !== 'object' || data === null) {
+      throw new Error('scene.create requires { data: Record<string, unknown> }');
+    }
+
     const intent: ResolverIntent = {
       kind: 'scene.create',
       sceneId,
       name: name.trim(),
-      ...(typeof data === 'object' && data !== null
-        ? { data: data as Record<string, unknown> }
-        : {}),
+      data: data as Record<string, unknown>,
     };
 
     return { intents: [intent] };

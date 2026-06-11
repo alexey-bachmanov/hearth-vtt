@@ -2,7 +2,11 @@
   /**
    * ActorPill - Individual actor pill component.
    *
-   * Split-button design with main button (center on token) and dropdown toggle (quick stats).
+   * Split-button design with main button (center on token) and dropdown toggle.
+   *
+   * NOTE: D&D-specific stats (HP bar, AC, level/class, conditions) were removed
+   * in Engine v0.2 Schema De-D&D-ification. Stats now live in actor.data and
+   * are rendered by ruleset-defined UI components (future work).
    */
 
   import { ChevronDown, User, Crosshair, ScrollText } from 'lucide-svelte';
@@ -36,22 +40,6 @@
       dropdownLeft = rect.right - 240; // Align right edge (240px = dropdown width)
     }
   });
-
-  /**
-   * Calculate HP percentage for progress bar.
-   */
-  function getHpPercentage(current: number, max: number): number {
-    return Math.max(0, Math.min(100, (current / max) * 100));
-  }
-
-  /**
-   * Get HP bar color based on percentage.
-   */
-  function getHpColor(percentage: number): string {
-    if (percentage > 50) return 'var(--color-success)';
-    if (percentage > 25) return 'var(--color-warning)';
-    return 'var(--color-danger)';
-  }
 </script>
 
 <div class="actor-pill" class:actor-pill--readonly={isReadOnly} bind:this={pillElement}>
@@ -91,54 +79,11 @@
     style:top="{dropdownTop}px"
     style:left="{dropdownLeft}px"
   >
-    <!-- Quick Stats Section -->
-    <div class="pill-dropdown-stats">
-      <!-- HP Bar -->
-      <div class="stat-row">
-        <span class="stat-label">HP</span>
-        <div class="hp-bar-container">
-          <div
-            class="hp-bar-fill"
-            style:width="{getHpPercentage(actor.hp.current, actor.hp.max)}%"
-            style:background-color={getHpColor(
-              getHpPercentage(actor.hp.current, actor.hp.max),
-            )}
-          ></div>
-          <span class="hp-bar-text">{actor.hp.current} / {actor.hp.max}</span>
-        </div>
-      </div>
-
-      <!-- AC -->
-      <div class="stat-row">
-        <span class="stat-label">AC</span>
-        <span class="stat-value">{actor.ac}</span>
-      </div>
-
-      <!-- Level & Class -->
-      {#if actor.level && actor.class}
-        <div class="stat-row">
-          <span class="stat-label">Level</span>
-          <span class="stat-value">{actor.level} {actor.class}</span>
-        </div>
-      {/if}
-
-      <!-- Status Indicators -->
-      {#if actor.isConcentrating || (actor.conditions && actor.conditions.length > 0)}
-        <div class="stat-row">
-          <span class="stat-label">Status</span>
-          <div class="status-tags">
-            {#if actor.isConcentrating}
-              <span class="status-tag status-tag--concentrating"
-                >Concentrating</span
-              >
-            {/if}
-            {#each actor.conditions || [] as condition (condition)}
-              <span class="status-tag">{condition}</span>
-            {/each}
-          </div>
-        </div>
-      {/if}
-    </div>
+    <!--
+      D&D-specific stats (HP bar, AC, level/class, conditions) removed in
+      Engine v0.2. Ruleset-defined UI components will replace these when
+      the ruleset client-component system is designed.
+    -->
 
     <!-- Action Buttons -->
     <div class="pill-dropdown-actions">
@@ -174,88 +119,6 @@
     box-shadow: var(--shadow-lg);
     padding: var(--space-md);
     z-index: var(--z-dropdown);
-  }
-
-  .pill-dropdown-stats {
-    display: flex;
-    flex-direction: column;
-    gap: var(--space-sm);
-    padding-bottom: var(--space-md);
-    border-bottom: 1px solid var(--color-border-default);
-  }
-
-  .stat-row {
-    display: flex;
-    align-items: center;
-    gap: var(--space-sm);
-    font-size: var(--font-size-sm);
-  }
-
-  .stat-label {
-    min-width: 50px;
-    color: var(--color-text-secondary);
-    font-weight: var(--font-weight-medium);
-  }
-
-  .stat-value {
-    color: var(--color-text-primary);
-    font-weight: var(--font-weight-semibold);
-  }
-
-  /* HP Bar */
-  .hp-bar-container {
-    position: relative;
-    flex: 1;
-    height: 20px;
-    background-color: var(--color-bg-tertiary);
-    border: 1px solid var(--color-border-default);
-    border-radius: var(--radius-sm);
-    overflow: hidden;
-  }
-
-  .hp-bar-fill {
-    position: absolute;
-    top: 0;
-    left: 0;
-    height: 100%;
-    transition:
-      width var(--transition-normal),
-      background-color var(--transition-normal);
-  }
-
-  .hp-bar-text {
-    position: relative;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    height: 100%;
-    font-size: var(--font-size-xs);
-    font-weight: var(--font-weight-semibold);
-    color: var(--color-text-primary);
-    text-shadow: var(--shadow-text);
-    z-index: 2; /* Above HP bar fill */
-  }
-
-  /* Status Tags */
-  .status-tags {
-    display: flex;
-    flex-wrap: wrap;
-    gap: var(--space-xs);
-  }
-
-  .status-tag {
-    padding: 2px var(--space-xs);
-    background-color: var(--color-bg-tertiary);
-    border: 1px solid var(--color-border-default);
-    border-radius: var(--radius-xs);
-    font-size: var(--font-size-xs);
-    color: var(--color-text-secondary);
-  }
-
-  .status-tag--concentrating {
-    background-color: var(--color-accent-secondary);
-    border-color: var(--color-accent-secondary);
-    color: white;
   }
 
   /* Action Buttons */

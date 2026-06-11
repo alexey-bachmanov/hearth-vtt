@@ -171,6 +171,7 @@ const tokenCreateResolver: ActionBinding = {
       name,
       imageUrl,
       hidden,
+      data,
     } = args as Record<string, unknown> & SeatContext;
 
     if (!isGm) {
@@ -204,6 +205,9 @@ const tokenCreateResolver: ActionBinding = {
         'token.create requires { position: { x: number, y: number } }',
       );
     }
+    if (typeof data !== 'object' || data === null) {
+      throw new Error('token.create requires { data: Record<string, unknown> }');
+    }
 
     const pos: Position = {
       x: (position as { x: number }).x,
@@ -216,6 +220,7 @@ const tokenCreateResolver: ActionBinding = {
       actorId,
       sceneId,
       position: pos,
+      data: data as Record<string, unknown>,
       ...(typeof name === 'string' ? { name } : {}),
       ...(typeof imageUrl === 'string' ? { imageUrl } : {}),
       ...(hidden === true ? { hidden: true } : {}),
@@ -257,7 +262,10 @@ const actorCreateResolver: ActionBinding = {
       throw new Error('actor.create requires an object payload');
     }
 
-    const { isGm, actorId, name } = args as Record<string, unknown> &
+    const { isGm, actorId, name, data, seatPermissions } = args as Record<
+      string,
+      unknown
+    > &
       SeatContext;
 
     if (!isGm) {
@@ -272,11 +280,18 @@ const actorCreateResolver: ActionBinding = {
     if (typeof name !== 'string' || name.trim().length === 0) {
       throw new Error('actor.create requires { name: string }');
     }
+    if (typeof data !== 'object' || data === null) {
+      throw new Error('actor.create requires { data: Record<string, unknown> }');
+    }
 
     const intent: ResolverIntent = {
       kind: 'actor.create',
       actorId,
       name: name.trim(),
+      data: data as Record<string, unknown>,
+      ...(typeof seatPermissions === 'object' && seatPermissions !== null
+        ? { seatPermissions: seatPermissions as Record<string, 'control' | 'read'> }
+        : {}),
     };
 
     return { intents: [intent] };
@@ -399,14 +414,15 @@ const sceneCreateResolver: ActionBinding = {
     if (typeof name !== 'string' || name.trim().length === 0) {
       throw new Error('scene.create requires { name: string }');
     }
+    if (typeof data !== 'object' || data === null) {
+      throw new Error('scene.create requires { data: Record<string, unknown> }');
+    }
 
     const intent: ResolverIntent = {
       kind: 'scene.create',
       sceneId,
       name: name.trim(),
-      ...(typeof data === 'object' && data !== null
-        ? { data: data as Record<string, unknown> }
-        : {}),
+      data: data as Record<string, unknown>,
     };
 
     return { intents: [intent] };
@@ -470,6 +486,120 @@ const sceneSetActiveResolver: ActionBinding = {
   },
 };
 
+// ─── actor.replaceData ───────────────────────────────────────────────────────
+
+const actorReplaceDataResolver: ActionBinding = {
+  resolver(args: unknown, helpers): ResolverResult {
+    if (!args || typeof args !== 'object') {
+      throw new Error('actor.replaceData requires an object payload');
+    }
+
+    const { isGm, actorId, data } = args as Record<string, unknown> &
+      SeatContext;
+
+    if (!isGm) {
+      throw new Error('Only GMs can replace actor data');
+    }
+    if (typeof actorId !== 'string') {
+      throw new Error('actor.replaceData requires { actorId: string }');
+    }
+    if (!helpers.getActor(actorId)) {
+      throw new Error(`Actor not found: ${actorId}`);
+    }
+    if (typeof data !== 'object' || data === null) {
+      throw new Error(
+        'actor.replaceData requires { data: Record<string, unknown> }',
+      );
+    }
+
+    return {
+      intents: [
+        {
+          kind: 'actor.replaceData',
+          actorId,
+          data: data as Record<string, unknown>,
+        },
+      ],
+    };
+  },
+};
+
+// ─── token.replaceData ───────────────────────────────────────────────────────
+
+const tokenReplaceDataResolver: ActionBinding = {
+  resolver(args: unknown, helpers): ResolverResult {
+    if (!args || typeof args !== 'object') {
+      throw new Error('token.replaceData requires an object payload');
+    }
+
+    const { isGm, tokenId, data } = args as Record<string, unknown> &
+      SeatContext;
+
+    if (!isGm) {
+      throw new Error('Only GMs can replace token data');
+    }
+    if (typeof tokenId !== 'string') {
+      throw new Error('token.replaceData requires { tokenId: string }');
+    }
+    if (!helpers.getToken(tokenId)) {
+      throw new Error(`Token not found: ${tokenId}`);
+    }
+    if (typeof data !== 'object' || data === null) {
+      throw new Error(
+        'token.replaceData requires { data: Record<string, unknown> }',
+      );
+    }
+
+    return {
+      intents: [
+        {
+          kind: 'token.replaceData',
+          tokenId,
+          data: data as Record<string, unknown>,
+        },
+      ],
+    };
+  },
+};
+
+// ─── scene.replaceData ───────────────────────────────────────────────────────
+
+const sceneReplaceDataResolver: ActionBinding = {
+  resolver(args: unknown, helpers): ResolverResult {
+    if (!args || typeof args !== 'object') {
+      throw new Error('scene.replaceData requires an object payload');
+    }
+
+    const { isGm, sceneId, data } = args as Record<string, unknown> &
+      SeatContext;
+
+    if (!isGm) {
+      throw new Error('Only GMs can replace scene data');
+    }
+    if (typeof sceneId !== 'string') {
+      throw new Error('scene.replaceData requires { sceneId: string }');
+    }
+    if (!helpers.getScene(sceneId)) {
+      throw new Error(`Scene not found: ${sceneId}`);
+    }
+    if (typeof data !== 'object' || data === null) {
+      throw new Error(
+        'scene.replaceData requires { data: Record<string, unknown> }',
+      );
+    }
+
+    return {
+      intents: [
+        {
+          kind: 'scene.replaceData',
+          sceneId,
+          data: data as Record<string, unknown>,
+        },
+      ],
+    };
+  },
+};
+
 // ─── Export ──────────────────────────────────────────────────────────────────
 
 /**
@@ -490,4 +620,7 @@ export const baselineActions: Record<string, ActionBinding> = {
   'scene.create': sceneCreateResolver,
   'scene.delete': sceneDeleteResolver,
   'scene.setActive': sceneSetActiveResolver,
+  'actor.replaceData': actorReplaceDataResolver,
+  'token.replaceData': tokenReplaceDataResolver,
+  'scene.replaceData': sceneReplaceDataResolver,
 };
