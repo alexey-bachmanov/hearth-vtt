@@ -30,7 +30,8 @@ import NotificationCard from './NotificationCard.svelte';
 function makeNotification(overrides: Partial<Notification> = {}): Notification {
   return {
     id: 'test-notif-1',
-    type: 'ephemeral',
+    origin: 'client',
+    lifetime: 'ephemeral',
     kind: 'info',
     message: 'Something happened',
     timestamp: Date.now(),
@@ -72,7 +73,7 @@ describe('NotificationCard', () => {
 
     it('has aria-live="polite" for ephemeral notifications', () => {
       render(NotificationCard, {
-        notification: makeNotification({ type: 'ephemeral' }),
+        notification: makeNotification({ lifetime: 'ephemeral' }),
         onDismiss: vi.fn(),
       });
 
@@ -81,7 +82,7 @@ describe('NotificationCard', () => {
 
     it('has aria-live="assertive" for persistent notifications', () => {
       render(NotificationCard, {
-        notification: makeNotification({ type: 'persistent' }),
+        notification: makeNotification({ lifetime: 'persistent' }),
         onDismiss: vi.fn(),
       });
 
@@ -89,6 +90,26 @@ describe('NotificationCard', () => {
         'aria-live',
         'assertive',
       );
+    });
+
+    it('shows an origin badge for server-originated notifications', () => {
+      render(NotificationCard, {
+        notification: makeNotification({ origin: 'server' }),
+        onDismiss: vi.fn(),
+      });
+
+      expect(screen.getByLabelText('Server notification')).toBeInTheDocument();
+    });
+
+    it('does not show an origin badge for client-originated notifications', () => {
+      render(NotificationCard, {
+        notification: makeNotification({ origin: 'client' }),
+        onDismiss: vi.fn(),
+      });
+
+      expect(
+        screen.queryByLabelText('Server notification'),
+      ).not.toBeInTheDocument();
     });
   });
 

@@ -6,13 +6,18 @@
  * Layout: text | divider | action | divider | action
  *
  * Props:
- * - notification: Notification object with id, type, kind, message, actions
+ * - notification: Notification object with id, origin, lifetime, kind, message,
+ *   actions, and optionally promptId (for server prompt references)
  * - onDismiss: Callback to dismiss the notification
  *
  * Behavior:
  * - If no actions provided, shows default dismiss button with X icon
  * - If actions provided, shows action buttons instead of default dismiss
  * - Ephemeral notifications auto-dismiss; persistent stay until action taken
+ *
+ * origin display:
+ * - Server-originated notifications show a small "SV" badge (server).
+ * - Client-originated notifications show nothing extra.
  */
 
 import { X } from 'lucide-svelte';
@@ -30,7 +35,12 @@ let { notification, onDismiss }: Props = $props();
 let dismissing = $state(false);
 
 // Determine if we should show actions or default dismiss button
-const hasActions = $derived(notification.actions && notification.actions.length > 0);
+const hasActions = $derived(
+  notification.actions !== undefined && notification.actions.length > 0,
+);
+
+// Show origin badge for server-originated notifications
+const showOriginBadge = $derived(notification.origin === 'server');
 
 /**
  * Handle dismiss with animation.
@@ -55,10 +65,14 @@ function handleAction(action: () => void) {
 <div
   class="notification-card notification-card--{notification.kind}"
   class:notification-card--dismissing={dismissing}
+  class:notification-card--server={showOriginBadge}
   role="alert"
-  aria-live={notification.type === 'ephemeral' ? 'polite' : 'assertive'}
+  aria-live={notification.lifetime === 'ephemeral' ? 'polite' : 'assertive'}
 >
   <div class="notification-card__message">
+    {#if showOriginBadge}
+      <span class="notification-card__origin-badge" aria-label="Server notification">SV</span>
+    {/if}
     {notification.message}
   </div>
 

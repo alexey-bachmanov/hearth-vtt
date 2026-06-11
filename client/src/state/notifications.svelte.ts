@@ -1,9 +1,25 @@
 /**
  * Notification state management using Svelte 5 runes.
  *
- * This module holds the reactive state for the notification toast system.
- * Manages ephemeral and persistent notifications displayed in the bottom-left corner.
+ * Implements the notification 2×2 model:
+ *   origin: 'server' | 'client'  ×  lifetime: 'persistent' | 'ephemeral'
+ *
+ * |             | Persistent               | Ephemeral                          |
+ * |-------------|--------------------------|------------------------------------|
+ * | **Server**  | Prompts (promptId refs)  | Feed entries ("X attacked Y")      |
+ * | **Client**  | Offline indicators, etc. | Toasts ("Roll saved", "Connected") |
+ *
+ * Prompts are stored as lightweight references (`promptId`) rather than copies
+ * of the full Prompt object. The actual prompt data lives in CampaignState,
+ * populated from the server's SeatView.activePrompts.
+ *
+ * @see shared/src/notification.ts
  */
+
+import type {
+  NotificationOrigin,
+  NotificationLifetime,
+} from '@hearth-vtt/shared';
 
 /**
  * Notification severity levels.
@@ -25,23 +41,26 @@ export type NotificationKind =
   | 'orange';
 
 /**
- * Notification types.
- *
- * - ephemeral: Auto-dismiss after timeout (e.g., "Roll saved")
- * - persistent: Shows until explicitly dismissed or action taken (e.g., "New version available", complex prompts)
- */
-export type NotificationType = 'ephemeral' | 'persistent';
-
-/**
  * Notification data structure.
+ *
+ * Each notification occupies one cell of the 2×2 model:
+ *
+ * - `origin` — where the notification came from (server state vs client-local)
+ * - `lifetime` — how long it sticks around (auto-dismiss vs action-required)
+ * - `promptId` — if set, this notification is a reference to a server Prompt
+ *   (origin=server, lifetime=persistent). The UI reads the full Prompt from
+ *   CampaignState.activePrompts by this ID.
  */
 export interface Notification {
   id: string;
-  type: NotificationType;
+  origin: NotificationOrigin;
+  lifetime: NotificationLifetime;
   kind: NotificationKind;
   message: string;
   timestamp: number;
   actions?: NotificationAction[];
+  /** If set, this notification is a reference to a server Prompt by ID. */
+  promptId?: string;
 }
 
 /**
@@ -53,45 +72,62 @@ export interface NotificationAction {
 }
 
 /**
- * NotificationState manages the notification toast queue.
+ * NotificationState manages the notification toast queue using the 2×2 model.
  *
- * Supports ephemeral (auto-dismiss) and persistent (action-required) notifications.
+ * - **Toasts** (client, ephemeral): auto-dismiss after a timeout.
+ * - **Feed entries** (server, ephemeral): auto-dismiss, from server events.
+ * - **Persistent client messages** (client, persistent): manual dismiss only.
+ * - **Prompt references** (server, persistent): tracked by promptId; actual
+ *   Prompt data lives in CampaignState.
+ *
  * Displayed in bottom-left corner as a vertical stack.
  */
 class NotificationState {
   // Active notifications
   notifications = $state<Notification[]>([]);
 
-  // Auto-dismiss timeout (ms)
+  // Auto-dismiss timeout (ms) for ephemeral notifications
   ephemeralTimeout = $state<number>(5000);
 
   // ============================================================================
-  // Push Methods
+  // ID Generation
+  // ============================================================================
+
+  #nextId(): string {
+    return `notif-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`;
+  }
+
+  // ============================================================================
+  // Push Methods — 2×2 model
   // ============================================================================
 
   /**
-   * Push a new notification to the stack.
+   * Low-level push. Prefer the dedicated methods below.
    */
   push(
-    type: NotificationType,
+    origin: NotificationOrigin,
+    lifetime: NotificationLifetime,
     kind: NotificationKind,
     message: string,
     actions?: NotificationAction[],
+    promptId?: string,
   ): string {
-    const id = `notif-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`;
+    const id = this.#nextId();
     const notification: Notification = {
       id,
-      type,
+      origin,
+      lifetime,
       kind,
       message,
       timestamp: Date.now(),
       actions,
+      promptId,
     };
 
     this.notifications.push(notification);
 
     // Auto-dismiss ephemeral notifications
-    if (type === 'ephemeral') {
+    if (lifetime === 'ephemeral') {
       setTimeout(() => this.dismiss(id), this.ephemeralTimeout);
     }
 
@@ -99,42 +135,114 @@ class NotificationState {
   }
 
   /**
-   * Push an info notification.
+   * Push a **toast** — (client, ephemeral).
+   *
+   * Client-local transient messages that auto-dismiss.
+   * Examples: "Roll saved", "Reconnected", "Setting applied".
    */
-  info(message: string, type: NotificationType = 'ephemeral') {
-    return this.push(type, 'info', message);
+  toast(kind: NotificationKind, message: string): string {
+    return this.push('client', 'ephemeral', kind, message);
   }
 
   /**
-   * Push a success notification.
+   * Push a **feed entry** — (server, ephemeral).
+   *
+   * Server-driven event notifications that auto-dismiss.
+   * Examples: "Thalia attacked the goblin", "Goblin rolled 14".
+   * These are also recorded in the campaign event log for later review.
    */
-  success(message: string, type: NotificationType = 'ephemeral') {
-    return this.push(type, 'success', message);
+  feedEntry(kind: NotificationKind, message: string): string {
+    return this.push('server', 'ephemeral', kind, message);
   }
 
   /**
-   * Push a warning notification.
+   * Push a **persistent client message** — (client, persistent).
+   *
+   * Client-local messages that require user action or acknowledgment.
+   * Examples: "Connection lost — retrying", "App updated — reload".
    */
-  warning(message: string, type: NotificationType = 'persistent') {
-    return this.push(type, 'warning', message);
-  }
-
-  /**
-   * Push an error notification.
-   */
-  error(message: string, type: NotificationType = 'persistent') {
-    return this.push(type, 'error', message);
-  }
-
-  /**
-   * Push a persistent notification with actions (prompt-style).
-   */
-  prompt(
+  persistent(
     kind: NotificationKind,
     message: string,
-    actions: NotificationAction[],
-  ) {
-    return this.push('persistent', kind, message, actions);
+    actions?: NotificationAction[],
+  ): string {
+    return this.push('client', 'persistent', kind, message, actions);
+  }
+
+  /**
+   * Track a **server prompt** — (server, persistent).
+   *
+   * Adds a lightweight notification referencing a server-owned Prompt.
+   * The UI should read the full Prompt data from CampaignState.activePrompts.
+   *
+   * @param promptId — The Prompt's canonical ID from the server.
+   * @param title — The prompt's title (copied as message for immediate display).
+   */
+  trackPrompt(promptId: string, title: string): string {
+    // Remove any existing notification for the same promptId (refresh).
+    this.notifications = this.notifications.filter(
+      (n) => n.promptId !== promptId,
+    );
+    return this.push(
+      'server',
+      'persistent',
+      'info',
+      title,
+      undefined,
+      promptId,
+    );
+  }
+
+  /**
+   * Stop tracking a server prompt — (server, persistent).
+   *
+   * Called when a prompt is resolved, cancelled, or expires on the server.
+   */
+  untrackPrompt(promptId: string): void {
+    this.notifications = this.notifications.filter(
+      (n) => n.promptId !== promptId,
+    );
+  }
+
+  // ============================================================================
+  // Convenience Shorthands (origin = 'client')
+  // ============================================================================
+
+  /**
+   * Push a client info notification. Default lifetime: ephemeral.
+   */
+  info(message: string, lifetime: NotificationLifetime = 'ephemeral'): string {
+    return this.push('client', lifetime, 'info', message);
+  }
+
+  /**
+   * Push a client success notification. Default lifetime: ephemeral.
+   */
+  success(
+    message: string,
+    lifetime: NotificationLifetime = 'ephemeral',
+  ): string {
+    return this.push('client', lifetime, 'success', message);
+  }
+
+  /**
+   * Push a client warning notification. Default lifetime: persistent.
+   */
+  warning(
+    message: string,
+    lifetime: NotificationLifetime = 'persistent',
+  ): string {
+    return this.push('client', lifetime, 'warning', message);
+  }
+
+  /**
+   * Push a client error notification. Default lifetime: persistent.
+   */
+  error(
+    message: string,
+    lifetime: NotificationLifetime = 'persistent',
+  ): string {
+    return this.push('client', lifetime, 'error', message);
   }
 
   // ============================================================================
@@ -153,7 +261,7 @@ class NotificationState {
    */
   dismissAllEphemeral() {
     this.notifications = this.notifications.filter(
-      (n) => n.type !== 'ephemeral',
+      (n) => n.lifetime !== 'ephemeral',
     );
   }
 
@@ -196,47 +304,31 @@ class NotificationState {
   // ============================================================================
 
   /**
-   * Load DnD-flavored mock notifications for UI testing.
+   * Load mock notifications for UI testing.
    */
   loadMockNotifications() {
-    // Clear existing notifications
     this.clear();
 
-    // Ephemeral success - dice roll result
-    this.success('Rolled 18 for Perception check!');
+    // (client, ephemeral) — toasts
+    this.toast('success', 'Rolled 18 for Perception check!');
+    this.toast('info', 'Thalia cast Fireball at 3rd level');
 
-    // Ephemeral info - character action
-    this.info('Thalia cast Fireball at 3rd level');
+    // (client, persistent) — app-level messages
+    this.persistent('warning', 'Kael has only 2 spell slots remaining');
+    this.persistent(
+      'error',
+      'Cannot cast spell: Not enough movement remaining',
+    );
 
-    // Persistent warning - resource low
-    this.warning('Kael has only 2 spell slots remaining');
-
-    // Persistent error - failed action
-    this.error('Cannot cast spell: Not enough movement remaining');
-
-    // Persistent prompt with actions - saving throw
-    this.prompt('purple', 'Dex saving throw vs DC 15 or take 4d6 fire damage', [
-      {
-        label: 'Roll Save',
-        onClick: () => console.log('Rolling Dex save...'),
-      },
-      {
-        label: 'Cancel',
-        onClick: () => console.log('Canceling action...'),
-      },
-    ]);
-
-    // Persistent prompt with actions - target selection
-    this.prompt('blue', 'Select target for Eldritch Blast', [
-      {
-        label: 'Select Target',
-        onClick: () => console.log('Selecting target...'),
-      },
-      {
-        label: 'Cancel Attack',
-        onClick: () => console.log('Canceling attack...'),
-      },
-    ]);
+    // (server, persistent) — prompt references (mock prompt IDs)
+    this.trackPrompt(
+      'prompt-mock-save-01',
+      'Dex saving throw vs DC 15 or take 4d6 fire damage',
+    );
+    this.trackPrompt(
+      'prompt-mock-target-02',
+      'Select target for Eldritch Blast',
+    );
   }
 }
 

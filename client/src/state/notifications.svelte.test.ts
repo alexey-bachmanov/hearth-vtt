@@ -15,7 +15,7 @@ beforeEach(() => {
 
 describe('reset()', () => {
   it('clears all notifications', () => {
-    notificationState.push('ephemeral', 'info', 'hello');
+    notificationState.push('client', 'ephemeral', 'info', 'hello');
     notificationState.reset();
     expect(notificationState.notifications).toHaveLength(0);
   });
@@ -33,32 +33,45 @@ describe('reset()', () => {
 
 describe('push()', () => {
   it('adds a notification to the notifications array', () => {
-    notificationState.push('ephemeral', 'info', 'test message');
+    notificationState.push('client', 'ephemeral', 'info', 'test message');
     expect(notificationState.notifications).toHaveLength(1);
   });
 
   it('returns an ID that starts with "notif-"', () => {
-    const id = notificationState.push('ephemeral', 'info', 'test');
+    const id = notificationState.push('client', 'ephemeral', 'info', 'test');
     expect(id).toMatch(/^notif-/);
   });
 
-  it('stores the correct type, kind, and message', () => {
-    notificationState.push('persistent', 'error', 'something broke');
+  it('stores origin, lifetime, kind, and message', () => {
+    notificationState.push('server', 'persistent', 'error', 'something broke');
     const notif = notificationState.notifications[0];
-    expect(notif.type).toBe('persistent');
+    expect(notif.origin).toBe('server');
+    expect(notif.lifetime).toBe('persistent');
     expect(notif.kind).toBe('error');
     expect(notif.message).toBe('something broke');
   });
 
   it('stores a numeric timestamp', () => {
-    notificationState.push('ephemeral', 'info', 'hello');
+    notificationState.push('client', 'ephemeral', 'info', 'hello');
     const notif = notificationState.notifications[0];
     expect(typeof notif.timestamp).toBe('number');
   });
 
   it('leaves actions undefined when not provided', () => {
-    notificationState.push('ephemeral', 'info', 'no actions');
+    notificationState.push('client', 'ephemeral', 'info', 'no actions');
     expect(notificationState.notifications[0].actions).toBeUndefined();
+  });
+
+  it('stores promptId when provided', () => {
+    notificationState.push(
+      'server',
+      'persistent',
+      'info',
+      'Roll for initiative',
+      undefined,
+      'prompt-abc',
+    );
+    expect(notificationState.notifications[0].promptId).toBe('prompt-abc');
   });
 });
 
@@ -68,22 +81,100 @@ describe('push()', () => {
 
 describe('dismiss()', () => {
   it('removes the notification with the matching ID', () => {
-    const id = notificationState.push('persistent', 'info', 'to remove');
+    const id = notificationState.push(
+      'client',
+      'persistent',
+      'info',
+      'to remove',
+    );
     notificationState.dismiss(id);
     expect(notificationState.notifications).toHaveLength(0);
   });
 
   it('leaves other notifications untouched', () => {
-    notificationState.push('persistent', 'info', 'keep me');
-    const id = notificationState.push('persistent', 'info', 'remove me');
+    notificationState.push('client', 'persistent', 'info', 'keep me');
+    const id = notificationState.push(
+      'client',
+      'persistent',
+      'info',
+      'remove me',
+    );
     notificationState.dismiss(id);
     expect(notificationState.notifications).toHaveLength(1);
     expect(notificationState.notifications[0].message).toBe('keep me');
   });
 
   it('is a no-op when the ID does not exist', () => {
-    notificationState.push('persistent', 'info', 'stays');
+    notificationState.push('client', 'persistent', 'info', 'stays');
     notificationState.dismiss('notif-nonexistent');
+    expect(notificationState.notifications).toHaveLength(1);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// 2×2 dedicated methods
+// ---------------------------------------------------------------------------
+
+describe('2×2 dedicated methods', () => {
+  it('toast() adds a (client, ephemeral) notification', () => {
+    notificationState.toast('info', 'toast message');
+    const notif = notificationState.notifications[0];
+    expect(notif.origin).toBe('client');
+    expect(notif.lifetime).toBe('ephemeral');
+    expect(notif.kind).toBe('info');
+    expect(notif.message).toBe('toast message');
+  });
+
+  it('feedEntry() adds a (server, ephemeral) notification', () => {
+    notificationState.feedEntry('success', 'Goblin rolled 14');
+    const notif = notificationState.notifications[0];
+    expect(notif.origin).toBe('server');
+    expect(notif.lifetime).toBe('ephemeral');
+    expect(notif.kind).toBe('success');
+    expect(notif.message).toBe('Goblin rolled 14');
+  });
+
+  it('persistent() adds a (client, persistent) notification', () => {
+    notificationState.persistent('warning', 'Connection lost');
+    const notif = notificationState.notifications[0];
+    expect(notif.origin).toBe('client');
+    expect(notif.lifetime).toBe('persistent');
+    expect(notif.kind).toBe('warning');
+  });
+
+  it('persistent() accepts optional actions', () => {
+    const actions = [{ label: 'Retry', onClick: vi.fn() }];
+    notificationState.persistent('error', 'Failed to save', actions);
+    expect(notificationState.notifications[0].actions).toStrictEqual(actions);
+  });
+
+  it('trackPrompt() adds a (server, persistent) notification with promptId', () => {
+    notificationState.trackPrompt('prompt-xyz', 'Make a saving throw');
+    const notif = notificationState.notifications[0];
+    expect(notif.origin).toBe('server');
+    expect(notif.lifetime).toBe('persistent');
+    expect(notif.promptId).toBe('prompt-xyz');
+    expect(notif.message).toBe('Make a saving throw');
+  });
+
+  it('trackPrompt() replaces an existing notification for the same promptId', () => {
+    notificationState.trackPrompt('prompt-xyz', 'Old title');
+    notificationState.trackPrompt('prompt-xyz', 'New title');
+    expect(notificationState.notifications).toHaveLength(1);
+    expect(notificationState.notifications[0].message).toBe('New title');
+  });
+
+  it('untrackPrompt() removes the notification with the matching promptId', () => {
+    notificationState.trackPrompt('prompt-abc', 'Test');
+    notificationState.trackPrompt('prompt-xyz', 'Another');
+    notificationState.untrackPrompt('prompt-abc');
+    expect(notificationState.notifications).toHaveLength(1);
+    expect(notificationState.notifications[0].promptId).toBe('prompt-xyz');
+  });
+
+  it('untrackPrompt() is a no-op for non-existent promptId', () => {
+    notificationState.trackPrompt('prompt-abc', 'Test');
+    notificationState.untrackPrompt('prompt-nonexistent');
     expect(notificationState.notifications).toHaveLength(1);
   });
 });
@@ -93,42 +184,37 @@ describe('dismiss()', () => {
 // ---------------------------------------------------------------------------
 
 describe('convenience helpers', () => {
-  it('info() adds an ephemeral info notification', () => {
+  it('info() adds a client ephemeral info notification', () => {
     notificationState.info('info msg');
     const notif = notificationState.notifications[0];
+    expect(notif.origin).toBe('client');
     expect(notif.kind).toBe('info');
-    expect(notif.type).toBe('ephemeral');
+    expect(notif.lifetime).toBe('ephemeral');
     expect(notif.message).toBe('info msg');
   });
 
-  it('success() adds an ephemeral success notification', () => {
+  it('success() adds a client ephemeral success notification', () => {
     notificationState.success('success msg');
     const notif = notificationState.notifications[0];
+    expect(notif.origin).toBe('client');
     expect(notif.kind).toBe('success');
-    expect(notif.type).toBe('ephemeral');
+    expect(notif.lifetime).toBe('ephemeral');
   });
 
-  it('warning() adds a persistent warning notification', () => {
+  it('warning() adds a client persistent warning notification', () => {
     notificationState.warning('warning msg');
     const notif = notificationState.notifications[0];
+    expect(notif.origin).toBe('client');
     expect(notif.kind).toBe('warning');
-    expect(notif.type).toBe('persistent');
+    expect(notif.lifetime).toBe('persistent');
   });
 
-  it('error() adds a persistent error notification', () => {
+  it('error() adds a client persistent error notification', () => {
     notificationState.error('error msg');
     const notif = notificationState.notifications[0];
+    expect(notif.origin).toBe('client');
     expect(notif.kind).toBe('error');
-    expect(notif.type).toBe('persistent');
-  });
-
-  it('prompt() adds a persistent notification with actions', () => {
-    const actions = [{ label: 'OK', onClick: vi.fn() }];
-    notificationState.prompt('info', 'prompt msg', actions);
-    const notif = notificationState.notifications[0];
-    expect(notif.type).toBe('persistent');
-    expect(notif.actions).toStrictEqual(actions);
-    expect(notif.message).toBe('prompt msg');
+    expect(notif.lifetime).toBe('persistent');
   });
 });
 
@@ -146,24 +232,24 @@ describe('ephemeral auto-dismiss', () => {
   });
 
   it('notification is present immediately after push', () => {
-    notificationState.push('ephemeral', 'info', 'hi');
+    notificationState.push('client', 'ephemeral', 'info', 'hi');
     expect(notificationState.notifications).toHaveLength(1);
   });
 
   it('notification is removed after the default 5000 ms timeout', () => {
-    notificationState.push('ephemeral', 'info', 'auto-dismiss me');
+    notificationState.push('client', 'ephemeral', 'info', 'auto-dismiss me');
     vi.advanceTimersByTime(5000);
     expect(notificationState.notifications).toHaveLength(0);
   });
 
   it('notification is still present at 4999 ms', () => {
-    notificationState.push('ephemeral', 'info', 'not yet');
+    notificationState.push('client', 'ephemeral', 'info', 'not yet');
     vi.advanceTimersByTime(4999);
     expect(notificationState.notifications).toHaveLength(1);
   });
 
   it('persistent notifications are NOT auto-dismissed after 5000 ms', () => {
-    notificationState.push('persistent', 'info', 'stays forever');
+    notificationState.push('client', 'persistent', 'info', 'stays forever');
     vi.advanceTimersByTime(5000);
     expect(notificationState.notifications).toHaveLength(1);
   });
@@ -184,14 +270,14 @@ describe('custom ephemeralTimeout', () => {
 
   it('uses the custom timeout when dismissing ephemeral notifications', () => {
     notificationState.setEphemeralTimeout(1000);
-    notificationState.push('ephemeral', 'info', 'custom timeout');
+    notificationState.push('client', 'ephemeral', 'info', 'custom timeout');
     vi.advanceTimersByTime(1000);
     expect(notificationState.notifications).toHaveLength(0);
   });
 
   it('does not dismiss before the custom timeout elapses', () => {
     notificationState.setEphemeralTimeout(1000);
-    notificationState.push('ephemeral', 'info', 'custom timeout');
+    notificationState.push('client', 'ephemeral', 'info', 'custom timeout');
     vi.advanceTimersByTime(999);
     expect(notificationState.notifications).toHaveLength(1);
   });
@@ -203,8 +289,8 @@ describe('custom ephemeralTimeout', () => {
 
 describe('dismissAll()', () => {
   it('removes all notifications', () => {
-    notificationState.push('ephemeral', 'info', 'a');
-    notificationState.push('persistent', 'error', 'b');
+    notificationState.push('client', 'ephemeral', 'info', 'a');
+    notificationState.push('client', 'persistent', 'error', 'b');
     notificationState.dismissAll();
     expect(notificationState.notifications).toHaveLength(0);
   });
@@ -212,8 +298,8 @@ describe('dismissAll()', () => {
 
 describe('clear()', () => {
   it('removes all notifications (alias for dismissAll)', () => {
-    notificationState.push('ephemeral', 'info', 'a');
-    notificationState.push('persistent', 'warning', 'b');
+    notificationState.push('client', 'ephemeral', 'info', 'a');
+    notificationState.push('client', 'persistent', 'warning', 'b');
     notificationState.clear();
     expect(notificationState.notifications).toHaveLength(0);
   });
@@ -225,16 +311,16 @@ describe('clear()', () => {
 
 describe('dismissAllEphemeral()', () => {
   it('removes only ephemeral notifications', () => {
-    notificationState.push('ephemeral', 'info', 'gone');
-    notificationState.push('persistent', 'error', 'stays');
+    notificationState.push('server', 'ephemeral', 'info', 'gone');
+    notificationState.push('client', 'persistent', 'error', 'stays');
     notificationState.dismissAllEphemeral();
     expect(notificationState.notifications).toHaveLength(1);
-    expect(notificationState.notifications[0].type).toBe('persistent');
+    expect(notificationState.notifications[0].lifetime).toBe('persistent');
   });
 
   it('keeps all persistent notifications', () => {
-    notificationState.push('persistent', 'warning', 'a');
-    notificationState.push('persistent', 'error', 'b');
+    notificationState.push('client', 'persistent', 'warning', 'a');
+    notificationState.push('client', 'persistent', 'error', 'b');
     notificationState.dismissAllEphemeral();
     expect(notificationState.notifications).toHaveLength(2);
   });

@@ -69,6 +69,15 @@ export {
   type Prompt,
 } from './prompt';
 
+// ── Notification 2×2 model ──────────────────────────────────────────────────
+
+export {
+  notificationOriginSchema,
+  type NotificationOrigin,
+  notificationLifetimeSchema,
+  type NotificationLifetime,
+} from './notification';
+
 // NOTE: refs.ts (EntityRef, SourceRef) was deleted in Engine v0.2 Phase 1.
 // These types had zero consumers. See shared/src/refs.ts for details.
 

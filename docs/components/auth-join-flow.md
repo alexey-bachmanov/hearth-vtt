@@ -332,7 +332,7 @@ Purpose: mitigate invite link leakage.
 
 - **Refresh token**: long-lived secret bound to the PlayerAccount, stored in the `hearth_refresh` HttpOnly cookie. Default lifetime 30 days on HTTPS, session-only on HTTP (see Cookies below). Used for `/api/auth/refresh` and WS upgrade.
 - **CSRF token**: 32-byte random hex value stored in the session row, returned in the response body of login / claim-invite / refresh. Client stores it in memory (`authState.csrfToken`) and sends it via the `X-CSRF-Token` header on all state-changing requests (logout, logout-all, change-password). Not stored in a cookie (an HttpOnly cookie for CSRF provides no protection — attacker-controlled pages can trigger cookies automatically).
-The refresh token is **stable** — it does not rotate on every successful refresh. This is a deliberate departure from strict OAuth BCP, motivated by:
+  The refresh token is **stable** — it does not rotate on every successful refresh. This is a deliberate departure from strict OAuth BCP, motivated by:
 
 - **Multi-tab safety.** Rotating refresh tokens on every use plus reuse detection produces false-positive session revocations any time two tabs refresh near-simultaneously. Multi-tab is the norm for a VTT (map + character sheet pop-out).
 - **Multi-device safety.** Same problem at device scope (phone + laptop both refreshing).
@@ -527,8 +527,9 @@ The repository `reset-admin-setup.ts` script is not shipped in production builds
 6. On 200: client navigates to `/admin/setup`, where the new PIN flow completes.
 
 **Security properties of this flow:**
-- Requires *two* capabilities: network reach to `POST /api/admin/reset` (subject to existing `ADMIN_ALLOW_REMOTE` / localhost rules) **and** filesystem write to `DATA_DIR`. Collapsing to one would require an additional exploit beyond network access.
-- Flag is deleted *before* any DB mutation. If deletion fails, nothing is changed.
+
+- Requires _two_ capabilities: network reach to `POST /api/admin/reset` (subject to existing `ADMIN_ALLOW_REMOTE` / localhost rules) **and** filesystem write to `DATA_DIR`. Collapsing to one would require an additional exploit beyond network access.
+- Flag is deleted _before_ any DB mutation. If deletion fails, nothing is changed.
 - Rate-limited (5 requests / hour per IP).
 - No data is deleted. Campaigns, seats, and player accounts are untouched. Admin re-completes setup as on first install.
 
@@ -859,14 +860,16 @@ For cloud-hosted deployments, `/account` is not exposed — account settings are
 
 If two players in the same household share a browser profile and both have seats in the same campaign on the same server, they have to log out and log back in to switch identities. This is the standard web-app failure mode and matches user expectations from every other site. No fix planned. Browser profiles or private windows are the workaround.
 
-### 4. Notification kind explicit field
+### 4. Notification kind explicit field (resolved)
 
-The client UI currently has an implicit split between **ephemeral notifications** (toasts, brief banners — "reconnected to server," "saved") and **blocking notifications** (action prompts, target selection — server-authoritative state requiring user response). This split should be made explicit:
+> **Resolved:** The notification 2×2 model described here was implemented in [Phase 2.5](../../todo.md#notifications). See [`shared/src/notification.ts`](../../shared/src/notification.ts) for the shared types and [`client/src/state/notifications.svelte.ts`](../../client/src/state/notifications.svelte.ts) for the client store.
 
-- Server-authoritative blocking notifications correspond 1:1 with server `Prompt` state. They survive reconnect because they are re-fetched from server state.
-- UI-only ephemeral notifications are client-local and do not survive reconnect.
+The client notification store now uses the explicit 2×2 model:
 
-The client `notifications` store should have a `kind: 'prompt' | 'ephemeral'` field so the two are never accidentally conflated. Tracked in [todo.md](../todo.md) for the next client refactor.
+- **`origin: 'server' | 'client'`** — Server-originated notifications reflect server-owned state and survive reconnect. Client-originated notifications are local and do not survive reconnect.
+- **`lifetime: 'persistent' | 'ephemeral'`** — Persistent notifications require explicit dismissal. Ephemeral notifications auto-dismiss after a timeout.
+
+Server-authoritative blocking notifications (prompts) correspond 1:1 with server `Prompt` state. The client stores only a `promptId` reference in the notification store; the full `Prompt` data lives in `CampaignState.activePrompts`, populated from `SeatView.activePrompts` on connect/resync and updated incrementally via `prompt.created` / `prompt.resolved` / `prompt.cancelled` events.
 
 ### 5. Public-game griefing mitigations
 

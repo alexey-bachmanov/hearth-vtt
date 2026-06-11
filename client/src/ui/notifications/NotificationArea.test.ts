@@ -28,7 +28,7 @@ describe('NotificationArea rendering', () => {
   });
 
   it('renders one card for a single notification', () => {
-    notificationState.push('persistent', 'info', 'Hello world');
+    notificationState.push('client', 'persistent', 'info', 'Hello world');
 
     render(NotificationArea);
 
@@ -37,9 +37,9 @@ describe('NotificationArea rendering', () => {
   });
 
   it('renders a card for every notification in state', () => {
-    notificationState.push('persistent', 'info', 'First message');
-    notificationState.push('persistent', 'warning', 'Second message');
-    notificationState.push('persistent', 'error', 'Third message');
+    notificationState.push('client', 'persistent', 'info', 'First message');
+    notificationState.push('client', 'persistent', 'warning', 'Second message');
+    notificationState.push('client', 'persistent', 'error', 'Third message');
 
     render(NotificationArea);
 
@@ -64,7 +64,12 @@ describe('NotificationArea dismiss', () => {
   });
 
   it('removes a notification from state after dismiss animation completes', () => {
-    const id = notificationState.push('persistent', 'info', 'Dismiss me');
+    const id = notificationState.push(
+      'client',
+      'persistent',
+      'info',
+      'Dismiss me',
+    );
 
     render(NotificationArea);
 
@@ -84,8 +89,9 @@ describe('NotificationArea dismiss', () => {
   });
 
   it('removes only the dismissed card when multiple notifications exist', () => {
-    notificationState.push('persistent', 'info', 'Keep me');
+    notificationState.push('client', 'persistent', 'info', 'Keep me');
     const toRemoveId = notificationState.push(
+      'client',
       'persistent',
       'error',
       'Remove me',

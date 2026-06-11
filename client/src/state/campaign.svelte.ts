@@ -13,9 +13,11 @@ import type {
   Scene,
   Position,
   SeatView,
+  Prompt,
   GameEvent as SharedGameEvent,
 } from '@hearth-vtt/shared';
 import { viewportState } from './viewport.svelte';
+import { notificationState } from './notifications.svelte';
 
 // ============================================================================
 // Types
@@ -74,6 +76,16 @@ export class CampaignState {
   scenes = new SvelteMap<string, Scene>();
   effects = new SvelteMap<string, Effect>();
   events = $state<GameEvent[]>([]); // Recent events for chat log
+
+  /**
+   * Active prompts targeting this seat.
+   *
+   * Populated from SeatView.activePrompts on connect/resync and updated
+   * incrementally via prompt.* events. Each prompt is keyed by promptId.
+   * The notification store tracks promptIds as lightweight references;
+   * UI components read the full Prompt data from this map.
+   */
+  activePrompts = new SvelteMap<string, Prompt>();
 
   maxEvents = $state<number>(200); // Configurable
 
@@ -259,6 +271,15 @@ export class CampaignState {
       .map((e) => this.#toUIEvent(e))
       .filter((e): e is GameEvent => e !== null);
 
+    // Sync active prompts from the server view.
+    // Prompts are server-owned state; the notification store tracks them
+    // as lightweight promptId references.
+    this.activePrompts.clear();
+    view.activePrompts.forEach((p) => {
+      this.activePrompts.set(p.id, p);
+      notificationState.trackPrompt(p.id, p.title);
+    });
+
     console.debug(
       '[CampaignState] View applied',
       view.campaignId,
@@ -288,11 +309,22 @@ export class CampaignState {
 
       case 'chat.message': {
         this.appendEvent(this.#toUIEvent(event)!);
+        const dChat = event.data as { text: string; displayName: string };
+        notificationState.feedEntry('info', `${dChat.displayName}: ${dChat.text}`);
         break;
       }
 
       case 'dice.rolled': {
         this.appendEvent(this.#toUIEvent(event)!);
+        const dDice = event.data as {
+          displayName: string;
+          formula: string;
+          total: number;
+        };
+        notificationState.feedEntry(
+          'success',
+          `${dDice.displayName} rolled ${dDice.total} (${dDice.formula})`,
+        );
         break;
       }
 
@@ -420,6 +452,23 @@ export class CampaignState {
         break;
       }
 
+      // ── Prompt lifecycle ─────────────────────────────────────────────────
+
+      case 'prompt.created': {
+        const dPrompt = event.data as { prompt: Prompt };
+        this.activePrompts.set(dPrompt.prompt.id, dPrompt.prompt);
+        notificationState.trackPrompt(dPrompt.prompt.id, dPrompt.prompt.title);
+        break;
+      }
+
+      case 'prompt.resolved':
+      case 'prompt.cancelled': {
+        const dPromptResolve = event.data as { promptId: string };
+        this.activePrompts.delete(dPromptResolve.promptId);
+        notificationState.untrackPrompt(dPromptResolve.promptId);
+        break;
+      }
+
       default:
         // Unknown event types are logged but do not cause errors.
         console.warn(
@@ -480,6 +529,7 @@ export class CampaignState {
     this.tokens.clear();
     this.scenes.clear();
     this.effects.clear();
+    this.activePrompts.clear();
     this.events = [];
     this.pendingMoveOriginals.clear();
   }

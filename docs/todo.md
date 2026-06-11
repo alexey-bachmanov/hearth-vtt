@@ -17,160 +17,133 @@ Strip all D&D-specific and premature type assumptions from `shared/`, `server/sr
 ### Phase 1: Shared Types Cleanup
 
 **Step 1:** Update `shared/src/entities.ts` — Actor schema and type:
-
-- [ ] Remove fields: `type`, `hp`, `ac`, `level`, `class`, `isConcentrating`, `conditions`
-- [ ] Add field: `data: z.record(z.string(), z.unknown())` (Zod) / `data: Record<string, unknown>` (TS)
-- [ ] Update JSDoc to remove D&D-specific references
+- [x] Remove fields: `type`, `hp`, `ac`, `level`, `class`, `isConcentrating`, `conditions`
+- [x] Add field: `data: z.record(z.string(), z.unknown())` (Zod) / `data: Record<string, unknown>` (TS)
+- [x] Update JSDoc to remove D&D-specific references
 
 **Step 2:** Update `shared/src/entities.ts` — Token schema and type:
-
-- [ ] Add `name: z.string()` (required)
-- [ ] Add `imageUrl: z.string()` (required)
-- [ ] Add `data: z.record(z.string(), z.unknown())`
+- [x] Add `name: z.string()` (required)
+- [x] Add `imageUrl: z.string()` (required)
+- [x] Add `data: z.record(z.string(), z.unknown())`
 
 **Step 3:** Update `shared/src/entities.ts` — Scene schema and type:
-
-- [ ] Remove `mapImageUrl: z.string().optional()`
-- [ ] Add `data: z.record(z.string(), z.unknown())`
+- [x] Remove `mapImageUrl: z.string().optional()`
+- [x] Add `data: z.record(z.string(), z.unknown())`
 
 **Step 4:** Update `shared/src/enums.ts`:
-
-- [ ] Remove `'item'` and `'effect'` from `entityTypeSchema` — result: `['actor', 'token', 'workflow', 'scene']`
+- [x] Remove `'item'` and `'effect'` from `entityTypeSchema` — result: `['actor', 'token', 'workflow', 'scene']`
 
 **Step 5:** Delete `shared/src/refs.ts`:
-
-- [ ] Remove `EntityRef`, `SourceRef`, `entityRefSchema`, `sourceRefSchema` — file has zero consumers
+- [x] Remove `EntityRef`, `SourceRef`, `entityRefSchema`, `sourceRefSchema` — file has zero consumers
 
 **Step 6:** Update `shared/src/index.ts`:
-
-- [ ] Remove `entityRefSchema`, `EntityRef`, `sourceRefSchema`, `SourceRef` exports
-- [ ] Verify updated `actorSchema`, `tokenSchema`, `sceneSchema`, `entityTypeSchema` are re-exported
+- [x] Remove `entityRefSchema`, `EntityRef`, `sourceRefSchema`, `SourceRef` exports
+- [x] Verify updated `actorSchema`, `tokenSchema`, `sceneSchema`, `entityTypeSchema` are re-exported
 
 **Step 7:** Update `shared/src/engine.ts` — comments only:
-
-- [ ] Lines 72, 80: change "hidden HP" example to generic "per-seat actor data visibility" text
+- [x] Lines 72, 80: change "hidden HP" example to generic "per-seat actor data visibility" text
 
 ### Phase 2: Engine Types Update
 
 **Step 8:** Update `server/src/domain/engine/v0-2/types.ts` — `ResolverIntent` union:
-
 - [ ] `actor.create`: add `data: Record<string, unknown>` (required), add `seatPermissions?: Record<string, 'control' | 'read'>`
-- [ ] `token.create`: add `data: Record<string, unknown>` (required)
-- [ ] `scene.create`: add `data: Record<string, unknown>` (required)
-- [ ] Add `{ kind: 'actor.replaceData'; actorId: string; data: Record<string, unknown> }`
-- [ ] Add `{ kind: 'token.replaceData'; tokenId: string; data: Record<string, unknown> }`
-- [ ] Add `{ kind: 'scene.replaceData'; sceneId: string; data: Record<string, unknown> }`
+- [x] `token.create`: add `data: Record<string, unknown>` (required)
+- [x] `scene.create`: add `data: Record<string, unknown>` (required)
+- [x] Add `{ kind: 'actor.replaceData'; actorId: string; data: Record<string, unknown> }`
+- [x] Add `{ kind: 'token.replaceData'; tokenId: string; data: Record<string, unknown> }`
+- [x] Add `{ kind: 'scene.replaceData'; sceneId: string; data: Record<string, unknown> }`
 
 **Step 9:** Verify `ResolverApi` in `types.ts`:
-
-- [ ] `getActor`, `getToken`, `getScene` return types auto-update from shared — no explicit changes needed
+- [x] `getActor`, `getToken`, `getScene` return types auto-update from shared — no explicit changes needed
 
 ### Phase 3: Intent Processor Update
 
 **Step 10:** Update `intent-processor.ts` — `actor.create` case:
-
-- [ ] Change `newActor` from `{ id, name, type: 'npc', hp: {...}, ac: 10, conditions: [], ...data as Partial<Actor> }` to `{ id, name, seatPermissions: {}, data: intent.data }`
-- [ ] Update stored/wire event data
+- [x] Change `newActor` from `{ id, name, type: 'npc', hp: {...}, ac: 10, conditions: [], ...data as Partial<Actor> }` to `{ id, name, seatPermissions: {}, data: intent.data }`
+- [x] Update stored/wire event data
 
 **Step 11:** Update `intent-processor.ts` — `token.create` case:
-
-- [ ] Change construction to: `{ id, actorId, sceneId, position, size: 1, name: intent.name ?? '', imageUrl: intent.imageUrl ?? '', hidden: intent.hidden ?? false, data: intent.data }`
+- [x] Change construction to: `{ id, actorId, sceneId, position, size: 1, name: intent.name ?? '', imageUrl: intent.imageUrl ?? '', hidden: intent.hidden ?? false, data: intent.data }`
 
 **Step 12:** Update `intent-processor.ts` — `scene.create` case:
-
-- [ ] Remove `...(data as Partial<Scene>)` spread — Scene defaults are hard-coded, `data` goes into the new `data` field
+- [x] Remove `...(data as Partial<Scene>)` spread — Scene defaults are hard-coded, `data` goes into the new `data` field
 
 **Step 13:** Add three new `processIntent` switch cases:
-
-- [ ] `actor.replaceData`: state mutates `state.actors.get(actorId).data = intent.data`; stored type `actor.dataReplaced`; wire type `actor.dataReplaced`
-- [ ] `token.replaceData`: same pattern for tokens
-- [ ] `scene.replaceData`: same pattern for scenes
-- [ ] Each no-ops on missing entity
+- [x] `actor.replaceData`: state mutates `state.actors.get(actorId).data = intent.data`; stored type `actor.dataReplaced`; wire type `actor.dataReplaced`
+- [x] `token.replaceData`: same pattern for tokens
+- [x] `scene.replaceData`: same pattern for scenes
+- [x] Each no-ops on missing entity
 
 ### Phase 4: Baseline Resolvers Update
 
 **Step 14:** Update `baseline-resolvers.ts` — `actor.create` resolver:
-
-- [ ] Extract `data` and `seatPermissions` from args; validate `data` is an object
-- [ ] Pass through to intent: `{ kind: 'actor.create', actorId, name, data, ...(seatPermissions ? { seatPermissions } : {}) }`
+- [x] Extract `data` and `seatPermissions` from args; validate `data` is an object
+- [x] Pass through to intent: `{ kind: 'actor.create', actorId, name, data, ...(seatPermissions ? { seatPermissions } : {}) }`
 
 **Step 15:** Update `baseline-resolvers.ts` — `token.create` resolver:
-
-- [ ] Extract `data` from args; validate `data` is an object
-- [ ] Pass through to intent: `{ kind: 'token.create', tokenId, actorId, sceneId, position, name, imageUrl, hidden, data }`
+- [x] Extract `data` from args; validate `data` is an object
+- [x] Pass through to intent: `{ kind: 'token.create', tokenId, actorId, sceneId, position, name, imageUrl, hidden, data }`
 
 **Step 16:** Update `baseline-resolvers.ts` — `scene.create` resolver:
-
-- [ ] Extract `data` from args; validate `data` is an object
-- [ ] Pass through to intent
+- [x] Extract `data` from args; validate `data` is an object
+- [x] Pass through to intent
 
 **Step 17:** Add three new resolvers to `baselineActions`:
-
-- [ ] `actor.replaceData`: GM-gated, validates actorId exists, validates data is object, returns replace-data intent
-- [ ] `token.replaceData`: same pattern
-- [ ] `scene.replaceData`: same pattern
+- [x] `actor.replaceData`: GM-gated, validates actorId exists, validates data is object, returns replace-data intent
+- [x] `token.replaceData`: same pattern
+- [x] `scene.replaceData`: same pattern
 
 ### Phase 5: Engine Review
 
 **Step 18:** Review `engine-v0-2.ts` for inline entity construction:
-
-- [ ] `getView`: still filters by `seatId in actor.seatPermissions` — correct
-- [ ] `open()`: snapshot deserialization auto-updates with new types
-- [ ] `ResolverApi` construction: return types auto-update
+- [x] `getView`: still filters by `seatId in actor.seatPermissions` — correct
+- [x] `open()`: snapshot deserialization auto-updates with new types
+- [x] `ResolverApi` construction: return types auto-update
 
 **Step 19:** Review `snapshot-blob.ts`:
-
-- [ ] Uses `Record<string, Actor>` etc. — auto-updates. No changes needed.
+- [x] Uses `Record<string, Actor>` etc. — auto-updates. No changes needed.
 
 ### Phase 6: Ruleset & Storage Test Updates
 
 **Step 20:** Update `ruleset-dnd.ts`:
-
-- [ ] Verify `token.move` resolver doesn't reference removed Actor fields (hp, ac, etc.)
-- [ ] If it does, change to `actor.data.hp` etc.
+- [x] Verify `token.move` resolver doesn't reference removed Actor fields (hp, ac, etc.)
+- [x] If it does, change to `actor.data.hp` etc.
 
 **Step 21:** Update `sqlite-storage.test.ts`:
-
-- [ ] Remove or update tests using `type: 'item'` EntityType
+- [x] Remove or update tests using `type: 'item'` EntityType
 
 **Step 22:** Update `shared/src/example.test.ts`:
-
-- [ ] Fix any references to removed Actor fields or removed types
+- [x] Fix any references to removed Actor fields or removed types
 
 ### Phase 7: Client Break (Minimal)
 
 **Step 23:** Update client files:
-
-- [ ] `ActorPill.svelte`: comment out D&D-specific rendering (hp bar, ac, level/class, conditions, concentration), keep name display only
-- [ ] `ActorPill.test.ts`: comment out D&D-specific tests
-- [ ] `window/index.ts`: comment out `InitiativeModal` export
-- [ ] `BackgroundLayer.ts`: remove `scene?.mapImageUrl` fallback, use only `scene?.background?.url`
-- [ ] `campaign.svelte.test.ts`: remove `mapImageUrl: ''` from scene data
-- [ ] `seatPermissions.svelte.test.ts`: remove `mapImageUrl: ''` from scene data
-- [ ] Grep for any other references to removed fields and update
+- [x] `ActorPill.svelte`: comment out D&D-specific rendering (hp bar, ac, level/class, conditions, concentration), keep name display only
+- [x] `ActorPill.test.ts`: comment out D&D-specific tests
+- [x] `window/index.ts`: comment out `InitiativeModal` export
+- [x] `BackgroundLayer.ts`: remove `scene?.mapImageUrl` fallback, use only `scene?.background?.url`
+- [x] `campaign.svelte.test.ts`: remove `mapImageUrl: ''` from scene data
+- [x] `seatPermissions.svelte.test.ts`: remove `mapImageUrl: ''` from scene data
+- [x] Grep for any other references to removed fields and update
 
 **Step 24:** Client build verification:
-
-- [ ] `cd client && npx tsc --noEmit` — expected failures only in ActorPill and InitiativeModal
-- [ ] No UNINTENTIONAL breaks (map rendering, token display, etc.)
+- [x] `cd client && npx tsc --noEmit` — expected failures only in pre-existing GameEvent/PlayLayout/PlayLogin issues (not from our changes)
+- [x] No UNINTENTIONAL breaks (map rendering, token display, etc.)
 
 ### Phase 8: Build & Test Verification
 
 **Step 25:** Shared package:
-
-- [ ] `cd shared && npm run build && npm test`
+- [x] `cd shared && npm run build && npm test`
 
 **Step 26:** Server package:
-
-- [ ] `cd server && npx tsc --noEmit`
-- [ ] `cd server && npm test`
+- [x] `cd server && npx tsc --noEmit`
+- [x] `cd server && npm test`
 
 **Step 27:** Full verification grep:
-
-- [ ] No `\bhp\b`, `\bac\b`, `\blevel\b`, `\bclass\b`, `isConcentrating`, `\bconditions\b` in .ts/.svelte files (except commented-out code and design docs)
-- [ ] No `mapImageUrl` outside design docs
-- [ ] No `EntityRef`/`SourceRef` outside design docs
-- [ ] No `'item'` in EntityType context outside design docs
+- [x] No `\bhp\b`, `\bac\b`, `\blevel\b`, `\bclass\b`, `isConcentrating`, `\bconditions\b` in .ts/.svelte files (except commented-out code and design docs)
+- [x] No `mapImageUrl` outside design docs
+- [x] No `EntityRef`/`SourceRef` outside design docs
+- [x] No `'item'` in EntityType context outside design docs
 
 ### Relevant files
 
@@ -325,7 +298,7 @@ The current `CanvasInputController` works but was built incrementally and has kn
 
 ### Notifications
 
-- [ ] **Notification 2×2 model (handled in Phase 2.5)**: `origin: 'server' | 'client'` × `lifetime: 'persistent' | 'ephemeral'`. Prompts are `(server, persistent)` and the client stores references to prompt state by `promptId`, not copies. Toasts are `(client, ephemeral)`. Server-driven feed entries ("X attacked Y") are `(server, ephemeral)`. The `(client, persistent)` cell is reserved (offline indicators, app errors). See [Engine Boundary Refactor](#engine-boundary-refactor-phase-25) for the locked decision and [auth-join-flow.md Open Issues](../docs/components/auth-join-flow.md#open-issues-deferred-for-later-design).
+- [x] **Notification 2×2 model (handled in Phase 2.5)**: `origin: 'server' | 'client'` × `lifetime: 'persistent' | 'ephemeral'`. Prompts are `(server, persistent)` and the client stores references to prompt state by `promptId`, not copies. Toasts are `(client, ephemeral)`. Server-driven feed entries ("X attacked Y") are `(server, ephemeral)`. The `(client, persistent)` cell is reserved (offline indicators, app errors). See [`shared/src/notification.ts`](../shared/src/notification.ts) for shared types, [`client/src/state/notifications.svelte.ts`](../client/src/state/notifications.svelte.ts) for the client store.
 
 ### Console Logging
 
