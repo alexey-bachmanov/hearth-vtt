@@ -11,7 +11,6 @@ export { default as ToolDrawer } from './ToolDrawer.svelte';
 export { default as DiceRollerDrawer } from './drawers/DiceRollerDrawer.svelte';
 export { default as AnnotationDrawer } from './drawers/AnnotationDrawer.svelte';
 export { default as MeasurementDrawer } from './drawers/MeasurementDrawer.svelte';
-export { default as InitiativeDrawer } from './drawers/InitiativeDrawer.svelte';
 export { default as JukeboxDrawer } from './drawers/JukeboxDrawer.svelte';
 export { default as JournalDrawer } from './drawers/JournalDrawer.svelte';
 export { default as CompendiumDrawer } from './drawers/CompendiumDrawer.svelte';

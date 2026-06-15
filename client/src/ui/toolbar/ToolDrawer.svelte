@@ -21,7 +21,6 @@ import type { Component } from 'svelte';
 import DiceRollerDrawer from './drawers/DiceRollerDrawer.svelte';
 import AnnotationDrawer from './drawers/AnnotationDrawer.svelte';
 import MeasurementDrawer from './drawers/MeasurementDrawer.svelte';
-import InitiativeDrawer from './drawers/InitiativeDrawer.svelte';
 import JukeboxDrawer from './drawers/JukeboxDrawer.svelte';
 import JournalDrawer from './drawers/JournalDrawer.svelte';
 import CompendiumDrawer from './drawers/CompendiumDrawer.svelte';
@@ -42,7 +41,6 @@ const drawerConfig: Record<
   dice: { title: 'Dice Roller', component: DiceRollerDrawer },
   annotation: { title: 'Annotations', component: AnnotationDrawer },
   measurement: { title: 'Measurement', component: MeasurementDrawer },
-  initiative: { title: 'Initiative Tracker', component: InitiativeDrawer },
   jukebox: { title: 'Jukebox', component: JukeboxDrawer },
   journal: { title: 'Journal', component: JournalDrawer },
   compendium: { title: 'Compendium', component: CompendiumDrawer },

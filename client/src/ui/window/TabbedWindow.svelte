@@ -59,7 +59,6 @@ import type { Component } from 'svelte';
 import CharacterSheet from './CharacterSheet.svelte';
 import DocumentReader from './DocumentReader.svelte';
 import ItemInspector from './ItemInspector.svelte';
-import InitiativeModal from './InitiativeModal.svelte';
 
 // ============================================================================
 // Content registry
@@ -80,7 +79,6 @@ const WINDOW_CONTENT: Partial<Record<WindowId, Component<any>>> = {
   'actor-sheet': CharacterSheet,
   'token-config': ItemInspector,
   'scene-config': DocumentReader,
-  'campaign-prep': InitiativeModal,
   // 'settings' intentionally omitted until the component is implemented
 };
 

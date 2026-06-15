@@ -17,7 +17,6 @@ import {
   Dice6,
   Pencil,
   Ruler,
-  Swords,
   Music,
   BookOpen,
   Library,
@@ -43,7 +42,6 @@ const quickTools: ToolConfig[] = [
   { id: 'dice', icon: Dice6, label: 'Dice Roller' },
   { id: 'annotation', icon: Pencil, label: 'Annotations' },
   { id: 'measurement', icon: Ruler, label: 'Measurement' },
-  { id: 'initiative', icon: Swords, label: 'Initiative Tracker' },
   { id: 'jukebox', icon: Music, label: 'Jukebox' },
 ];
 
