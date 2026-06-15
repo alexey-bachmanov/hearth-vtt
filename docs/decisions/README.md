@@ -81,6 +81,7 @@ Example:
 - [009: Combined SQLite DB](009-combined-sqlite-db.md) — **Accepted**
 - [010: Player Account Model](010-player-account-model.md) — **Accepted**
 - [011: Engine Facade and DSL Reversal](011-engine-facade-and-dsl-reversal.md) — **Accepted**
+- [012: HearthML — Ruleset-Defined Declarative UI](012-ruleset-ui-hearthml.md) — **Accepted**
 
 ---
 
