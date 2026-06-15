@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { styleTokensToCSS } from '../styles';
+  import { styleTokensToString } from '../styles';
 
   interface Props {
     name: string;
@@ -10,6 +10,6 @@
 </script>
 
 <span class="hearthml-icon {name}" class:sx={sx?.class}
-  style={styleTokensToCSS(style)}
+  style={styleTokensToString(style)}
   aria-hidden="true">
 </span>

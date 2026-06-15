@@ -16,10 +16,7 @@ import type { StyleTokens } from '@hearth-vtt/shared';
  * Convert HearthML style tokens to an object of CSS property-value pairs.
  *
  * Each token maps to a CSS custom property (e.g., `var(--space-md)` for
- * padding: 'md'). Tokens are applied as inline styles on the element.
- *
- * @param tokens - The style tokens from a PanelNode
- * @returns An object suitable for spreading into a Svelte element's style prop
+ * padding: 'md').
  */
 export function styleTokensToCSS(
   tokens?: StyleTokens,
@@ -44,4 +41,22 @@ export function styleTokensToCSS(
   }
 
   return css;
+}
+
+/**
+ * Convert style tokens to an inline CSS string suitable for Svelte's
+ * `style` attribute.
+ *
+ * Svelte 5 requires style to be a string (not an object), unlike React.
+ *
+ * @example
+ * ```svelte
+ * <div style={styleTokensToString(node.style)}>
+ * ```
+ */
+export function styleTokensToString(tokens?: StyleTokens): string {
+  const css = styleTokensToCSS(tokens);
+  return Object.entries(css)
+    .map(([key, value]) => `${key}:${value}`)
+    .join(';');
 }

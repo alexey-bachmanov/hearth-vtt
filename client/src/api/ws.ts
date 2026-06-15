@@ -141,17 +141,30 @@ export class WebSocketClient {
   }
 
   /**
-   * Dispatch an engine action to the server.
+   * Dispatch an engine action to the server with optional optimistic state.
    *
-   * The server overrides `seatId` and `campaignId` from the authenticated
-   * session, so the values from connection state are sent as hints only.
+   * When `optimistic` entries are provided, they're applied to the
+   * campaignState optimistic overlay before the dispatch is sent.
+   * On server success (`campaignData.updated` event), the matching entries
+   * are confirmed. On error, rejected entries are reverted.
    *
-   * @param actionType - Ruleset-defined action type token (e.g. `'token.move'`)
-   * @param payload    - Action-specific payload (validated by the ruleset)
-   * @returns The `clientRequestId` sent with the action (for correlation)
+   * @param actionType - Ruleset-defined action type token
+   * @param payload    - Action-specific payload
+   * @param optimistic - Optional key-value pairs to optimistically apply
+   * @returns The `clientRequestId` sent with the action
    */
-  dispatch(actionType: EngineInput['actionType'], payload: unknown): string {
+  dispatch(
+    actionType: EngineInput['actionType'],
+    payload: unknown,
+    optimistic?: Record<string, unknown>,
+  ): string {
     const clientRequestId = `req-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 7)}`;
+
+    // Apply optimistic entries before sending
+    if (optimistic) {
+      campaignState.applyOptimistic(optimistic);
+    }
+
     this.send({
       type: 'dispatch',
       input: {
@@ -162,6 +175,7 @@ export class WebSocketClient {
         clientRequestId,
       },
     });
+
     return clientRequestId;
   }
 
@@ -212,6 +226,10 @@ export class WebSocketClient {
 
       case 'view':
         this.handleView(message as ViewMessage);
+        break;
+
+      case 'panel.defs':
+        this.handlePanelDefs(message);
         break;
 
       case 'event':
@@ -267,6 +285,25 @@ export class WebSocketClient {
   }
 
   /**
+   * Handle panel.defs message from the server.
+   *
+   * Populates campaignState.rulesetPanels with the received panel definitions.
+   * Sent once after welcome, cached by the client until ruleset.changed (V3).
+   */
+  private handlePanelDefs(message: {
+    type: 'panel.defs';
+    panels: unknown[];
+  }): void {
+    campaignState.handlePanelDefs(
+      message.panels as import('@hearth-vtt/shared').PanelDef[],
+    );
+    console.debug(
+      '[WebSocketClient] Panel defs received:',
+      message.panels.length,
+    );
+  }
+
+  /**
    * Handle a WireEvent from the server.
    *
    * Advances `lastSeq`, detects gaps (requesting a resync), and applies
@@ -306,8 +343,9 @@ export class WebSocketClient {
       payload.code === 'ACTION_REJECTED' ||
       payload.code === 'DISPATCH_ERROR'
     ) {
-      // Snap back any pending optimistic token moves.
+      // Snap back any pending optimistic token moves and campaignData overlays
       campaignState.revertOptimisticMoves();
+      campaignState.revertOptimistic();
     }
 
     notificationState.error(payload.message, 'ephemeral');

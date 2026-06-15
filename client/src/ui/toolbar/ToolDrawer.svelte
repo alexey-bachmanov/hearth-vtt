@@ -31,6 +31,8 @@ import SceneDrawer from './drawers/SceneDrawer.svelte';
 import CampaignPrepDrawer from './drawers/CampaignPrepDrawer.svelte';
 import TokenLibraryDrawer from './drawers/TokenLibraryDrawer.svelte';
 import GameSettingsDrawer from './drawers/GameSettingsDrawer.svelte';
+import { campaignState } from '../../state/campaign.svelte';
+import PanelRenderer from '../ruleset/PanelRenderer.svelte';
 
 // Drawer configuration
 const drawerConfig: Record<
@@ -125,7 +127,9 @@ $effect.pre(() => {
 });
 
 const currentDrawer = $derived(
-  uiState.activeToolDrawer ? drawerConfig[uiState.activeToolDrawer] : null
+  uiState.activeToolDrawer && !uiState.activeToolDrawer.startsWith('ruleset:')
+    ? drawerConfig[uiState.activeToolDrawer]
+    : null
 );
 const isOpen = $derived(uiState.activeToolDrawer !== null);
 </script>
@@ -155,6 +159,24 @@ const isOpen = $derived(uiState.activeToolDrawer !== null);
     <div class="drawer__content">
       <DrawerComponent />
     </div>
+  {:else if uiState.activeToolDrawer?.startsWith('ruleset:') && showContent}
+    {@const panelId = uiState.activeToolDrawer.slice('ruleset:'.length)}
+    {@const panel = campaignState.rulesetPanels.find(p => p.id === panelId)}
+    {#if panel}
+      <div class="drawer__header">
+        <h2 class="drawer__title">{panel.title}</h2>
+        <button
+          class="drawer__close"
+          onclick={handleClose}
+          aria-label="Close drawer"
+        >
+          <Icon icon={X} label="Close" size={20} />
+        </button>
+      </div>
+      <div class="drawer__content">
+        <PanelRenderer node={panel.content} ctx={{ scope: {} }} />
+      </div>
+    {/if}
   {/if}
 </div>
 

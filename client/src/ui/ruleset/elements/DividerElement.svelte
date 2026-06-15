@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { styleTokensToCSS } from '../styles';
+  import { styleTokensToString } from '../styles';
 
   interface Props {
     style?: import('@hearth-vtt/shared').StyleTokens;
@@ -9,4 +9,4 @@
 </script>
 
 <hr class="hearthml-divider" class:sx={sx?.class}
-  style={styleTokensToCSS(style)} />
+  style={styleTokensToString(style)} />

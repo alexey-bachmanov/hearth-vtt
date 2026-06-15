@@ -1,7 +1,7 @@
 <script lang="ts">
   import type { Binding } from '@hearth-vtt/shared';
   import { resolveBinding, type BindingContext } from '../bindings';
-  import { styleTokensToCSS } from '../styles';
+  import { styleTokensToString } from '../styles';
   import { wsClient } from '../../../api/ws';
 
   interface Props {
@@ -29,7 +29,7 @@
   class:hearthml-btn--secondary={variant === 'secondary' || !variant}
   class:hearthml-btn--danger={variant === 'danger'}
   class:sx={sx?.class}
-  style={styleTokensToCSS(style)}
+  style={styleTokensToString(style)}
   disabled={isDisabled}
   onclick={handleClick}>
   {label}

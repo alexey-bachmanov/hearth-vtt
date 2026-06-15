@@ -1,7 +1,7 @@
 <script lang="ts">
   import type { Binding } from '@hearth-vtt/shared';
   import { resolveBinding, type BindingContext } from '../bindings';
-  import { styleTokensToCSS } from '../styles';
+  import { styleTokensToString } from '../styles';
 
   interface Props {
     valueBinding: Binding;
@@ -17,5 +17,5 @@
 </script>
 
 <progress class="hearthml-progress" class:sx={sx?.class}
-  value={val} max={max} style={styleTokensToCSS(style)}>
+  value={val} max={max} style={styleTokensToString(style)}>
 </progress>

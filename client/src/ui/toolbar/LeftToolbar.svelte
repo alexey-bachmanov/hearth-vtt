@@ -2,8 +2,9 @@
 /**
  * LeftToolbar component.
  *
- * Narrow vertical icon bar (56px) with three sections:
- * - Quick tools (top): Dice, annotation, measurement, initiative, jukebox
+ * Narrow vertical icon bar (56px) with four sections:
+ * - Quick tools (top): Dice, annotation, measurement, jukebox
+ * - Ruleset panels: One icon per ruleset-defined toolbar panel
  * - Big tools (middle): Journal, compendium, settings
  * - GM tools (bottom): Lighting, obstructions, scene, campaign prep, token library, game settings
  *
@@ -28,6 +29,7 @@ import {
   Users,
   Cog,
 } from 'lucide-svelte';
+import { campaignState } from '../../state/campaign.svelte';
 
 interface ToolConfig {
   id: ToolDrawerId;
@@ -88,6 +90,23 @@ function isActive(toolId: ToolDrawerId): boolean {
       </Tooltip>
     {/each}
   </div>
+
+  <div class="toolbar-divider"></div>
+
+  <!-- Ruleset Panels Section -->
+  {#each campaignState.rulesetPanels.filter(p => p.slot === 'toolbar') as panel (panel.id)}
+    <Tooltip text={panel.title} position="right">
+      <button
+        class="toolbar-icon-btn"
+        class:toolbar-icon-btn--active={isActive(`ruleset:${panel.id}` as ToolDrawerId)}
+        onclick={() => uiState.toggleRulesetPanel(panel.id)}
+        aria-label={panel.title}
+        aria-pressed={isActive(`ruleset:${panel.id}` as ToolDrawerId)}
+      >
+        <span class="toolbar-icon-text">{panel.title.charAt(0).toUpperCase()}</span>
+      </button>
+    </Tooltip>
+  {/each}
 
   <div class="toolbar-divider"></div>
 

@@ -59,6 +59,8 @@ import type { Component } from 'svelte';
 import CharacterSheet from './CharacterSheet.svelte';
 import DocumentReader from './DocumentReader.svelte';
 import ItemInspector from './ItemInspector.svelte';
+import { campaignState } from '../../state/campaign.svelte';
+import RulesetWindow from '../ruleset/RulesetWindow.svelte';
 
 // ============================================================================
 // Content registry
@@ -586,7 +588,14 @@ function handleGlobalKeydown(event: KeyboardEvent) {
          Content area
          ================================================================ -->
     <div class="tabbed-window__body" role="tabpanel">
-      {#if contentComponent}
+      {#if activeTab?.type === 'ruleset-panel'}
+        {@const panel = campaignState.rulesetPanels.find(p => p.id === activeTab.context?.panelId)}
+        {#if panel}
+          <RulesetWindow {panel} />
+        {:else}
+          <div class="tabbed-window__empty">Panel not found: {activeTab.title}</div>
+        {/if}
+      {:else if contentComponent}
         {@const Comp = contentComponent}
         <Comp {...(activeTab?.context ?? {})} />
       {:else if activeTab}

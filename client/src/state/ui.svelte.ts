@@ -51,7 +51,6 @@ export type ToolDrawerId =
   | 'dice'
   | 'annotation'
   | 'measurement'
-  | 'initiative'
   | 'jukebox'
   | 'journal'
   | 'compendium'
@@ -61,7 +60,8 @@ export type ToolDrawerId =
   | 'scene'
   | 'campaign-prep'
   | 'token-library'
-  | 'game-settings';
+  | 'game-settings'
+  | (string & {});
 
 /**
  * Exhaustive list of floating window content types.
@@ -76,7 +76,8 @@ export type WindowId =
   | 'token-config'
   | 'scene-config'
   | 'campaign-prep'
-  | 'settings';
+  | 'settings'
+  | 'ruleset-panel';
 
 /**
  * Metadata for a single floating window tab.
@@ -268,6 +269,15 @@ class UIState {
     } else {
       this.activeToolDrawer = drawerId;
     }
+  }
+
+  /**
+   * Toggle a ruleset-defined panel in the toolbar drawer.
+   * Ruleset panel IDs are prefixed with 'ruleset:' to distinguish them
+   * from built-in tool drawers.
+   */
+  toggleRulesetPanel(panelId: string) {
+    this.toggleToolDrawer(`ruleset:${panelId}` as ToolDrawerId);
   }
 
   /**

@@ -2,7 +2,7 @@
   import type { Binding, PanelNode } from '@hearth-vtt/shared';
   import { resolveBinding, type BindingContext } from '../bindings';
   import PanelRenderer from '../PanelRenderer.svelte';
-  import { styleTokensToCSS } from '../styles';
+  import { styleTokensToString } from '../styles';
 
   interface Props {
     source: Binding;
@@ -17,9 +17,9 @@
   const items = $derived<unknown[]>(resolveBinding(source, ctx) as unknown[] ?? []);
 </script>
 
-<div class="hearthml-forEach" class:sx={sx?.class} style={styleTokensToCSS(style)}>
-  {#each items as item, idx}
-    {#each children as child}
+<div class="hearthml-forEach" class:sx={sx?.class} style={styleTokensToString(style)}>
+  {#each items as item, idx (item)}
+    {#each children as child (child)}
       <PanelRenderer
         node={child}
         ctx={{ scope: { ...ctx.scope, [as]: item, $index: idx } }}

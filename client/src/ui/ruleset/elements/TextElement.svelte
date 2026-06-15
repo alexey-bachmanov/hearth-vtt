@@ -1,7 +1,7 @@
 <script lang="ts">
   import type { Binding } from '@hearth-vtt/shared';
   import { resolveBinding, type BindingContext } from '../bindings';
-  import { styleTokensToCSS } from '../styles';
+  import { styleTokensToString } from '../styles';
 
   interface Props {
     binding: Binding;
@@ -17,7 +17,7 @@
   const displayValue = $derived(formatValue(rawValue, format));
 </script>
 
-<span class="hearthml-text" class:sx={sx?.class} style={styleTokensToCSS(style)}>
+<span class="hearthml-text" class:sx={sx?.class} style={styleTokensToString(style)}>
   {displayValue}
 </span>
 

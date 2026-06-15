@@ -2,7 +2,7 @@
   import type { Binding, PanelNode } from '@hearth-vtt/shared';
   import { resolveBinding, type BindingContext } from '../bindings';
   import PanelRenderer from '../PanelRenderer.svelte';
-  import { styleTokensToCSS } from '../styles';
+  import { styleTokensToString } from '../styles';
 
   interface Props {
     condition: Binding;
@@ -17,7 +17,7 @@
 </script>
 
 {#if show}
-  <div class="hearthml-when" class:sx={sx?.class} style={styleTokensToCSS(style)}>
+  <div class="hearthml-when" class:sx={sx?.class} style={styleTokensToString(style)}>
     {#each children as child}
       <PanelRenderer node={child} {ctx} />
     {/each}

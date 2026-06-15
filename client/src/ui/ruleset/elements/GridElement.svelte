@@ -1,7 +1,7 @@
 <script lang="ts">
   import type { PanelNode } from '@hearth-vtt/shared';
   import PanelRenderer from '../PanelRenderer.svelte';
-  import { styleTokensToCSS } from '../styles';
+  import { styleTokensToString } from '../styles';
   import type { BindingContext } from '../bindings';
 
   interface Props {
@@ -15,8 +15,8 @@
 </script>
 
 <div class="hearthml-grid" class:sx={sx?.class}
-  style="display:grid;grid-template-columns:repeat({columns},1fr);{Object.entries(styleTokensToCSS(style)).map(([k,v]) => `${k}:${v}`).join(';')}">
-  {#each children as child}
+  style="display:grid;grid-template-columns:repeat({columns},1fr);{styleTokensToString(style)}">
+  {#each children as child (child)}
     <PanelRenderer node={child} {ctx} />
   {/each}
 </div>

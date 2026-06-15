@@ -3,15 +3,15 @@
    * ActorPill - Individual actor pill component.
    *
    * Split-button design with main button (center on token) and dropdown toggle.
-   *
-   * NOTE: D&D-specific stats (HP bar, AC, level/class, conditions) were removed
-   * in Engine v0.2 Schema De-D&D-ification. Stats now live in actor.data and
-   * are rendered by ruleset-defined UI components (future work).
+   * Ruleset-defined HearthML panels with slot 'actor-pill' are rendered in the
+   * dropdown below the built-in action buttons.
    */
 
   import { ChevronDown, User, Crosshair, ScrollText } from 'lucide-svelte';
   import type { Actor } from '@hearth-vtt/shared';
   import Icon from '../shared/Icon.svelte';
+  import { campaignState } from '../../state/campaign.svelte';
+  import PanelRenderer from '../ruleset/PanelRenderer.svelte';
 
   interface Props {
     actor: Actor;
@@ -79,11 +79,10 @@
     style:top="{dropdownTop}px"
     style:left="{dropdownLeft}px"
   >
-    <!--
-      D&D-specific stats (HP bar, AC, level/class, conditions) removed in
-      Engine v0.2. Ruleset-defined UI components will replace these when
-      the ruleset client-component system is designed.
-    -->
+    <!-- Ruleset-defined actor-pill panels -->
+    {#each campaignState.rulesetPanels.filter(p => p.slot === 'actor-pill') as panel}
+      <PanelRenderer node={panel.content} ctx={{ scope: { actorId: actor.id } }} />
+    {/each}
 
     <!-- Action Buttons -->
     <div class="pill-dropdown-actions">
