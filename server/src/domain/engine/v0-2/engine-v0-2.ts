@@ -113,7 +113,11 @@ export class EngineV02 implements GameEngine {
   private readonly ruleset: RulesetManifest | null;
   private readonly resolverApi: ResolverApi;
 
-  private constructor(state: CampaignState, storage: Storage, ruleset?: RulesetManifest) {
+  private constructor(
+    state: CampaignState,
+    storage: Storage,
+    ruleset?: RulesetManifest,
+  ) {
     this.state = state;
     this.storage = storage;
     this.ruleset = ruleset ?? null;
@@ -432,15 +436,12 @@ export class EngineV02 implements GameEngine {
       }
     }
     if (hasCampaignChanges) {
-      const stored = await this.storage.appendEvent(
-        this.state.campaignId,
-        {
-          campaignId: this.state.campaignId,
-          entityId: null,
-          type: 'campaignData.updated',
-          data: { changes: campaignChanges },
-        },
-      );
+      const stored = await this.storage.appendEvent(this.state.campaignId, {
+        campaignId: this.state.campaignId,
+        entityId: null,
+        type: 'campaignData.updated',
+        data: { changes: campaignChanges },
+      });
       lastSeq = stored.seq;
       const gameEvent = this.applyEvent(stored);
       if (gameEvent) {
@@ -464,15 +465,12 @@ export class EngineV02 implements GameEngine {
           };
           this.state.actors.set(actorId, updatedActor);
 
-          const stored = await this.storage.appendEvent(
-            this.state.campaignId,
-            {
-              campaignId: this.state.campaignId,
-              entityId: actorId,
-              type: 'actor.dataReplaced',
-              data: { actorId, data: updatedActor.data },
-            },
-          );
+          const stored = await this.storage.appendEvent(this.state.campaignId, {
+            campaignId: this.state.campaignId,
+            entityId: actorId,
+            type: 'actor.dataReplaced',
+            data: { actorId, data: updatedActor.data },
+          });
           lastSeq = stored.seq;
           const gameEvent = this.applyEvent(stored);
           if (gameEvent) {
@@ -480,7 +478,10 @@ export class EngineV02 implements GameEngine {
           }
         }
       } catch (err) {
-        return { accepted: false, reason: `Derived field hook error: ${String(err)}` };
+        return {
+          accepted: false,
+          reason: `Derived field hook error: ${String(err)}`,
+        };
       }
     }
 

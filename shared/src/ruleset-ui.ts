@@ -15,10 +15,21 @@ import { z } from 'zod';
 // ============================================================================
 
 export const bindingSchema = z.discriminatedUnion('kind', [
-  z.object({ kind: z.literal('actor.data'), actorId: z.string(), key: z.string() }),
+  z.object({
+    kind: z.literal('actor.data'),
+    actorId: z.string(),
+    key: z.string(),
+  }),
   z.object({ kind: z.literal('campaignData'), key: z.string() }),
-  z.object({ kind: z.literal('eventState'), eventType: z.string(), path: z.string() }),
-  z.object({ kind: z.literal('literal'), value: z.union([z.string(), z.number(), z.boolean()]) }),
+  z.object({
+    kind: z.literal('eventState'),
+    eventType: z.string(),
+    path: z.string(),
+  }),
+  z.object({
+    kind: z.literal('literal'),
+    value: z.union([z.string(), z.number(), z.boolean()]),
+  }),
 ]);
 
 export type Binding = z.infer<typeof bindingSchema>;
@@ -27,18 +38,22 @@ export type Binding = z.infer<typeof bindingSchema>;
 // StyleTokens — constrained palette mapped to CSS custom properties
 // ============================================================================
 
-export const styleTokensSchema = z.object({
-  padding: z.enum(['none', 'xs', 'sm', 'md', 'lg']).optional(),
-  gap: z.enum(['none', 'xs', 'sm', 'md', 'lg']).optional(),
-  flex: z.number().optional(),
-  textVariant: z.enum(['body', 'caption', 'h3', 'h4']).optional(),
-  color: z.enum(['default', 'muted', 'accent', 'danger', 'success', 'warning']).optional(),
-  bg: z.enum(['none', 'surface', 'elevated']).optional(),
-  width: z.number().optional(),
-  height: z.number().optional(),
-  alignItems: z.enum(['start', 'center', 'end', 'stretch']).optional(),
-  justifyContent: z.enum(['start', 'center', 'end', 'between']).optional(),
-}).strict();
+export const styleTokensSchema = z
+  .object({
+    padding: z.enum(['none', 'xs', 'sm', 'md', 'lg']).optional(),
+    gap: z.enum(['none', 'xs', 'sm', 'md', 'lg']).optional(),
+    flex: z.number().optional(),
+    textVariant: z.enum(['body', 'caption', 'h3', 'h4']).optional(),
+    color: z
+      .enum(['default', 'muted', 'accent', 'danger', 'success', 'warning'])
+      .optional(),
+    bg: z.enum(['none', 'surface', 'elevated']).optional(),
+    width: z.number().optional(),
+    height: z.number().optional(),
+    alignItems: z.enum(['start', 'center', 'end', 'stretch']).optional(),
+    justifyContent: z.enum(['start', 'center', 'end', 'between']).optional(),
+  })
+  .strict();
 
 export type StyleTokens = z.infer<typeof styleTokensSchema>;
 
@@ -151,8 +166,12 @@ export type PanelNode =
 const textNodeSchema: z.ZodType<TextNode> = z.object({
   kind: z.literal('text'),
   binding: bindingSchema,
-  format: z.enum(['none', 'plusMinus', 'fraction', 'diceFormula', 'diceWithMods']).optional(),
-  formatArgs: z.record(z.union([z.string(), z.number(), z.boolean()])).optional(),
+  format: z
+    .enum(['none', 'plusMinus', 'fraction', 'diceFormula', 'diceWithMods'])
+    .optional(),
+  formatArgs: z
+    .record(z.union([z.string(), z.number(), z.boolean()]))
+    .optional(),
   style: styleTokensSchema.optional(),
   sx: sxPropsSchema.optional(),
 });
@@ -168,7 +187,10 @@ const progressNodeSchema: z.ZodType<ProgressNode> = z.object({
 const buttonNodeSchema: z.ZodType<ButtonNode> = z.object({
   kind: z.literal('button'),
   label: z.string(),
-  action: z.object({ actionType: z.string(), payload: z.record(z.string(), z.unknown()) }),
+  action: z.object({
+    actionType: z.string(),
+    payload: z.record(z.string(), z.unknown()),
+  }),
   disabledWhen: bindingSchema.optional(),
   variant: z.enum(['primary', 'secondary', 'danger']).optional(),
   style: styleTokensSchema.optional(),
