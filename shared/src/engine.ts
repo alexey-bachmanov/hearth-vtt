@@ -121,12 +121,11 @@ export type SeatView = {
    */
   capabilities: Capabilities;
   /**
-   * Ruleset-contributed panel definitions for the toolbar.
-   *
-   * Shape is deliberately opaque and deferred until the ruleset interior is
-   * designed. Treat as `unknown[]` — do not attempt to render content yet.
+   * Campaign-level opaque data blob managed by the ruleset.
+   * Contains computed state like initiative order, party resources, etc.
+   * Updated via campaignData.updated events.
    */
-  rulesetPanels: unknown[];
+  campaignData: Record<string, unknown>;
   /**
    * Sequence number of the most recent event included in this view.
    *

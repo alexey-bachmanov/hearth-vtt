@@ -81,7 +81,22 @@ export {
 // NOTE: refs.ts (EntityRef, SourceRef) was deleted in Engine v0.2 Phase 1.
 // These types had zero consumers. See shared/src/refs.ts for details.
 
-// ── Engine boundary types (Phase 2.5) ────────────────────────────────────────
+// ── HearthML ruleset UI types ──────────────────────────────────────────────
+
+export {
+  bindingSchema,
+  type Binding,
+  styleTokensSchema,
+  type StyleTokens,
+  sxPropsSchema,
+  type SxProps,
+  panelNodeSchema,
+  type PanelNode,
+  panelSlotSchema,
+  type PanelSlot,
+  panelDefSchema,
+  type PanelDef,
+} from './ruleset-ui';
 
 export {
   capabilitiesSchema,
