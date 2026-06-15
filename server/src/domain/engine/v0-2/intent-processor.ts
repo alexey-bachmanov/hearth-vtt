@@ -419,6 +419,25 @@ export function processIntent(
         wireEventData: { sceneId, data },
       };
     }
+
+    // ── Campaign data (v0.2) ─────────────────────────────────────────────
+
+    case 'campaignData.set': {
+      const { key, value } = intent;
+      return {
+        stateMutation: () => {
+          state.campaignData[key] = value;
+        },
+        storedEvent: {
+          campaignId,
+          entityId: null,
+          type: 'campaignData.updated',
+          data: { key, value },
+        },
+        wireEventType: 'campaignData.updated',
+        wireEventData: { key, value },
+      };
+    }
   }
 }
 
@@ -488,5 +507,7 @@ function collisionKey(intent: ResolverIntent): string | null {
       return `token.replaceData:${intent.tokenId}`;
     case 'scene.replaceData':
       return `scene.replaceData:${intent.sceneId}`;
+    case 'campaignData.set':
+      return `campaignData.set:${intent.key}`;
   }
 }

@@ -138,9 +138,6 @@ export class EngineV02 implements GameEngine {
       rollDice: (formula: string, actionId: ActionId): RollDiceResult =>
         evaluate(formula, actionId),
       getCustomData: (key: string) => this.state.customData.get(key),
-      setCampaignData: (key: string, value: unknown) => {
-        this.state.campaignData[key] = value;
-      },
     });
   }
 
@@ -388,7 +385,6 @@ export class EngineV02 implements GameEngine {
     // 3. Process each intent: state mutation + stored event + wire event
     let lastSeq = this.state.seq;
     const touchedActorIds: string[] = [];
-    const beforeCampaignData = { ...this.state.campaignData };
 
     for (const intent of mergedIntents) {
       const processed: ProcessedIntent = processIntent(
@@ -419,37 +415,7 @@ export class EngineV02 implements GameEngine {
       }
     }
 
-    // 4. Diff campaignData and emit campaignData.updated if changed
-    const afterCampaignData = this.state.campaignData;
-    const campaignChanges: Record<string, unknown> = {};
-    let hasCampaignChanges = false;
-    for (const [key, value] of Object.entries(afterCampaignData)) {
-      if (beforeCampaignData[key] !== value) {
-        campaignChanges[key] = value;
-        hasCampaignChanges = true;
-      }
-    }
-    for (const key of Object.keys(beforeCampaignData)) {
-      if (!(key in afterCampaignData)) {
-        campaignChanges[key] = null;
-        hasCampaignChanges = true;
-      }
-    }
-    if (hasCampaignChanges) {
-      const stored = await this.storage.appendEvent(this.state.campaignId, {
-        campaignId: this.state.campaignId,
-        entityId: null,
-        type: 'campaignData.updated',
-        data: { changes: campaignChanges },
-      });
-      lastSeq = stored.seq;
-      const gameEvent = this.applyEvent(stored);
-      if (gameEvent) {
-        this.broadcastEvent(gameEvent as GameEvent<BaseEventData>);
-      }
-    }
-
-    // 5. Run derived field hook if actors were modified
+    // 4. Run derived field hook if actors were modified
     if (touchedActorIds.length > 0 && this.ruleset?.recomputeActorData) {
       try {
         const patches = this.ruleset.recomputeActorData(

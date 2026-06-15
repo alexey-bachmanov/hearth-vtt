@@ -96,6 +96,12 @@ export type ResolverIntent =
       kind: 'scene.replaceData';
       sceneId: string;
       data: Record<string, unknown>;
+    }
+  // ── Campaign data (v0.2) ────────────────────────────────────────────────
+  | {
+      kind: 'campaignData.set';
+      key: string;
+      value: unknown;
     };
 
 /** Minimal persisted workflow shape for v0.1. */
@@ -116,7 +122,11 @@ export type RollDiceResult =
   | { ok: false; reason: string };
 
 /**
- * Read-only helpers exposed to resolvers.
+ * Helpers exposed to resolvers.
+ *
+ * All methods are read-only or pure: they inspect state or compute results
+ * (dice rolls) without mutating anything. To mutate campaign state, return a
+ * ResolverIntent — every mutation flows through the intent pipeline.
  *
  * v0.1 only implements the subset needed by baseline actions and the D&D
  * `token.move` placeholder ruleset. Spatial helpers may throw until wired.
@@ -133,8 +143,6 @@ export interface ResolverApi {
   ): Token[];
   rollDice(formula: string, actionId: ActionId): RollDiceResult;
   getCustomData(key: string): unknown;
-  /** Set a key in campaign-level data. Engine diffs before/after and emits campaignData.updated. */
-  setCampaignData(key: string, value: unknown): void;
 }
 
 /** Resolver for one action type. */
