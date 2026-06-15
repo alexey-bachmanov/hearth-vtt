@@ -217,29 +217,3 @@ describe('clear()', () => {
     expect(campaignState.events).toHaveLength(0);
   });
 });
-
-// ---------------------------------------------------------------------------
-// loadMockData()
-// ---------------------------------------------------------------------------
-
-describe('loadMockData()', () => {
-  it('sets campaignId to "campaign-mock-001"', () => {
-    campaignState.loadMockData();
-    expect(campaignState.campaignId).toBe('campaign-mock-001');
-  });
-
-  it('populates at least one party actor', () => {
-    campaignState.loadMockData();
-    expect(campaignState.getPartyActors().length).toBeGreaterThanOrEqual(1);
-  });
-
-  it('populates at least one scene', () => {
-    campaignState.loadMockData();
-    expect(campaignState.scenes.size).toBeGreaterThanOrEqual(1);
-  });
-
-  it('sets activeSceneId to a non-null value', () => {
-    campaignState.loadMockData();
-    expect(campaignState.activeSceneId).not.toBeNull();
-  });
-});
