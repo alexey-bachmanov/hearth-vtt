@@ -78,11 +78,9 @@ type StyleTokens = {
 
 The `sx.class` escape hatch allows referencing a CSS class from a ruleset-supplied stylesheet (validated at load time — no `url()`, no `attr()`, no `@import`). A full `sx` CSS-property whitelist (like MUI's `sx` prop) is deferred to V2.
 
-### 4. `campaignData` — campaign-level blob via `api.setCampaignData()`
+### 4. `campaignData` — campaign-level blob via `campaignData.set` intent
 
-A `Record<string, unknown>` on both `SeatView` and `CampaignState` for campaign-scoped computed state (initiative order, party resources, story flags). Resolvers write to it via `api.setCampaignData(key, value)`. The engine snapshots before dispatch, diffs after, and emits `campaignData.updated` events with only changed keys.
-
-No `campaignData.replace` intent — the resolver sets individual keys; the engine handles diffing.
+A `Record<string, unknown>` on both `SeatView` and `CampaignState` for campaign-scoped computed state (initiative order, party resources, story flags). Resolvers write to it by returning `{ kind: 'campaignData.set', key, value }` intents. Each intent produces one `campaignData.updated` stored event + wire broadcast, processed through the same pipeline as every other intent.
 
 ### 5. Derived field hook — `recomputeActorData`
 
@@ -179,7 +177,7 @@ User click → dispatch(actionType, payload)
     ├── optimisticOverlay.set(key, value) → UI updates instantly
     │
     ▼
-Server: dispatch → resolver → api.setCampaignData()
+Server: dispatch → resolver → returns campaignData.set intents
     │
     ├── campaignData.updated event (changed keys only)
     ├── actor.dataReplaced events (from recomputeActorData hook)
@@ -196,9 +194,9 @@ Client: applyEvent → merge → confirmOptimistic → UI authoritative
 | `shared/src/engine.ts`                                  | Modified | Added `campaignData` to `SeatView`, removed `rulesetPanels`                                           |
 | `shared/src/protocol/ws.ts`                             | Modified | Added `panel.defs` and `panel.defs.request` message types                                             |
 | `shared/src/index.ts`                                   | Modified | Export HearthML types                                                                                 |
-| `server/…/types.ts`                                     | Modified | Added `setCampaignData` to `ResolverApi`, `panels` + `recomputeActorData` to `RulesetManifest`        |
+| `server/…/types.ts`                                     | Modified | Added `campaignData.set` to `ResolverIntent`, `panels` + `recomputeActorData` to `RulesetManifest`    |
 | `server/…/types-internal.ts`                            | Modified | Added `campaignData` to `CampaignState`                                                               |
-| `server/…/engine-v0-2.ts`                               | Modified | campaignData diffing + recomputeActorData hook in dispatch pipeline                                   |
+| `server/…/engine-v0-2.ts`                               | Modified | campaignData.set intent processing + recomputeActorData hook in dispatch pipeline                     |
 | `server/…/intent-processor.ts`                          | Modified | Added `touchedActorIds` to `ProcessedIntent`                                                          |
 | `server/src/routes/ws.ts`                               | Modified | Sends `panel.defs` after welcome, handles `panel.defs.request`                                        |
 | `client/src/state/campaign.svelte.ts`                   | Modified | Added campaignData, rulesetPanels, optimisticOverlay, eventState, handlePanelDefs                     |
