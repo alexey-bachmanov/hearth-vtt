@@ -18,9 +18,7 @@ import type { StyleTokens } from '@hearth-vtt/shared';
  * Each token maps to a CSS custom property (e.g., `var(--space-md)` for
  * padding: 'md').
  */
-export function styleTokensToCSS(
-  tokens?: StyleTokens,
-): Record<string, string> {
+export function styleTokensToCSS(tokens?: StyleTokens): Record<string, string> {
   if (!tokens) return {};
 
   const css: Record<string, string> = {};
@@ -28,16 +26,18 @@ export function styleTokensToCSS(
   if (tokens.padding) css.padding = `var(--space-${tokens.padding})`;
   if (tokens.gap) css.gap = `var(--space-${tokens.gap})`;
   if (tokens.flex !== undefined) css.flex = String(tokens.flex);
-  if (tokens.textVariant) css.fontSize = `var(--font-size-${tokens.textVariant})`;
+  if (tokens.textVariant)
+    css.fontSize = `var(--font-size-${tokens.textVariant})`;
   if (tokens.color) css.color = `var(--color-text-${tokens.color})`;
   if (tokens.bg) css.background = `var(--color-bg-${tokens.bg})`;
   if (tokens.width !== undefined) css.width = `${tokens.width}px`;
   if (tokens.height !== undefined) css.height = `${tokens.height}px`;
   if (tokens.alignItems) css.alignItems = tokens.alignItems;
   if (tokens.justifyContent) {
-    css.justifyContent = tokens.justifyContent === 'between'
-      ? 'space-between'
-      : tokens.justifyContent;
+    css.justifyContent =
+      tokens.justifyContent === 'between'
+        ? 'space-between'
+        : tokens.justifyContent;
   }
 
   return css;
