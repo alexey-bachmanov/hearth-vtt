@@ -15,6 +15,7 @@ import type {
   SeatView,
   Prompt,
   GameEvent as SharedGameEvent,
+  PanelDef,
 } from '@hearth-vtt/shared';
 import { viewportState } from './viewport.svelte';
 import { notificationState } from './notifications.svelte';
@@ -78,6 +79,13 @@ export class CampaignState {
   events = $state<GameEvent[]>([]); // Recent events for chat log
 
   /**
+   * Raw incoming SharedGameEvent buffer for ruleset panel bindings.
+   * Stores ALL events the client receives (not just chat-like ones).
+   * Scanned by eventState() for initiative.setTo, campaignData.updated, etc.
+   */
+  sharedGameEvents = $state<SharedGameEvent[]>([]);
+
+  /**
    * Active prompts targeting this seat.
    *
    * Populated from SeatView.activePrompts on connect/resync and updated
@@ -94,6 +102,31 @@ export class CampaignState {
    * Used to snap back if the server rejects the move action.
    */
   pendingMoveOriginals = new SvelteMap<string, Position>();
+
+  // ============================================================================
+  // HearthML Ruleset UI State
+  // ============================================================================
+
+  /**
+   * Campaign-level opaque data blob managed by the ruleset.
+   * Contains computed state like initiative order, party resources, etc.
+   * Updated via campaignData.updated events.
+   */
+  campaignData = $state<Record<string, unknown>>({});
+
+  /**
+   * Ruleset panel definitions, cached from the panel.defs WS message.
+   * Populated once on connect, cleared only on ruleset.changed (V3).
+   */
+  rulesetPanels = $state<PanelDef[]>([]);
+
+  /**
+   * Optimistic overlay for pending mutations.
+   * Keyed by composite key "{entityType}:{entityId}:{key}"
+   * E.g., "actor:kael-1:hp" → 37
+   * Checked by getCampaignData() before authoritative campaignData.
+   */
+  optimisticOverlay = new SvelteMap<string, unknown>();
 
   // ============================================================================
   // Accessor Methods
@@ -205,6 +238,82 @@ export class CampaignState {
   }
 
   // ============================================================================
+  // Campaign Data Methods
+  // ============================================================================
+
+  /**
+   * Read campaign data, checking the optimistic overlay first.
+   * If the overlay has a pending value, it shadows the authoritative value
+   * until confirmOptimistic or revertOptimistic is called.
+   */
+  getCampaignData(key: string): unknown {
+    if (this.optimisticOverlay.has(key)) {
+      return this.optimisticOverlay.get(key);
+    }
+    return this.campaignData[key];
+  }
+
+  /**
+   * Optimistically set key-value pairs before dispatch confirmation.
+   * Cleared by confirmOptimistic on accept or revertOptimistic on reject.
+   */
+  applyOptimistic(entries: Record<string, unknown>): void {
+    for (const [key, value] of Object.entries(entries)) {
+      this.optimisticOverlay.set(key, value);
+    }
+  }
+
+  /**
+   * Server confirmed — clear specific overlay entries, revealing authoritative values.
+   */
+  confirmOptimistic(keys: string[]): void {
+    for (const key of keys) this.optimisticOverlay.delete(key);
+  }
+
+  /**
+   * Server rejected — clear overlay entries, snapping back to authoritative.
+   * If no keys provided, clears all (for full dispatch rejection).
+   */
+  revertOptimistic(keys?: string[]): void {
+    if (keys) {
+      for (const key of keys) this.optimisticOverlay.delete(key);
+    } else {
+      this.optimisticOverlay.clear();
+    }
+  }
+
+  // ============================================================================
+  // Event State Methods
+  // ============================================================================
+
+  /**
+   * Return the most recent SharedGameEvent of the given type, or undefined.
+   * Reverse scans the sharedGameEvents array — O(n) but n is capped at 200.
+   * Svelte 5 $state tracks reads automatically for reactivity.
+   */
+  eventState(eventType: string): SharedGameEvent | undefined {
+    for (let i = this.sharedGameEvents.length - 1; i >= 0; i--) {
+      if (this.sharedGameEvents[i].type === eventType) {
+        return this.sharedGameEvents[i];
+      }
+    }
+    return undefined;
+  }
+
+  // ============================================================================
+  // Panel Defs Methods
+  // ============================================================================
+
+  /**
+   * Populate rulesetPanels from a panel.defs WS message.
+   * Called once on connect (before the view message) or on explicit re-request.
+   */
+  handlePanelDefs(panels: PanelDef[]): void {
+    this.rulesetPanels = panels;
+    console.debug('[CampaignState] Panel defs loaded', panels.length, 'panels');
+  }
+
+  // ============================================================================
   // Event Log Methods
   // ============================================================================
 
@@ -245,6 +354,10 @@ export class CampaignState {
   applyView(view: SeatView) {
     this.campaignId = view.campaignId;
     this.pendingMoveOriginals.clear();
+
+    // Campaign data
+    this.campaignData = view.campaignData ?? {};
+    this.revertOptimistic();
 
     // Scene
     this.scenes.clear();
@@ -472,6 +585,18 @@ export class CampaignState {
         break;
       }
 
+      case 'campaignData.updated': {
+        const d = event.data as { changes: Record<string, unknown> };
+        if (d.changes) {
+          this.campaignData = { ...this.campaignData, ...d.changes };
+          // Clear matching optimistic entries for confirmed changes
+          for (const key of Object.keys(d.changes)) {
+            this.optimisticOverlay.delete(key);
+          }
+        }
+        break;
+      }
+
       default:
         // Unknown event types are logged but do not cause errors.
         console.warn(
@@ -479,6 +604,12 @@ export class CampaignState {
           event.type,
           event.id,
         );
+    }
+
+    // Append every incoming event to the shared event buffer for eventState()
+    this.sharedGameEvents = [...this.sharedGameEvents, event];
+    if (this.sharedGameEvents.length > this.maxEvents) {
+      this.sharedGameEvents = this.sharedGameEvents.slice(-this.maxEvents);
     }
   }
 
@@ -534,6 +665,10 @@ export class CampaignState {
     this.effects.clear();
     this.activePrompts.clear();
     this.events = [];
+    this.sharedGameEvents = [];
+    this.campaignData = {};
+    this.rulesetPanels = [];
+    this.optimisticOverlay.clear();
     this.pendingMoveOriginals.clear();
   }
 
