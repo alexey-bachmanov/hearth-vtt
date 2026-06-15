@@ -18,7 +18,7 @@
 
 {#if show}
   <div class="hearthml-when" class:sx={sx?.class} style={styleTokensToString(style)}>
-    {#each children as child}
+    {#each children as child (child)}
       <PanelRenderer node={child} {ctx} />
     {/each}
   </div>
