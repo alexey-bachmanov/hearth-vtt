@@ -168,6 +168,7 @@ export class EngineV01 implements GameEngine {
       actors,
       workflows: new Map(),
       customData: new Map(),
+      campaignData: {},
       seats,
       recentEvents: [],
       closed: false,
@@ -266,7 +267,7 @@ export class EngineV01 implements GameEngine {
         recentEvents: [],
         activePrompts: [],
         capabilities: { globalActions: [], entityActions: {} },
-        rulesetPanels: [],
+        campaignData: this.state.campaignData,
         lastSeq: this.state.seq,
       };
     }
@@ -307,7 +308,7 @@ export class EngineV01 implements GameEngine {
       recentEvents: visibleEvents,
       activePrompts: [],
       capabilities,
-      rulesetPanels: [],
+      campaignData: this.state.campaignData,
       lastSeq: this.state.seq,
     };
   }

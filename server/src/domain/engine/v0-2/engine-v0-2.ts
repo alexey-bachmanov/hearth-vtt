@@ -131,6 +131,9 @@ export class EngineV02 implements GameEngine {
       rollDice: (formula: string, actionId: ActionId): RollDiceResult =>
         evaluate(formula, actionId),
       getCustomData: (key: string) => this.state.customData.get(key),
+      setCampaignData: (key: string, value: unknown) => {
+        this.state.campaignData[key] = value;
+      },
     });
   }
 
@@ -168,6 +171,7 @@ export class EngineV02 implements GameEngine {
       actors,
       workflows: new Map(),
       customData: new Map(),
+      campaignData: {},
       seats,
       recentEvents: [],
       closed: false,
@@ -266,7 +270,7 @@ export class EngineV02 implements GameEngine {
         recentEvents: [],
         activePrompts: [],
         capabilities: { globalActions: [], entityActions: {} },
-        rulesetPanels: [],
+        campaignData: this.state.campaignData,
         lastSeq: this.state.seq,
       };
     }
@@ -307,7 +311,7 @@ export class EngineV02 implements GameEngine {
       recentEvents: visibleEvents,
       activePrompts: [],
       capabilities,
-      rulesetPanels: [],
+      campaignData: this.state.campaignData,
       lastSeq: this.state.seq,
     };
   }

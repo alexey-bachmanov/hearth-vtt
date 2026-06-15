@@ -17,6 +17,7 @@ import type {
   Token,
   TokenId,
   WorkflowId,
+  PanelDef,
 } from '@hearth-vtt/shared';
 
 /**
@@ -132,6 +133,8 @@ export interface ResolverApi {
   ): Token[];
   rollDice(formula: string, actionId: ActionId): RollDiceResult;
   getCustomData(key: string): unknown;
+  /** Set a key in campaign-level data. Engine diffs before/after and emits campaignData.updated. */
+  setCampaignData(key: string, value: unknown): void;
 }
 
 /** Resolver for one action type. */
@@ -152,4 +155,22 @@ export interface RulesetManifest {
   version: string;
   actions: Record<string, ActionBinding>;
   mergers?: Record<string, Merger>;
+  /** Declarative panel definitions contributed by this ruleset. */
+  panels?: PanelDef[];
+  /**
+   * Optional hook: recompute derived fields for actors whose data was modified.
+   * Called after all resolver intents are processed, before events are broadcast.
+   * Engine shallow-merges returned patches into actor.data.
+   *
+   * Convention: store derived values under `actor.data.derived.*` for namespacing
+   * and future JSON Patch compatibility.
+   *
+   * @param touchedActorIds - IDs of actors whose data was modified by the dispatch
+   * @param api - Read-only ResolverApi for data access
+   * @returns A map of actorId → { key: value } patches to shallow-merge into actor.data
+   */
+  recomputeActorData?: (
+    touchedActorIds: string[],
+    api: ResolverApi,
+  ) => Record<string, Record<string, unknown>>;
 }

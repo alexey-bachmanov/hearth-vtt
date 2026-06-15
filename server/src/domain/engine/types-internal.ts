@@ -42,6 +42,8 @@ export interface CampaignState {
   workflows: Map<WorkflowId, Workflow>;
   /** Ruleset-scoped custom data key-value store. */
   customData: Map<string, unknown>;
+  /** Campaign-level opaque data blob (initiative order, party resources, etc.). */
+  campaignData: Record<string, unknown>;
   /** Seat rows cached from storage. */
   seats: Map<string, Seat>;
   /** Rolling window of recent GameEvents (up to RECENT_EVENTS_LIMIT). */

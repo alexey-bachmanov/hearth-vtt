@@ -226,6 +226,7 @@ export class PlaceholderEngine implements GameEngine {
       actors,
       workflows: new Map(),
       customData: new Map(),
+      campaignData: {},
       seats,
       recentEvents: [],
       closed: false,
@@ -403,7 +404,7 @@ export class PlaceholderEngine implements GameEngine {
         recentEvents: [],
         activePrompts: [],
         capabilities: { globalActions: [], entityActions: {} },
-        rulesetPanels: [],
+        campaignData: this.state.campaignData,
         lastSeq: this.state.seq,
       };
     }
@@ -447,7 +448,7 @@ export class PlaceholderEngine implements GameEngine {
       recentEvents: visibleEvents,
       activePrompts: [],
       capabilities,
-      rulesetPanels: [],
+      campaignData: this.state.campaignData,
       lastSeq: this.state.seq,
     };
   }
