@@ -47,6 +47,7 @@ import type {
 import { processIntent, mergeIntents } from './intent-processor.js';
 import { baselineActions } from './baseline-resolvers.js';
 import type { CampaignState, BaseEventData } from '../types-internal.js';
+import type { ProcessedIntent } from './intent-processor.js';
 
 const RECENT_EVENTS_LIMIT = 50;
 
@@ -109,11 +110,13 @@ export class EngineV02 implements GameEngine {
 
   private readonly resolvers = new Map<string, Resolver[]>();
   private readonly mergers = new Map<string, Merger>();
+  private readonly ruleset: RulesetManifest | null;
   private readonly resolverApi: ResolverApi;
 
-  private constructor(state: CampaignState, storage: Storage) {
+  private constructor(state: CampaignState, storage: Storage, ruleset?: RulesetManifest) {
     this.state = state;
     this.storage = storage;
+    this.ruleset = ruleset ?? null;
     this.resolverApi = Object.freeze({
       getActor: (actorId: ActorId) => this.state.actors.get(actorId),
       getToken: (tokenId: TokenId) => this.state.tokens.get(tokenId),
@@ -177,7 +180,7 @@ export class EngineV02 implements GameEngine {
       closed: false,
     };
 
-    const engine = new EngineV02(state, storage);
+    const engine = new EngineV02(state, storage, rulesets[0]);
     engine.registerRulesets(rulesets);
     const storedEvents = await storage.getEvents(campaignId, {
       afterSeq: snapshot?.seq ?? 0,
@@ -380,13 +383,20 @@ export class EngineV02 implements GameEngine {
 
     // 3. Process each intent: state mutation + stored event + wire event
     let lastSeq = this.state.seq;
+    const touchedActorIds: string[] = [];
+    const beforeCampaignData = { ...this.state.campaignData };
 
     for (const intent of mergedIntents) {
-      const processed = processIntent(
+      const processed: ProcessedIntent = processIntent(
         intent,
         this.state,
         this.state.campaignId,
       );
+
+      // Collect touched actor IDs
+      if (processed.touchedActorIds) {
+        touchedActorIds.push(...processed.touchedActorIds);
+      }
 
       // Execute state mutation
       processed.stateMutation();
@@ -402,6 +412,75 @@ export class EngineV02 implements GameEngine {
       const gameEvent = this.applyEvent(stored);
       if (gameEvent) {
         this.broadcastEvent(gameEvent as GameEvent<BaseEventData>);
+      }
+    }
+
+    // 4. Diff campaignData and emit campaignData.updated if changed
+    const afterCampaignData = this.state.campaignData;
+    const campaignChanges: Record<string, unknown> = {};
+    let hasCampaignChanges = false;
+    for (const [key, value] of Object.entries(afterCampaignData)) {
+      if (beforeCampaignData[key] !== value) {
+        campaignChanges[key] = value;
+        hasCampaignChanges = true;
+      }
+    }
+    for (const key of Object.keys(beforeCampaignData)) {
+      if (!(key in afterCampaignData)) {
+        campaignChanges[key] = null;
+        hasCampaignChanges = true;
+      }
+    }
+    if (hasCampaignChanges) {
+      const stored = await this.storage.appendEvent(
+        this.state.campaignId,
+        {
+          campaignId: this.state.campaignId,
+          entityId: null,
+          type: 'campaignData.updated',
+          data: { changes: campaignChanges },
+        },
+      );
+      lastSeq = stored.seq;
+      const gameEvent = this.applyEvent(stored);
+      if (gameEvent) {
+        this.broadcastEvent(gameEvent as GameEvent<BaseEventData>);
+      }
+    }
+
+    // 5. Run derived field hook if actors were modified
+    if (touchedActorIds.length > 0 && this.ruleset?.recomputeActorData) {
+      try {
+        const patches = this.ruleset.recomputeActorData(
+          touchedActorIds,
+          this.resolverApi,
+        );
+        for (const [actorId, dataPatches] of Object.entries(patches)) {
+          const actor = this.state.actors.get(actorId);
+          if (!actor) continue;
+          const updatedActor = {
+            ...actor,
+            data: { ...actor.data, ...dataPatches },
+          };
+          this.state.actors.set(actorId, updatedActor);
+
+          const stored = await this.storage.appendEvent(
+            this.state.campaignId,
+            {
+              campaignId: this.state.campaignId,
+              entityId: actorId,
+              type: 'actor.dataReplaced',
+              data: { actorId, data: updatedActor.data },
+            },
+          );
+          lastSeq = stored.seq;
+          const gameEvent = this.applyEvent(stored);
+          if (gameEvent) {
+            this.broadcastEvent(gameEvent as GameEvent<BaseEventData>);
+          }
+        }
+      } catch (err) {
+        return { accepted: false, reason: `Derived field hook error: ${String(err)}` };
       }
     }
 

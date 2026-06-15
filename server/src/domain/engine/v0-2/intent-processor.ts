@@ -26,6 +26,8 @@ export interface ProcessedIntent {
   storedEvent: Omit<StorageEvent, 'id' | 'seq' | 'timestamp'>;
   wireEventType: string;
   wireEventData: Record<string, unknown>;
+  /** IDs of actors whose data was modified by this intent (for derived field hook). */
+  touchedActorIds?: string[];
 }
 
 /**
@@ -374,6 +376,7 @@ export function processIntent(
         },
         wireEventType: 'actor.dataReplaced',
         wireEventData: { actorId, data },
+        touchedActorIds: [actorId],
       };
     }
 
