@@ -107,9 +107,18 @@ const serverErrorSchema = z.object({
 });
 
 /**
+ * Ruleset panel definitions, sent once after welcome and cached by the client.
+ */
+const panelDefsSchema = z.object({
+  type: z.literal('panel.defs'),
+  panels: z.array(z.unknown()),
+});
+
+/**
  * Discriminated union of all messages the server may send to the client.
  */
 export const serverMessageSchema = z.discriminatedUnion('type', [
+  panelDefsSchema,
   welcomeSchema,
   viewMessageSchema,
   eventMessageSchema,
@@ -161,6 +170,13 @@ const pingSchema = z.object({
 });
 
 /**
+ * Request panel definitions (for reconnect or ruleset reload).
+ */
+const panelDefsRequestSchema = z.object({
+  type: z.literal('panel.defs.request'),
+});
+
+/**
  * Discriminated union of all messages the client may send to the server.
  */
 export const clientMessageSchema = z.discriminatedUnion('type', [
@@ -168,6 +184,7 @@ export const clientMessageSchema = z.discriminatedUnion('type', [
   viewRequestMessageSchema,
   resumeSchema,
   pingSchema,
+  panelDefsRequestSchema,
 ]);
 
 export type ClientMessage = z.infer<typeof clientMessageSchema>;

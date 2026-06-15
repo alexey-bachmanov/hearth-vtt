@@ -201,6 +201,25 @@ export async function wsRoutes(
     };
     socket.send(JSON.stringify(welcome));
 
+    // ── Send panel definitions ────────────────────────────────────────────
+    //
+    // Sent once on connect, then cached by the client until ruleset.changed.
+    // Not included in SeatView to keep resync messages lean.
+
+    const panelDefsMsg: ServerMessage = {
+      type: 'panel.defs',
+      panels: [], // TODO: populate from ruleset manifest in Step 6
+    };
+    socket.send(JSON.stringify(panelDefsMsg));
+
+    // ── Send initial view ─────────────────────────────────────────────────
+
+    {
+      const view = engine.getView(connection.seatId);
+      const msg: ViewMessage = { type: 'view', view };
+      socket.send(JSON.stringify(msg));
+    }
+
     // ── Per-connection clientRequestId dedup ──────────────────────────────
     //
     // Scoped to this WS connection; not durable across reconnects.
@@ -246,6 +265,15 @@ export async function wsRoutes(
       if (message.type === 'ping') {
         const pong: ServerMessage = { type: 'pong' };
         socket.send(JSON.stringify(pong));
+        return;
+      }
+
+      if (message.type === 'panel.defs.request') {
+        const panelDefsMsg: ServerMessage = {
+          type: 'panel.defs',
+          panels: [], // TODO: populate from ruleset manifest in Step 6
+        };
+        socket.send(JSON.stringify(panelDefsMsg));
         return;
       }
 
