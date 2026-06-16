@@ -1,9 +1,19 @@
 /**
- * EngineV01 — throwaway resolver-driven engine skeleton for Phase 6.
+ * EngineCore — throwaway resolver-driven engine skeleton.
  *
- * This parallels PlaceholderEngine without changing wired routes or WS code.
- * It owns campaign state, event replay, resolver dispatch, and workflow state,
- * but leaves baseline action registration and ruleset loading to later phases.
+ * This is a non-optimized, non-feature-complete engine implementation intended to
+ * serve as a testbed for core engine architecture and as a reference for future
+ * production implementations. It preserves the PlaceholderEngine's lifecycle,
+ * replay, and audience behavior while moving action handling behind resolver
+ * contracts. It is not intended to be a long-term engine solution.
+ *
+ * Implemented features:
+ * - EngineCore class implementing GameEngine interface.
+ * - Campaign state management with in-memory data structures.
+ * - Action dispatch with resolver and merger support.
+ * - Audience filtering for event emission.
+ *
+ * @version 0.2
  */
 
 import { createHash } from 'node:crypto';
@@ -92,12 +102,12 @@ function deriveActionId(
 }
 
 /**
- * EngineV02 is the throwaway engine/ruleset prototype for Phase 6.
+ * EngineCore is the throwaway engine/ruleset prototype for Phase 6.
  *
  * It preserves the placeholder engine's lifecycle, replay, and audience
  * behavior while moving action handling behind resolver contracts.
  */
-export class EngineV02 implements GameEngine {
+export class EngineCore implements GameEngine {
   private readonly storage: Storage;
   private state: CampaignState;
 
@@ -145,7 +155,7 @@ export class EngineV02 implements GameEngine {
     campaignId: string,
     storage: Storage,
     rulesets: RulesetManifest[] = [],
-  ): Promise<EngineV02> {
+  ): Promise<EngineCore> {
     const snapshot = await storage.getLatestSnapshot(campaignId);
 
     let activeSceneId: string | null = null;
@@ -181,7 +191,7 @@ export class EngineV02 implements GameEngine {
       closed: false,
     };
 
-    const engine = new EngineV02(state, storage, rulesets[0]);
+    const engine = new EngineCore(state, storage, rulesets[0]);
     engine.registerRulesets(rulesets);
     const storedEvents = await storage.getEvents(campaignId, {
       afterSeq: snapshot?.seq ?? 0,

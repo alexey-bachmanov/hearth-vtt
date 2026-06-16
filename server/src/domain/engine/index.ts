@@ -36,9 +36,6 @@ export interface GameEngine {
   close(): Promise<void>;
 }
 
-// PlaceholderEngine is the only concrete implementation for Phase 2.5.
-export { PlaceholderEngine } from './placeholder.js';
-
 // CampaignManager owns the lifecycle of one GameEngine per active campaign.
 export { CampaignManager } from './campaign-manager.js';
 

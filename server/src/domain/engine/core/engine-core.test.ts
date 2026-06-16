@@ -1,7 +1,7 @@
 /**
- * EngineV02 tests — Phase 6F (throwaway v0.1).
+ * EngineCore tests — Phase 6F (throwaway v0.1).
  *
- * Tests the public surface of EngineV02 in isolation: dispatch, composition,
+ * Tests the public surface of EngineCore in isolation: dispatch, composition,
  * merger collision, unknown actions, and workflow state.
  *
  * Uses InMemoryBackend (same pattern as placeholder.test.ts) so no SQLite
@@ -10,7 +10,7 @@
 
 import { describe, it, expect, beforeEach } from 'vitest';
 import { Storage, InMemoryBackend } from '../../../storage/index.js';
-import { EngineV02 } from './engine-v0-2.js';
+import { EngineCore } from './engine-core.js';
 import { ruleset as dndRuleset } from './ruleset-dnd.js';
 import type { RulesetManifest } from './types.js';
 import type { WireEvent } from '../index.js';
@@ -100,7 +100,7 @@ function nextTick(): Promise<void> {
 
 /** Collect WireEvents broadcast to a seat until unsubscribed. */
 function collectEvents(
-  engine: EngineV02,
+  engine: EngineCore,
   seatId: string,
 ): { events: WireEvent[]; unsubscribe: () => void } {
   const events: WireEvent[] = [];
@@ -112,7 +112,7 @@ function collectEvents(
 
 // ─── Tests ───────────────────────────────────────────────────────────────────
 
-describe('EngineV02', () => {
+describe('EngineCore', () => {
   let world: TestWorld;
 
   beforeEach(async () => {
@@ -122,7 +122,7 @@ describe('EngineV02', () => {
   // ── 1: Baseline dispatch (no ruleset) ──────────────────────────────────────
 
   it('baseline token.move is accepted and broadcasts a token.moved event', async () => {
-    const engine = await EngineV02.open(world.campaignId, world.storage);
+    const engine = await EngineCore.open(world.campaignId, world.storage);
     const { events, unsubscribe } = collectEvents(engine, world.gmSeatId);
 
     const result = await engine.dispatch({
@@ -151,7 +151,7 @@ describe('EngineV02', () => {
   });
 
   it('baseline token.move applies the position patch to state', async () => {
-    const engine = await EngineV02.open(world.campaignId, world.storage);
+    const engine = await EngineCore.open(world.campaignId, world.storage);
 
     await engine.dispatch({
       campaignId: world.campaignId,
@@ -170,7 +170,7 @@ describe('EngineV02', () => {
   // ── 2: D&D composition — token.move produces both position patch and chat ──
 
   it('with dnd-5.5-srd ruleset, token.move emits position event and D&D chat event via merger', async () => {
-    const engine = await EngineV02.open(world.campaignId, world.storage, [
+    const engine = await EngineCore.open(world.campaignId, world.storage, [
       dndRuleset,
     ]);
     const { events, unsubscribe } = collectEvents(engine, world.gmSeatId);
@@ -216,7 +216,7 @@ describe('EngineV02', () => {
     };
 
     await expect(
-      EngineV02.open(world.campaignId, world.storage, [
+      EngineCore.open(world.campaignId, world.storage, [
         dndRuleset,
         secondRuleset,
       ]),
@@ -226,7 +226,7 @@ describe('EngineV02', () => {
   // ── 4: Unknown actionType → accepted: false ────────────────────────────────
 
   it('returns accepted: false for an unknown actionType', async () => {
-    const engine = await EngineV02.open(world.campaignId, world.storage);
+    const engine = await EngineCore.open(world.campaignId, world.storage);
 
     const result = await engine.dispatch({
       campaignId: world.campaignId,
@@ -268,7 +268,7 @@ describe('EngineV02', () => {
       },
     };
 
-    const engine = await EngineV02.open(world.campaignId, world.storage, [
+    const engine = await EngineCore.open(world.campaignId, world.storage, [
       workflowRuleset,
     ]);
 
@@ -299,7 +299,7 @@ describe('EngineV02', () => {
   // ── 6: Token/Actor CRUD ─────────────────────────────────────────────────
 
   it('token.create as GM creates token and emits token.created event', async () => {
-    const engine = await EngineV02.open(world.campaignId, world.storage);
+    const engine = await EngineCore.open(world.campaignId, world.storage);
     const { events, unsubscribe } = collectEvents(engine, world.gmSeatId);
 
     const NEW_TOKEN_ID = 'token-new-crud-001';
@@ -337,7 +337,7 @@ describe('EngineV02', () => {
   });
 
   it('token.create as non-GM returns { accepted: false }', async () => {
-    const engine = await EngineV02.open(world.campaignId, world.storage);
+    const engine = await EngineCore.open(world.campaignId, world.storage);
 
     const result = await engine.dispatch({
       campaignId: world.campaignId,
@@ -355,7 +355,7 @@ describe('EngineV02', () => {
   });
 
   it('token.create with duplicate tokenId throws from resolver', async () => {
-    const engine = await EngineV02.open(world.campaignId, world.storage);
+    const engine = await EngineCore.open(world.campaignId, world.storage);
 
     const result = await engine.dispatch({
       campaignId: world.campaignId,
@@ -376,7 +376,7 @@ describe('EngineV02', () => {
   });
 
   it('actor.create as GM creates actor and emits actor.created event', async () => {
-    const engine = await EngineV02.open(world.campaignId, world.storage);
+    const engine = await EngineCore.open(world.campaignId, world.storage);
     const { events, unsubscribe } = collectEvents(engine, world.gmSeatId);
 
     const NEW_ACTOR_ID = 'actor-new-crud-001';
@@ -412,7 +412,7 @@ describe('EngineV02', () => {
   });
 
   it('token.delete as GM removes token and emits token.deleted event', async () => {
-    const engine = await EngineV02.open(world.campaignId, world.storage);
+    const engine = await EngineCore.open(world.campaignId, world.storage);
     const { events, unsubscribe } = collectEvents(engine, world.gmSeatId);
 
     const result = await engine.dispatch({
@@ -442,7 +442,7 @@ describe('EngineV02', () => {
   });
 
   it('token.linkToActor as GM updates token actorId and emits token.linked event', async () => {
-    const engine = await EngineV02.open(world.campaignId, world.storage);
+    const engine = await EngineCore.open(world.campaignId, world.storage);
     const { events, unsubscribe } = collectEvents(engine, world.gmSeatId);
 
     const NEW_ACTOR_ID = 'actor-link-target';
@@ -477,7 +477,7 @@ describe('EngineV02', () => {
     expect(linkEvent).toBeDefined();
 
     // Verify by re-creating engine — token persists in snapshot
-    const engine2 = await EngineV02.open(world.campaignId, world.storage);
+    const engine2 = await EngineCore.open(world.campaignId, world.storage);
     const view = engine2.getView(world.gmSeatId);
     const foundToken = view.tokens.find((t) => t.id === HERO_TOKEN_ID);
     expect(foundToken).toBeDefined();
@@ -485,7 +485,7 @@ describe('EngineV02', () => {
   });
 
   it('actor.linkSeat as GM updates actor seatPermissions and emits actor.seatLinked event', async () => {
-    const engine = await EngineV02.open(world.campaignId, world.storage);
+    const engine = await EngineCore.open(world.campaignId, world.storage);
     const { events, unsubscribe } = collectEvents(engine, world.gmSeatId);
 
     const result = await engine.dispatch({

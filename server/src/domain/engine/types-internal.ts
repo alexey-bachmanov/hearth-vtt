@@ -18,7 +18,7 @@ import type {
   WorkflowId,
 } from '@hearth-vtt/shared';
 import type { Seat } from '../../storage/index.js';
-import type { Workflow } from './v0-1/types.js';
+import type { Workflow } from './core/types.js';
 
 /**
  * Engine-internal campaign state — canonical shape.
