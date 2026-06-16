@@ -11,7 +11,7 @@
    * injections).
    */
 
-  import type { PanelNode, PanelDef } from '@hearth-vtt/shared';
+  import type { PanelNode } from '@hearth-vtt/shared';
   import type { BindingContext } from './bindings';
 
   import TextElement from './elements/TextElement.svelte';

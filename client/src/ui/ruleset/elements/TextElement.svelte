@@ -21,7 +21,7 @@
   {displayValue}
 </span>
 
-<script context="module" lang="ts">
+<script module lang="ts">
 function formatValue(value: unknown, format?: string): string {
   if (format === 'plusMinus') {
     if (typeof value !== 'number') return String(value ?? '');

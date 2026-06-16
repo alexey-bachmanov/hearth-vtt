@@ -80,7 +80,7 @@
     style:left="{dropdownLeft}px"
   >
     <!-- Ruleset-defined actor-pill panels -->
-    {#each campaignState.rulesetPanels.filter(p => p.slot === 'actor-pill') as panel}
+    {#each campaignState.rulesetPanels.filter(p => p.slot === 'actor-pill') as panel (panel.id)}
       <PanelRenderer node={panel.content} ctx={{ scope: { actorId: actor.id } }} />
     {/each}
 

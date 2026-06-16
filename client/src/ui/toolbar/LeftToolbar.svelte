@@ -13,7 +13,6 @@
 
 import { uiState, type ToolDrawerId } from '../../state/ui.svelte';
 import { Icon, Tooltip } from '../shared';
-import type { Component } from 'svelte';
 import {
   Dice6,
   Pencil,
@@ -31,10 +30,12 @@ import {
 } from 'lucide-svelte';
 import { campaignState } from '../../state/campaign.svelte';
 
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+type IconComponent = new (...args: any[]) => any;
+
 interface ToolConfig {
   id: ToolDrawerId;
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  icon: Component<any>;
+  icon: IconComponent;
   label: string;
   gmOnly?: boolean;
 }

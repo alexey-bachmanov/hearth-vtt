@@ -237,7 +237,6 @@ export class WebSocketClient {
         break;
 
       case 'pong':
-        console.log('[WebSocketClient] Pong received');
         break;
 
       case 'error':
