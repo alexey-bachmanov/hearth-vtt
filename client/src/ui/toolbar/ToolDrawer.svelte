@@ -28,7 +28,6 @@ import SettingsDrawer from './drawers/SettingsDrawer.svelte';
 import LightingDrawer from './drawers/LightingDrawer.svelte';
 import ObstructionDrawer from './drawers/ObstructionDrawer.svelte';
 import SceneDrawer from './drawers/SceneDrawer.svelte';
-import CampaignPrepDrawer from './drawers/CampaignPrepDrawer.svelte';
 import TokenLibraryDrawer from './drawers/TokenLibraryDrawer.svelte';
 import GameSettingsDrawer from './drawers/GameSettingsDrawer.svelte';
 import { campaignState } from '../../state/campaign.svelte';
@@ -50,7 +49,6 @@ const drawerConfig: Record<
   lighting: { title: 'Lighting Tools', component: LightingDrawer },
   obstruction: { title: 'Walls & Obstructions', component: ObstructionDrawer },
   scene: { title: 'Scene Browser', component: SceneDrawer },
-  'campaign-prep': { title: 'Campaign Prep', component: CampaignPrepDrawer },
   'token-library': { title: 'Token Library', component: TokenLibraryDrawer },
   'game-settings': { title: 'Game Settings', component: GameSettingsDrawer },
 };

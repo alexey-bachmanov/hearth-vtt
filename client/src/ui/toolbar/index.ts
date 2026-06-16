@@ -18,6 +18,5 @@ export { default as SettingsDrawer } from './drawers/SettingsDrawer.svelte';
 export { default as LightingDrawer } from './drawers/LightingDrawer.svelte';
 export { default as ObstructionDrawer } from './drawers/ObstructionDrawer.svelte';
 export { default as SceneDrawer } from './drawers/SceneDrawer.svelte';
-export { default as CampaignPrepDrawer } from './drawers/CampaignPrepDrawer.svelte';
 export { default as TokenLibraryDrawer } from './drawers/TokenLibraryDrawer.svelte';
 export { default as GameSettingsDrawer } from './drawers/GameSettingsDrawer.svelte';

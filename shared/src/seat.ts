@@ -2,7 +2,6 @@
  * Seat role type and schema.
  *
  * Canonical definition used by both server and client.
- * Null/absent role is expressed at call sites as `SeatRole | null`.
  */
 
 import { z } from 'zod';
@@ -16,6 +15,6 @@ export const seatRoleSchema = z.enum(['gm', 'player', 'spectator']);
  * - player: Player with limited permissions
  * - spectator: Observer with read-only access
  *
- * Use `SeatRole | null` at call sites where no seat is assigned.
+ * Null indicates no role assigned (e.g. not connected or connection lost).
  */
-export type SeatRole = z.infer<typeof seatRoleSchema>;
+export type SeatRole = z.infer<typeof seatRoleSchema> | null;

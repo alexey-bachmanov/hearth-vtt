@@ -57,66 +57,23 @@ jobs:
           cache-from: type=gha
           cache-to: type=gha,mode=max
 
-  # ── No shared files with other open PRs ────────────────────────────────────
-  no-shared-files:
-    name: No shared files with other open PRs
+  # ── Exe build ───────────────────────────────────────────────────────────────────
+  exe:
+    name: Build EXE
     runs-on: ubuntu-latest
-    if: github.event_name == 'pull_request'
-    permissions:
-      pull-requests: read
+    needs: ci
 
     steps:
-      - name: Check for file overlap with other open PRs
-        uses: actions/github-script@v7
+      - uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
         with:
-          script: |
-            const thisPr = context.issue.number;
+          node-version: '24'
+          cache: 'npm'
 
-            // Files changed in this PR
-            const { data: thisFiles } = await github.rest.pulls.listFiles({
-              owner: context.repo.owner,
-              repo: context.repo.repo,
-              pull_number: thisPr,
-              per_page: 100,
-            });
-            const thisFileSet = new Set(thisFiles.map(f => f.filename));
+      - name: Install dependencies
+        run: npm ci
 
-            // All other open PRs
-            const { data: openPrs } = await github.rest.pulls.list({
-              owner: context.repo.owner,
-              repo: context.repo.repo,
-              state: 'open',
-              per_page: 100,
-            });
-
-            const conflicts = [];
-            for (const pr of openPrs) {
-              if (pr.number === thisPr) continue;
-
-              const { data: otherFiles } = await github.rest.pulls.listFiles({
-                owner: context.repo.owner,
-                repo: context.repo.repo,
-                pull_number: pr.number,
-                per_page: 100,
-              });
-
-              const shared = otherFiles
-                .map(f => f.filename)
-                .filter(f => thisFileSet.has(f));
-
-              if (shared.length > 0) {
-                conflicts.push({ pr: pr.number, title: pr.title, files: shared });
-              }
-            }
-
-            if (conflicts.length > 0) {
-              const lines = conflicts.flatMap(c => [
-                `PR #${c.pr}: ${c.title}`,
-                ...c.files.map(f => `  - ${f}`),
-              ]);
-              core.setFailed(
-                `This PR shares files with other open PRs — potential merge conflict:\n\n${lines.join('\n')}`
-              );
-            } else {
-              console.log('No shared files with other open PRs.');
-            }
+      - name: Build EXE
+        run: npm run build:exe

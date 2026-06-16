@@ -25,7 +25,7 @@ class ConnectionState {
   serverVersion = $state<string | null>(null);
   protocolVersion = $state<string | null>(null);
   seatId = $state<string | null>(null);
-  seatRole = $state<SeatRole | null>(null);
+  seatRole = $state<SeatRole>(null);
   campaignId = $state<string | null>(null);
   reconnectAttempts = $state<number>(0);
 
@@ -45,7 +45,7 @@ class ConnectionState {
   handleWelcome(data: {
     version?: string;
     seatId?: string;
-    seatRole?: SeatRole | null;
+    seatRole?: SeatRole;
     campaignId?: string;
   }) {
     this.serverVersion = data.version || null;

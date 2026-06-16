@@ -64,7 +64,7 @@ async function resolveAuthSession(
   );
   if (!seat) return null;
 
-  return { campaignId, seatId: seat.id, seatRole: seat.role };
+  return { campaignId, seatId: seat.id, seatRole: seat.role! };
 }
 
 // ── Origin validation ─────────────────────────────────────────────────────────

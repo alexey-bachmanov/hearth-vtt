@@ -58,7 +58,6 @@ export type ToolDrawerId =
   | 'lighting'
   | 'obstruction'
   | 'scene'
-  | 'campaign-prep'
   | 'token-library'
   | 'game-settings'
   | (string & {});

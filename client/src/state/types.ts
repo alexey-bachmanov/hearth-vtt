@@ -7,7 +7,7 @@
 
 /**
  * Seat role for permission gating. Canonical definition lives in @hearth-vtt/shared.
- * Use `SeatRole | null` where no seat is assigned (e.g. before login).
+ * Null indicates no seat is assigned (e.g. before login).
  */
 export type { SeatRole } from '@hearth-vtt/shared';
 

@@ -88,7 +88,7 @@ export async function seatRoutes(
       const seat = await storage.createSeat({
         campaignId: request.params.id,
         displayName: displayName.trim(),
-        role,
+        role: role!,
       });
 
       reply.code(201);
