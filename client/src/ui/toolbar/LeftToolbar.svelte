@@ -24,7 +24,6 @@ import {
   Lightbulb,
   Box,
   Map,
-  Scroll,
   Users,
   Cog,
 } from 'lucide-svelte';
@@ -45,8 +44,9 @@ const quickTools: ToolConfig[] = [
   { id: 'dice', icon: Dice6, label: 'Dice Roller' },
   { id: 'annotation', icon: Pencil, label: 'Annotations' },
   { id: 'measurement', icon: Ruler, label: 'Measurement' },
-  { id: 'jukebox', icon: Music, label: 'Jukebox' },
 ];
+
+const rulesetPanels = campaignState.rulesetPanels.filter(p => p.slot === 'toolbar');
 
 // Big tools section
 const bigTools: ToolConfig[] = [
@@ -57,10 +57,10 @@ const bigTools: ToolConfig[] = [
 
 // GM-only tools section
 const gmTools: ToolConfig[] = [
+  { id: 'jukebox', icon: Music, label: 'Jukebox', gmOnly: true },
   { id: 'lighting', icon: Lightbulb, label: 'Lighting Tools', gmOnly: true },
   { id: 'obstruction', icon: Box, label: 'Walls & Obstructions', gmOnly: true },
   { id: 'scene', icon: Map, label: 'Scene Browser', gmOnly: true },
-  { id: 'campaign-prep', icon: Scroll, label: 'Campaign Prep', gmOnly: true },
   { id: 'token-library', icon: Users, label: 'Token Library', gmOnly: true },
   { id: 'game-settings', icon: Cog, label: 'Game Settings', gmOnly: true },
 ];
@@ -92,10 +92,12 @@ function isActive(toolId: ToolDrawerId): boolean {
     {/each}
   </div>
 
-  <div class="toolbar-divider"></div>
+  {#if rulesetPanels.length > 0}
+    <div class="toolbar-divider"></div>
+  {/if}
 
   <!-- Ruleset Panels Section -->
-  {#each campaignState.rulesetPanels.filter(p => p.slot === 'toolbar') as panel (panel.id)}
+  {#each rulesetPanels as panel (panel.id)}
     <Tooltip text={panel.title} position="right">
       <button
         class="toolbar-icon-btn"
